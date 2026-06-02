@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     environment: str = "development"
 
+    openrouter_api_key: str = ""
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    default_model: str = "google/gemma-4-31b-it"
+    default_provider: str = "openrouter"
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 
