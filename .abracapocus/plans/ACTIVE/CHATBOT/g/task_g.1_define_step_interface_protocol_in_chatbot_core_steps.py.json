@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "task_id": "g.1",
+  "phase": "G",
+  "phase_id": "g",
+  "title": "Define step interface protocol in chatbot/core/steps.py",
+  "description": "Create chatbot/core/steps.py defining the TurnStep abstract base class and TurnContext dataclass that form the minimal, inspectable step interface for the chat turn pipeline.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/core/__init__.py and chatbot/core/steps.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create chatbot/core/steps.py with:\n   - A `TurnContext` dataclass that carries: session_id (str), user_message (str), history (list[dict]), persona (dict[str, Any]), retrieved_memories (list[dict]), compiled_context (str | None), provider_response (str | None), extracted_memories (list[dict]), final_response (str | None), metadata (dict[str, Any] with default_factory=dict).\n   - An abstract `TurnStep` class using abc.ABC with a single async method `async def run(self, ctx: TurnContext) -> TurnContext` that each step implements.\n   - A `StepResult` dataclass with step_name (str), duration_ms (float), success (bool), error (str | None = None).\n   - Module docstring: 'Minimal turn pipeline step interface for the chatbot engine.'\n\n2. Create chatbot/core/__init__.py that exports TurnContext, TurnStep, and StepResult.\n\n3. Ensure python -m py_compile chatbot/core/steps.py and chatbot/core/__init__.py both pass.",
+  "acceptance_criteria": [
+    "chatbot/core/steps.py exists and defines TurnContext, TurnStep, and StepResult",
+    "chatbot/core/__init__.py exports TurnContext, TurnStep, and StepResult",
+    "python -m py_compile chatbot/core/steps.py passes",
+    "python -m py_compile chatbot/core/__init__.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/core/__init__.py",
+    "chatbot/core/steps.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/core/",
+    "add new third-party dependencies",
+    "introduce framework abstractions like LangGraph, LangChain, Letta, or Zep",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "TurnContext",
+    "TurnStep",
+    "StepResult"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add fields to TurnContext for pipeline data flow",
+      "use abc.ABC for abstract base class"
+    ],
+    "forbidden": [
+      "introduce orchestration framework dependency",
+      "add step lifecycle beyond run(ctx)",
+      "add branching, tool-calling, or routing to the step interface"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

@@ -1,0 +1,62 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "compile-summarizer",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/consolidation/summarizer.py"
+        ]
+      },
+      {
+        "name": "compile-contradiction",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/consolidation/contradiction.py"
+        ]
+      },
+      {
+        "name": "compile-decay",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/consolidation/decay.py"
+        ]
+      },
+      {
+        "name": "compile-worker",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/consolidation/worker.py"
+        ]
+      },
+      {
+        "name": "compile-init",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/consolidation/__init__.py"
+        ]
+      },
+      {
+        "name": "pytest-consolidation",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "-x",
+          "tests/test_consolidation.py"
+        ]
+      }
+    ]
+  }
+}

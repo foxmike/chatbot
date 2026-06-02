@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "task_id": "c.1",
+  "phase": "C",
+  "phase_id": "c",
+  "title": "Database session factory and engine",
+  "description": "Create chatbot/db/__init__.py and chatbot/db/session.py.\n\nImplement an async SQLAlchemy 2.0 session factory using sqlalchemy.ext.asyncio. The engine must read DATABASE_URL from os.environ (defaulting to postgresql+asyncpg://postgres:postgres@localhost:5432/chatbot). Provide:\n- An async create_async_engine() call scoped at module level\n- An async_sessionmaker factory\n- An async get_db() dependency generator suitable for FastAPI Depends()\n- chatbot/db/__init__.py should re-export get_db and the session factory\n\nUse sqlalchemy 2.0 style \u2014 no db-first patterns.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- This task document (task c.1)\n- Any existing files in allowed_write_paths\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/db/__init__.py exists and imports cleanly",
+    "chatbot/db/session.py exists and imports cleanly",
+    "python -m py_compile chatbot/db/__init__.py passes",
+    "python -m py_compile chatbot/db/session.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/db/__init__.py",
+    "chatbot/db/session.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/db/",
+    "add third-party dependencies beyond sqlalchemy and asyncpg",
+    "create additional modules"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

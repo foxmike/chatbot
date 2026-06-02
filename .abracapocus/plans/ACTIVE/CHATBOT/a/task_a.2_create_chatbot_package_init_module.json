@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "task_id": "a.2",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Create chatbot package init module",
+  "description": "Create chatbot/__init__.py as the top-level package init.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- pyproject.toml (for project name context)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nThe module should expose a __version__ string (set to \"0.1.0\") and nothing else. This is a pure package marker \u2014 no business logic, no imports of other chatbot subpackages, no side effects on import.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/__init__.py exists",
+    "python -m py_compile chatbot/__init__.py passes",
+    "chatbot/__init__.py defines __version__ = '0.1.0'",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/__init__.py"
+  ],
+  "forbidden_changes": [
+    "modify any file other than chatbot/__init__.py",
+    "add imports of other chatbot subpackages",
+    "add business logic or side effects to the module"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 300
+}

@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "task_id": "c.2",
+  "phase": "C",
+  "phase_id": "c",
+  "title": "SQLAlchemy ORM models for core schema",
+  "description": "Create chatbot/db/models.py with SQLAlchemy 2.0 declarative ORM models.\n\nDefine these tables using Mapped[] column annotations and mapped_column():\n- User: id (UUID pk, default uuid4), external_id (str, unique, indexed), display_name (str), created_at (UTC datetime), updated_at (UTC datetime)\n- Session: id (UUID pk), user_id (FK\u2192User.id), title (str, nullable), is_active (bool), created_at, updated_at\n- Message: id (UUID pk), session_id (FK\u2192Session.id), role (str \u2014 user/assistant/system/tool), content (text), embedding (pgvector vector(None) \u2014 see note), token_count (int, nullable), created_at\n- Episode: id (UUID pk), session_id (FK\u2192Session.id), title (str), summary (text, nullable), start_message_id (FK\u2192Message.id, nullable), end_message_id (FK\u2192Message.id, nullable), created_at\n- SemanticFact: id (UUID pk), user_id (FK\u2192User.id), fact_text (text), embedding (pgvector vector(None) \u2014 see note), source_message_id (FK\u2192Message.id, nullable), confidence (float, default 1.0), created_at, updated_at\n- Entity: id (UUID pk), name (str, indexed), entity_type (str), metadata_json (JSON, nullable), created_at\n\nAll tables use a declarative Base from sqlalchemy.orm.DeclarativeBase. Use UUID primary keys from the uuid module with server_default=sa.text('gen_random_uuid()'). Use sa.sql.func.now() for created_at defaults. Add relationship() backrefs where appropriate (User.sessions, Session.messages, Session.episodes).\n\nCRITICAL: The embedding column must use pgvector's Vector type. Import from pgvector.sqlalchemy: `from pgvector.sqlalchemy import Vector`. Use `Vector(dimensions=None)` initially so the operator can set the dimension when the embedding provider is chosen (see phase risk notes). The 0001 migration will make the dimension concrete.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- This task document (task c.2)\n- Any existing files in allowed_write_paths\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/db/models.py exists and defines User, Session, Message, Episode, SemanticFact, Entity",
+    "python -m py_compile chatbot/db/models.py passes",
+    "All tables use UUID primary keys",
+    "Message and SemanticFact include a pgvector Vector column named embedding",
+    "An import of all model classes succeeds without errors",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/db/models.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/db/models.py",
+    "add third-party dependencies beyond pgvector",
+    "use non-UUID primary keys"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

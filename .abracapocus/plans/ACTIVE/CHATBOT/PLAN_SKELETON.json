@@ -1,0 +1,139 @@
+{
+  "plan_name": "CHATBOT",
+  "purpose": "Build a modular, production-intended chatbot chatbot engine as a standalone API service. The engine relies on internally-coded memory, personality/soul, and state so that the typical weaknesses and inter-model differences of the underlying LLM are minimized. No orchestration framework owns the core: there is no LangGraph, Letta, or Zep acting as the brain. The turn loop, memory consolidation, context compilation, and identity continuity are all first-party code. Backends are reached through a single OpenAI-compatible Provider interface (covering OpenRouter, local vLLM, and Vast.ai-stood-up instances) plus a Modal ephemeral wrapper for episodic compute. Vectors live in Postgres via pgvector behind a VectorStore interface so a Qdrant swap later touches one adapter. Stack: Python 3.12, FastAPI, Postgres, Redis, Alembic, Docker Compose, uv. Everything is structured so voice, frontend, and visual modules attach later without touching the core.",
+  "async_strategy": "Phases are dependency-ordered and act as synchronous boundaries; the supervisor advances a phase only when all its tasks are accepted. Within a phase, tasks are shaped for safe concurrency: interfaces/base contracts land in wave 1, concrete adapters and endpoints that depend only on those contracts run in parallel in wave 2 on disjoint allowed_write_paths, and fan-in wiring/tests run in a final wave via dependencies. Phase a (foundation) and the schema in phase c gate everything. Phases d (memory core) and e (soul/state) can overlap once phase c lands because they write disjoint paths. Phase g (the turn spine) fans in from b, d, and e.",
+  "cost_estimate": "balanced. Bounded mechanical tasks (scaffolding, adapters, migrations, endpoint wiring, tests) route to cheap_first profiles with narrow allowed_write_paths and explicit acceptance_criteria. The two differentiating subsystems — the context compiler in phase d and the identity/persona logic in phase e — route strong_ok because their quality drives the whole product.",
+  "operator_questions": [
+    "Embedding provider and dimension for v1 (local bge/e5 via the OpenAI-compatible endpoint, or a hosted embedding) — fixes the pgvector column dimension in the 0001 migration.",
+    "Does the soul/state live entirely in Postgres (recommended for single-sourced state), or do you want a file-backed persona layer as well?",
+    "Single-tenant or multi-tenant schema for v1? It changes whether user_id is a hard partition key everywhere now or added later.",
+    "Modal usage pattern: on-demand per-request cold start, or warm-pool keep-alive windows — affects the ephemeral wrapper's lifecycle.",
+    "Streaming transport for /chat: SSE or WebSocket for v1?"
+  ],
+  "phases": [
+    {
+      "phase_id": "phase_a",
+      "goal": "Repository foundation and runnable infrastructure. uv-managed Python 3.12 project, Docker Compose bringing up Postgres+pgvector and Redis, typed config loader, Alembic initialized, and a FastAPI app skeleton exposing a health endpoint that everything else builds on.",
+      "expected_changed_files": [
+        "pyproject.toml",
+        "Dockerfile",
+        "docker-compose.yml",
+        ".env.example",
+        "chatbot/__init__.py",
+        "chatbot/config.py",
+        "chatbot/api/app.py",
+        "chatbot/api/health.py",
+        "alembic.ini",
+        "migrations/env.py"
+      ],
+      "async_notes": "Bootstrap is mostly sequential: pyproject + project package first (wave 1). docker-compose.yml, .env.example, and config.py can run in parallel in wave 2 on disjoint files. The FastAPI app skeleton + health endpoint and the Alembic init form wave 3 and depend on config.",
+      "risk_notes": "Foundation phase; every later phase depends on it. Keep dependencies minimal and approved-only. No business logic here.",
+      "estimated_task_count": 5
+    },
+    {
+      "phase_id": "phase_b",
+      "goal": "Backend provider abstraction. A single Provider interface, an OpenAI-compatible adapter that serves OpenRouter, local vLLM, and Vast.ai-stood-up instances (base_url + key differ, contract identical), a Modal ephemeral wrapper handling cold-start/teardown, and a policy router that picks a provider per request. No first-party orchestration framework.",
+      "expected_changed_files": [
+        "chatbot/providers/__init__.py",
+        "chatbot/providers/base.py",
+        "chatbot/providers/openai_compat.py",
+        "chatbot/providers/modal_ephemeral.py",
+        "chatbot/providers/router.py",
+        "tests/test_providers.py"
+      ],
+      "async_notes": "base.py (the Provider interface) is wave 1. openai_compat.py, modal_ephemeral.py, and router.py run in parallel in wave 2 on disjoint files, each depending only on base.py. tests/test_providers.py is the wave-3 fan-in.",
+      "risk_notes": "Provider interface is a public contract consumed by phase g. Lock its shape early; changing it later ripples. Validate any concrete OpenRouter model strings before execution per the backend/model rules.",
+      "estimated_task_count": 5
+    },
+    {
+      "phase_id": "phase_c",
+      "goal": "Persistence and memory schema. SQLAlchemy models and the 0001 migration for users, sessions, messages, episodes, semantic facts, and entities; the pgvector embedding column; a VectorStore interface with a pgvector adapter; and an EmbeddingProvider interface. This is the single source of truth for state.",
+      "expected_changed_files": [
+        "chatbot/db/__init__.py",
+        "chatbot/db/models.py",
+        "chatbot/db/session.py",
+        "migrations/versions/0001_core_schema.py",
+        "chatbot/memory/__init__.py",
+        "chatbot/memory/vector_store.py",
+        "chatbot/memory/pgvector_store.py",
+        "chatbot/memory/embeddings.py",
+        "tests/test_schema.py"
+      ],
+      "async_notes": "models.py + session.py land first (wave 1), the 0001 migration depends on models (wave 2). vector_store.py (interface) and embeddings.py (interface) run in parallel in wave 1; pgvector_store.py depends on vector_store.py + models. tests are the fan-in.",
+      "risk_notes": "Schema is foundational. Migration must be reversible. Embedding dimension must match the chosen embedding provider (see operator questions) or the pgvector column is wrong.",
+      "estimated_task_count": 6
+    },
+    {
+      "phase_id": "phase_d",
+      "goal": "Memory core — the first differentiator. Working-memory buffer, episodic store, retrieval over the VectorStore with relational filtering, and the context compiler that assembles bounded, ranked context for each turn (not naive top-k).",
+      "expected_changed_files": [
+        "chatbot/memory/working_memory.py",
+        "chatbot/memory/episodic.py",
+        "chatbot/memory/retrieval.py",
+        "chatbot/memory/context_compiler.py",
+        "tests/test_memory_core.py"
+      ],
+      "async_notes": "working_memory.py and episodic.py run in parallel (wave 1, disjoint). retrieval.py depends on the store + episodic (wave 2). context_compiler.py depends on retrieval (wave 3). tests fan in.",
+      "risk_notes": "The context compiler is a core differentiator; route it to a strong profile. Keep retrieval logic first-party and deterministic so behavior is reproducible.",
+      "estimated_task_count": 5
+    },
+    {
+      "phase_id": "phase_e",
+      "goal": "Soul and state engine — the second differentiator. Personality configuration, a durable state model, identity-continuity logic that resists drift across long horizons, and deterministic persona-prompt assembly. Internally coded so the persona does not depend on the underlying model's defaults.",
+      "expected_changed_files": [
+        "chatbot/soul/__init__.py",
+        "chatbot/soul/personality.py",
+        "chatbot/soul/state.py",
+        "chatbot/soul/identity.py",
+        "chatbot/soul/persona_prompt.py",
+        "tests/test_soul.py"
+      ],
+      "async_notes": "personality.py and state.py run in parallel (wave 1, disjoint). identity.py depends on state (wave 2). persona_prompt.py depends on personality + identity (wave 3). May overlap phase d entirely since write paths are disjoint, but phase ordering keeps them as separate verification boundaries.",
+      "risk_notes": "Identity continuity is where chatbots usually fail. Route identity.py and persona_prompt.py strong. Keep state single-sourced in Postgres unless the operator opts into a file-backed layer.",
+      "estimated_task_count": 5
+    },
+    {
+      "phase_id": "phase_f",
+      "goal": "Background consolidation workers. Hierarchical summarization, contradiction resolution, and decay/pruning of stale memory, wired into an idempotent run-scoped worker. This is the autonomous-memory-evolution layer the off-the-shelf engines do not do well.",
+      "expected_changed_files": [
+        "chatbot/consolidation/__init__.py",
+        "chatbot/consolidation/summarizer.py",
+        "chatbot/consolidation/contradiction.py",
+        "chatbot/consolidation/decay.py",
+        "chatbot/consolidation/worker.py",
+        "tests/test_consolidation.py"
+      ],
+      "async_notes": "summarizer.py, contradiction.py, and decay.py run in parallel (wave 1, disjoint). worker.py is the fan-in that schedules them (wave 2). tests fan in last.",
+      "risk_notes": "Workers must be idempotent and safe to re-run. Consolidation writes to the same memory tables phase d reads — keep operations transactional to avoid corrupting retrieval.",
+      "estimated_task_count": 5
+    },
+    {
+      "phase_id": "phase_g",
+      "goal": "Chat orchestration spine and API. A thin explicit turn pipeline (receive -> retrieve -> compile context -> call provider -> extract/persist memory -> respond) with a clean step interface, plus the /chat, /sessions, and streaming endpoints. No LangGraph; the pipeline is first-party and fully inspectable.",
+      "expected_changed_files": [
+        "chatbot/core/__init__.py",
+        "chatbot/core/turn.py",
+        "chatbot/core/steps.py",
+        "chatbot/api/chat.py",
+        "chatbot/api/sessions.py",
+        "chatbot/api/streaming.py",
+        "tests/test_chat_e2e.py"
+      ],
+      "async_notes": "steps.py (step interface) + turn.py (pipeline) land first (wave 1). chat.py, sessions.py, and streaming.py run in parallel in wave 2 on disjoint files. test_chat_e2e.py is the wave-3 fan-in and the real end-to-end gate.",
+      "risk_notes": "This is the spine that fans in providers (b), memory (d), and soul (e). The risk is leaking framework abstractions in; keep the step interface minimal so branching/tools can be added later behind it.",
+      "estimated_task_count": 6
+    },
+    {
+      "phase_id": "phase_h",
+      "goal": "Integration tests, seed/dev tooling, and operations docs. End-to-end test across a full conversation with memory persistence and consolidation, a seed script for local dev, and an operations guide.",
+      "expected_changed_files": [
+        "tests/integration/test_chatbot.py",
+        "scripts/seed.py",
+        "docs/OPERATIONS.md"
+      ],
+      "async_notes": "All three run in parallel; disjoint files, no inter-dependencies.",
+      "risk_notes": "Low. Documentation and tooling only; no core changes.",
+      "estimated_task_count": 4
+    }
+  ]
+}

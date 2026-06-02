@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "task_id": "e.5",
+  "phase": "E",
+  "phase_id": "e",
+  "title": "Wire soul package init and create focused tests",
+  "description": "Create chatbot/soul/__init__.py that exports the public API of the soul package: Personality, DEFAULT_PERSONALITY from personality.py; SoulState, StateRepository, InMemoryStateRepository from state.py; compute_identity_anchor, update_identity_anchor from identity.py; assemble_persona_prompt from persona_prompt.py. Use explicit __all__ listing. Also create tests/test_soul.py with focused unit tests: test_personality_defaults (DEFAULT_PERSONALITY has expected values), test_personality_serialization (to_dict/from_dict roundtrip), test_state_repository_in_memory (save, get, delete cycle), test_identity_anchor_persistence (existing anchor is preserved), test_identity_anchor_computation (empty anchor produces deterministic output), test_identity_update_no_drift (non-empty anchor not overwritten), test_persona_prompt_contains_identity (output includes identity_anchor), test_persona_prompt_deterministic (same inputs, same output), test_persona_prompt_sections (all expected sections present).\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- docs/operations.md\n- chatbot/soul/personality.py (created by task e.1)\n- chatbot/soul/state.py (created by task e.2)\n- chatbot/soul/identity.py (created by task e.3)\n- chatbot/soul/persona_prompt.py (created by task e.4)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/soul/__init__.py exists with __all__ exporting all public symbols",
+    "python -m py_compile chatbot/soul/__init__.py passes",
+    "tests/test_soul.py exists with all listed test functions",
+    "python -m py_compile tests/test_soul.py passes",
+    "from chatbot.soul import Personality, SoulState, compute_identity_anchor, assemble_persona_prompt works",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/soul/__init__.py",
+    "tests/test_soul.py"
+  ],
+  "forbidden_changes": [
+    "modify AGENTS.md",
+    "modify any file under abracapocus/",
+    "modify any file under backends/",
+    "modify any file under runtime/",
+    "modify chatbot/soul/personality.py",
+    "modify chatbot/soul/state.py",
+    "modify chatbot/soul/identity.py",
+    "modify chatbot/soul/persona_prompt.py",
+    "modify pyproject.toml or requirements.txt",
+    "modify any existing test file other than tests/test_soul.py"
+  ],
+  "dependencies": [
+    "e.1",
+    "e.2",
+    "e.3",
+    "e.4"
+  ],
+  "task_timeout_seconds": 900
+}

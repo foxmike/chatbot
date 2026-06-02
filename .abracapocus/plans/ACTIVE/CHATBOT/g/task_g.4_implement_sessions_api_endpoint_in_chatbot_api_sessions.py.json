@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "task_id": "g.4",
+  "phase": "G",
+  "phase_id": "g",
+  "title": "Implement /sessions API endpoint in chatbot/api/sessions.py",
+  "description": "Create chatbot/api/sessions.py exposing FastAPI endpoints for session lifecycle: POST /sessions (create), GET /sessions/{session_id} (read), DELETE /sessions/{session_id} (delete). Use an in-memory session store for now (dict[str, dict]) with session id, created_at, and message_count fields. Depend only on chatbot/core interfaces.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md\n- chatbot/core/steps.py (created by task g.1)\n- chatbot/core/__init__.py (created by task g.1)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/api/sessions.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create chatbot/api/sessions.py with:\n   - Module docstring: 'Session management endpoints for the chatbot engine.'\n   - Pydantic models: SessionCreateResponse (session_id: str), SessionInfo (session_id: str, created_at: str, message_count: int), SessionDeleteResponse (session_id: str, deleted: bool).\n   - A module-level `sessions_store: dict[str, dict]` for in-memory storage.\n   - A FastAPI `APIRouter` instance named `sessions_router` with prefix '/sessions'.\n   - POST '/' handler: generates a uuid4 session id, stores {id, created_at: isoformat, message_count: 0}, returns SessionCreateResponse.\n   - GET '/{session_id}' handler: returns SessionInfo for existing session or 404.\n   - DELETE '/{session_id}' handler: removes session, returns SessionDeleteResponse with deleted=True if it existed, or 404.\n   - No imports from langgraph, langchain, letta, or zep.\n\n2. Ensure python -m py_compile chatbot/api/sessions.py passes.",
+  "acceptance_criteria": [
+    "chatbot/api/sessions.py exists with sessions_router, SessionCreateResponse, SessionInfo, SessionDeleteResponse",
+    "sessions_router has POST /, GET /{session_id}, DELETE /{session_id} handlers",
+    "sessions_store is an in-memory dict",
+    "python -m py_compile chatbot/api/sessions.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/sessions.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/api/sessions.py",
+    "add new third-party dependencies beyond what FastAPI already requires",
+    "introduce LangGraph, LangChain, Letta, Zep, or any orchestration framework",
+    "add database-backed session storage (use in-memory dict only)",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "sessions_router",
+    "sessions_store",
+    "SessionCreateResponse",
+    "SessionInfo",
+    "SessionDeleteResponse"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use uuid4 for session id generation",
+      "use datetime.utcnow for created_at",
+      "return 404 for missing sessions"
+    ],
+    "forbidden": [
+      "add Redis, Postgres, or any external session storage",
+      "add auth, rate-limiting, or middleware",
+      "add session expiration or TTL logic"
+    ]
+  },
+  "dependencies": [
+    "g.1"
+  ],
+  "task_timeout_seconds": 600
+}

@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_id": "b.5",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Write provider tests",
+  "description": "Create tests/test_providers.py with focused tests for all provider modules.\n\nSince concrete providers (openai_compat, modal_ephemeral) require live backends, use mocks and fakes. Do NOT add integration tests that require real API keys or running Modal containers.\n\nTest coverage:\n- Provider interface: verify Provider ABC cannot be instantiated directly, verify ProviderResponse fields.\n- ProviderError hierarchy: verify each error subclass isinstance of ProviderError.\n- ProviderRegistry: verify register and lookup by name.\n- OpenAICompatProvider: mock the openai client, verify complete() returns ProviderResponse with correct content and finish_reason, verify error translation (HTTP 401 -> ProviderAuthError, HTTP 429 -> ProviderRateLimitError).\n- ModalEphemeralProvider: mock Modal SDK, verify cold-start readiness loop, verify response mapping, verify teardown.\n- ProviderRouter: verify default provider selection, verify model_prefix rule matching, verify fallback when primary is unavailable.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- chatbot/providers/base.py\n- chatbot/providers/openai_compat.py\n- chatbot/providers/modal_ephemeral.py\n- chatbot/providers/router.py\n- chatbot/providers/__init__.py\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY tests/test_providers.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, or any code outside the listed path. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "tests/test_providers.py exists and imports cleanly",
+    "python -m py_compile tests/test_providers.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "tests/test_providers.py"
+  ],
+  "forbidden_changes": [
+    "modify chatbot/providers/ directory",
+    "modify backends/ directory",
+    "add new third-party dependencies",
+    "modify pyproject.toml",
+    "modify any file outside tests/test_providers.py"
+  ],
+  "allowed_symbols": [
+    "test_provider_abc",
+    "test_provider_response",
+    "test_provider_errors",
+    "test_provider_registry",
+    "test_openai_compat_complete",
+    "test_openai_compat_error_translation",
+    "test_modal_ephemeral_cold_start",
+    "test_modal_ephemeral_teardown",
+    "test_router_default",
+    "test_router_fallback"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use pytest with unittest.mock or pytest-mock",
+      "use AsyncMock for async provider methods",
+      "use pytest fixtures for shared setup"
+    ],
+    "forbidden": [
+      "add integration tests requiring real API keys",
+      "add tests calling live Modal endpoints",
+      "modify provider source files to make tests pass",
+      "add conftest.py or modify existing test config"
+    ]
+  },
+  "dependencies": [
+    "b.2",
+    "b.3",
+    "b.4"
+  ],
+  "task_timeout_seconds": 900
+}

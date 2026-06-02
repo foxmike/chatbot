@@ -1,0 +1,75 @@
+{
+  "phase_id": "e",
+  "verification": {
+    "enabled": true,
+    "run_when": "all_tasks_pass",
+    "failure_status": "failed",
+    "checks": [
+      {
+        "name": "lint-phase-e-tasks",
+        "command": [
+          "bash",
+          "-c",
+          "set -e; for f in docs/PLANS/ACTIVE/CHATBOT/phase_e/task_*.json; do python scripts/lint_tasks.py \"$f\" || exit 1; done"
+        ],
+        "description": "Lint every task_*.json file in phase e (excludes phase_verification.json)."
+      },
+      {
+        "name": "compile-personality",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/soul/personality.py"
+        ]
+      },
+      {
+        "name": "compile-state",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/soul/state.py"
+        ]
+      },
+      {
+        "name": "compile-identity",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/soul/identity.py"
+        ]
+      },
+      {
+        "name": "compile-persona-prompt",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/soul/persona_prompt.py"
+        ]
+      },
+      {
+        "name": "compile-init",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/soul/__init__.py"
+        ]
+      },
+      {
+        "name": "pytest-soul-tests",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "-x",
+          "tests/test_soul.py"
+        ]
+      }
+    ]
+  }
+}

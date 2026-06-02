@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "task_id": "b.2",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Implement OpenAI-compatible provider adapter",
+  "description": "Create chatbot/providers/openai_compat.py implementing the Provider interface for OpenAI-compatible APIs.\n\nThis adapter serves OpenRouter, local vLLM, and Vast.ai-stood-up instances: base_url and api_key differ, but the contract is identical. Use the openai Python client or httpx to send chat completions requests.\n\nThe adapter must:\n- Accept base_url, api_key, and default_model configuration.\n- Implement complete() returning a ProviderResponse (from base.py).\n- Translate ProviderConfig into the OpenAI-compatible request shape.\n- Map OpenAI response fields (choices[0].message.content, finish_reason) into ProviderResponse.\n- Handle HTTP errors by raising the appropriate ProviderError subclass from base.py.\n- Validate that model strings are non-empty before execution.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- chatbot/providers/base.py (the Provider interface you must implement)\n- backends/base.py (async execute and error handling patterns)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/providers/openai_compat.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, or any code outside the listed path. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/providers/openai_compat.py exists and imports cleanly",
+    "python -m py_compile chatbot/providers/openai_compat.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/providers/openai_compat.py"
+  ],
+  "forbidden_changes": [
+    "modify chatbot/providers/__init__.py",
+    "modify chatbot/providers/base.py",
+    "modify backends/ directory",
+    "add new third-party dependencies",
+    "modify pyproject.toml",
+    "modify any file outside chatbot/providers/openai_compat.py"
+  ],
+  "allowed_symbols": [
+    "OpenAICompatProvider"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use openai Python client or httpx for HTTP calls",
+      "implement async complete() per Provider ABC",
+      "map OpenAI response fields to ProviderResponse"
+    ],
+    "forbidden": [
+      "modify the Provider interface signature",
+      "introduce orchestration frameworks",
+      "add provider registry logic (that belongs in base.py)",
+      "add routing or fallback logic (that belongs in router.py)"
+    ]
+  },
+  "dependencies": [
+    "b.1"
+  ],
+  "task_timeout_seconds": 900
+}

@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "task_id": "d.3",
+  "phase": "phase_d",
+  "phase_id": "phase_d",
+  "title": "Retrieval over VectorStore with relational filtering",
+  "description": "Create chatbot/memory/retrieval.py with a first-party, deterministic retrieval engine that queries the episodic store via the VectorStore interface and applies relational filters (session, time range, metadata tags). Returns ranked results \u2014 not naive top-k. Ranking must be reproducible and not depend on model self-evaluation.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- chatbot/memory/episodic.py (task d.2 \u2014 the episodic store this reads from)\n- Any existing VectorStore interface from phase c\n- Any existing chatbot/memory/__init__.py\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/memory/retrieval.py and chatbot/memory/__init__.py (if exports are needed). Do NOT modify any other file under any circumstance.",
+  "acceptance_criteria": [
+    "chatbot/memory/retrieval.py exists with a deterministic retrieval function",
+    "Retrieval applies relational filtering (session, time range, metadata)",
+    "Results are ranked via a reproducible non-top-k method",
+    "python -m py_compile chatbot/memory/retrieval.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/memory/retrieval.py",
+    "chatbot/memory/__init__.py"
+  ],
+  "forbidden_changes": [
+    "modify files outside chatbot/memory/",
+    "add new third-party dependencies",
+    "use model-based ranking for retrieval results",
+    "modify chatbot/memory/working_memory.py",
+    "modify chatbot/memory/episodic.py",
+    "modify tests/"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

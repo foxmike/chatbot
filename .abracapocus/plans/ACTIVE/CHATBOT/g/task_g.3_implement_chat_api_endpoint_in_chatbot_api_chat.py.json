@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "task_id": "g.3",
+  "phase": "G",
+  "phase_id": "g",
+  "title": "Implement /chat API endpoint in chatbot/api/chat.py",
+  "description": "Create chatbot/api/chat.py exposing a FastAPI POST /chat endpoint that accepts a user message and session id, constructs a TurnContext, runs it through the TurnPipeline, and returns the final response as JSON. Depend only on chatbot/core interfaces; do not wire concrete providers, memory, or soul adapters yet \u2014 use the default placeholder pipeline from build_default_pipeline().\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md\n- chatbot/core/steps.py (created by task g.1)\n- chatbot/core/turn.py (created by task g.2)\n- chatbot/core/__init__.py (created by task g.1)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/api/__init__.py and chatbot/api/chat.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create chatbot/api/__init__.py as an empty module (docstring: 'Chatbot API package.').\n\n2. Create chatbot/api/chat.py with:\n   - Module docstring: 'Chat endpoint for the chatbot engine.'\n   - Pydantic request model `ChatRequest` with session_id (str) and message (str).\n   - Pydantic response model `ChatResponse` with session_id (str), response (str), and step_results (list[dict] summarizing each step's name, duration_ms, and success).\n   - A FastAPI `APIRouter` instance named `chat_router` with prefix '/chat'.\n   - A POST handler at '/' (or root of the router) that:\n     * Accepts ChatRequest as JSON body.\n     * Constructs a TurnContext from the request.\n     * Runs it through build_default_pipeline().run(ctx).\n     * Returns a ChatResponse with the final response (ctx.final_response, defaulting to ctx.metadata.get('pipeline_error', 'No response') if None) and step results from ctx.metadata['step_results'].\n   - Async handler with proper typing.\n   - No imports from langgraph, langchain, letta, or zep.\n\n3. Ensure python -m py_compile chatbot/api/chat.py passes.",
+  "acceptance_criteria": [
+    "chatbot/api/__init__.py exists",
+    "chatbot/api/chat.py exists with ChatRequest, ChatResponse, chat_router",
+    "chat_router has a POST /chat handler that runs the pipeline",
+    "python -m py_compile chatbot/api/chat.py passes",
+    "python -m py_compile chatbot/api/__init__.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/__init__.py",
+    "chatbot/api/chat.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/api/",
+    "modify chatbot/core/ files",
+    "add new third-party dependencies",
+    "introduce LangGraph, LangChain, Letta, Zep, or any orchestration framework",
+    "wire concrete provider/memory/soul adapters (use build_default_pipeline only)",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "ChatRequest",
+    "ChatResponse",
+    "chat_router"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use FastAPI APIRouter",
+      "use pydantic for request/response models",
+      "call build_default_pipeline from chatbot.core.turn"
+    ],
+    "forbidden": [
+      "introduce middleware, auth, rate-limiting, or CORS",
+      "add WebSocket support",
+      "wire real provider/memory/soul calls"
+    ]
+  },
+  "dependencies": [
+    "g.1",
+    "g.2"
+  ],
+  "task_timeout_seconds": 900
+}

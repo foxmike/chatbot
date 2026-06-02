@@ -1,0 +1,70 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "compile-providers-init",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/providers/__init__.py"
+        ]
+      },
+      {
+        "name": "compile-providers-base",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/providers/base.py"
+        ]
+      },
+      {
+        "name": "compile-openai-compat",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/providers/openai_compat.py"
+        ]
+      },
+      {
+        "name": "compile-modal-ephemeral",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/providers/modal_ephemeral.py"
+        ]
+      },
+      {
+        "name": "compile-router",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/providers/router.py"
+        ]
+      },
+      {
+        "name": "compile-providers-tests",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "tests/test_providers.py"
+        ]
+      },
+      {
+        "name": "pytest-providers",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "tests/test_providers.py",
+          "-x"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "task_id": "d.1",
+  "phase": "phase_d",
+  "phase_id": "phase_d",
+  "title": "Working-memory buffer",
+  "description": "Create chatbot/memory/working_memory.py with a bounded working-memory buffer that holds the most recent N turns of the conversation, supports append, truncate, and window retrieval, and exposes a typed interface consumable by the context compiler.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/PLANS/ACTIVE/CHATBOT/.gitignore (for plan directory structure)\n- Any existing chatbot/memory/__init__.py or base models from prior phases\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/memory/working_memory.py and chatbot/memory/__init__.py (if needed for package exports). Do NOT modify any other file under any circumstance.",
+  "acceptance_criteria": [
+    "chatbot/memory/working_memory.py exists and implements a bounded working-memory buffer",
+    "python -m py_compile chatbot/memory/working_memory.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/memory/working_memory.py",
+    "chatbot/memory/__init__.py"
+  ],
+  "forbidden_changes": [
+    "modify files outside chatbot/memory/",
+    "add new third-party dependencies",
+    "change backend adapter interfaces",
+    "modify tests/"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

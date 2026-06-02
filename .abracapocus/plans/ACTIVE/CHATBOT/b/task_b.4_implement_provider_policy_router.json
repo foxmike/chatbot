@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "task_id": "b.4",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Implement provider policy router",
+  "description": "Create chatbot/providers/router.py implementing a policy-driven provider selector.\n\nThe router picks which Provider implementation to use per request based on configurable policy rules. It does NOT contain orchestration framework logic; it is a pure selection function.\n\nThe router must:\n- Accept a dict or list of named Provider instances (registered from base.py ProviderRegistry).\n- Accept a routing policy config dict with rule keys like \"default\", \"model_prefix\", \"cost_tier\", \"latency_tier\".\n- Expose a select(prompt, config) -> Provider method that evaluates rules and returns the chosen provider.\n- Support a fallback chain: if the primary provider fails or is unavailable, the router returns the next candidate.\n- Be stateless: no caching of prior selections, no persistent state.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- chatbot/providers/base.py (Provider interface and ProviderRegistry)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/providers/router.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, or any code outside the listed path. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/providers/router.py exists and imports cleanly",
+    "python -m py_compile chatbot/providers/router.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/providers/router.py"
+  ],
+  "forbidden_changes": [
+    "modify chatbot/providers/__init__.py",
+    "modify chatbot/providers/base.py",
+    "modify chatbot/providers/openai_compat.py",
+    "modify chatbot/providers/modal_ephemeral.py",
+    "modify backends/ directory",
+    "add new third-party dependencies",
+    "modify pyproject.toml",
+    "modify any file outside chatbot/providers/router.py"
+  ],
+  "allowed_symbols": [
+    "ProviderRouter"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "define policy rule types as dataclasses or enums",
+      "implement select() returning a Provider",
+      "implement fallback chain logic"
+    ],
+    "forbidden": [
+      "modify the Provider interface signature",
+      "introduce orchestration frameworks (LangGraph, LangChain)",
+      "add LLM calls or HTTP requests inside the router",
+      "add persistent state or caching"
+    ]
+  },
+  "dependencies": [
+    "b.1"
+  ],
+  "task_timeout_seconds": 900
+}

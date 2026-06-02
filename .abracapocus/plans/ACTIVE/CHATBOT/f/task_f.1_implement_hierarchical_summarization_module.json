@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "task_id": "f.1",
+  "phase": "F",
+  "phase_id": "f",
+  "title": "Implement hierarchical summarization module",
+  "description": "Create chatbot/consolidation/__init__.py and chatbot/consolidation/summarizer.py.\n\nImplement a Summarizer class that performs hierarchical memory summarization:\n- Accept a list of MemoryEntry records (the interface will be defined in an earlier phase; import from chatbot/memory/models.py if it exists, otherwise define a minimal MemoryEntry protocol inline).\n- Provide a summarize_turn(messages: list) -> str method that condenses recent turn messages into a concise turn summary.\n- Provide a summarize_session(turn_summaries: list[str]) -> str method that rolls up turn summaries into a session-level summary.\n- Provide a summarize_long_term(session_summaries: list[str]) -> str method that produces a long-term condensed summary.\n- Use the LLM Provider interface (chatbot/providers/) for all LLM calls; inject the provider through the constructor.\n- All summarization calls must be idempotent for the same input.\n\nThe __init__.py should be a minimal package marker (no re-exports).\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/operations.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md (if present)\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md (if present)\n- Any existing files under chatbot/memory/ that define memory schemas\n- Any existing files under chatbot/providers/ that define the Provider interface\n- chatbot/consolidation/__init__.py (if it exists)\n- chatbot/consolidation/summarizer.py (if it exists)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/consolidation/__init__.py exists as a minimal package marker",
+    "chatbot/consolidation/summarizer.py exists and imports cleanly",
+    "python -m py_compile chatbot/consolidation/summarizer.py passes",
+    "Summarizer class has summarize_turn, summarize_session, and summarize_long_term methods",
+    "Summarizer accepts a Provider instance through its constructor",
+    "Summarization methods are deterministic and idempotent for identical inputs",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/consolidation/__init__.py",
+    "chatbot/consolidation/summarizer.py"
+  ],
+  "forbidden_changes": [
+    "modify files outside chatbot/consolidation/",
+    "add new third-party dependencies without justification",
+    "modify the Provider interface or memory schemas",
+    "create new files beyond allowed_write_paths"
+  ],
+  "allowed_symbols": [
+    "Summarizer"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

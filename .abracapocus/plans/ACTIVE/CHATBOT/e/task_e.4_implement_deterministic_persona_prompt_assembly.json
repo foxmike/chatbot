@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "task_id": "e.4",
+  "phase": "E",
+  "phase_id": "e",
+  "title": "Implement deterministic persona-prompt assembly",
+  "description": "Create chatbot/soul/persona_prompt.py with deterministic persona-prompt assembly. Implement assemble_persona_prompt(personality: Personality, identity_anchor: str, state: Optional[SoulState] = None) -> str. The function must produce a complete system prompt string deterministically \u2014 no model calls, no randomness, no template variability based on the underlying model. The prompt must include sections: (1) IDENTITY \u2014 the identity_anchor verbatim, (2) PERSONALITY \u2014 personality.description and traits rendered as a bullet list, (3) TONE \u2014 explicit tone directive from personality.tone, (4) CONSTRAINTS \u2014 verbosity from personality.verbosity, max response length from personality.max_response_length, and emoji/markdown rules from personality.use_emojis/use_markdown, (5) CUSTOM \u2014 personality.custom_instructions if non-None, (6) CONTEXT \u2014 if state is provided, include user_name and conversation_summary. The output must be a single plain-text string suitable for injection as a system message. Implement assemble_persona_prompt as a pure function with no side effects and no external dependencies beyond the dataclass imports.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- docs/operations.md\n- chatbot/soul/personality.py (created by task e.1)\n- chatbot/soul/identity.py (created by task e.3)\n- chatbot/soul/state.py (created by task e.2)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/soul/persona_prompt.py exists and defines assemble_persona_prompt",
+    "python -m py_compile chatbot/soul/persona_prompt.py passes",
+    "assemble_persona_prompt is a pure function with no side effects",
+    "Output contains IDENTITY section with identity_anchor verbatim",
+    "Output contains PERSONALITY section with traits as bullet list",
+    "Output is deterministic \u2014 same inputs always produce same output",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/soul/persona_prompt.py"
+  ],
+  "forbidden_changes": [
+    "modify AGENTS.md",
+    "modify any file under abracapocus/",
+    "modify any file under backends/",
+    "modify any file under runtime/",
+    "modify chatbot/soul/personality.py",
+    "modify chatbot/soul/state.py",
+    "modify chatbot/soul/identity.py",
+    "modify pyproject.toml or requirements.txt",
+    "use LLM calls or model-dependent prompt construction",
+    "use Jinja2 or external template engines"
+  ],
+  "dependencies": [
+    "e.1",
+    "e.3"
+  ],
+  "task_timeout_seconds": 900
+}

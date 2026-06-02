@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "task_id": "a.5",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Create FastAPI app skeleton, health endpoint, and Alembic migrations setup",
+  "description": "Create the FastAPI application skeleton with a health endpoint, and initialize Alembic with pgvector support.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- chatbot/__init__.py\n- chatbot/config.py\n- pyproject.toml (for FastAPI and alembic deps)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nFiles to create:\n\n1. chatbot/api/__init__.py \u2014 empty package init (or minimal docstring)\n\n2. chatbot/api/app.py \u2014 FastAPI application factory:\n   - create_app() function that returns a FastAPI instance\n   - Sets title=\"Chatbot API\", version from chatbot.__version__\n   - Registers the health router from chatbot.api.health\n   - Adds a root GET / redirect or simple message\n   - Module-level app = create_app() for uvicorn import\n\n3. chatbot/api/health.py \u2014 health endpoint:\n   - APIRouter with prefix=\"\" or \"/health\"\n   - GET /health returns {\"status\": \"ok\"} (no DB/Redis checks yet)\n\n4. alembic.ini \u2014 Alembic configuration:\n   - script_location = migrations\n   - sqlalchemy.url = (empty or placeholder \u2014 will read from env at runtime)\n   - Standard alembic logging config\n\n5. migrations/env.py \u2014 Alembic env with asyncpg/psycopg async support:\n   - Import Settings from chatbot.config\n   - Configure target_metadata = None (no models yet, will be added in phase c)\n   - Use connectable from settings.database_url\n   - Run migrations in 'offline' and 'online' modes\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/api/__init__.py exists",
+    "chatbot/api/app.py exists, defines create_app() and module-level app",
+    "chatbot/api/health.py exists with GET /health returning {\"status\": \"ok\"}",
+    "python -m py_compile chatbot/api/__init__.py chatbot/api/app.py chatbot/api/health.py passes",
+    "alembic.ini exists with script_location = migrations",
+    "migrations/env.py exists and imports Settings from chatbot.config",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/__init__.py",
+    "chatbot/api/app.py",
+    "chatbot/api/health.py",
+    "alembic.ini",
+    "migrations/env.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside the listed allowed_write_paths",
+    "add database connections, Redis clients, or business logic to api modules",
+    "add SQLAlchemy model definitions (phase c responsibility)",
+    "modify pyproject.toml, chatbot/__init__.py, chatbot/config.py, .env.example, Dockerfile, or docker-compose.yml",
+    "add additional API endpoints beyond /health and root GET",
+    "add migrations beyond the initial env.py setup"
+  ],
+  "dependencies": [
+    "a.2",
+    "a.4"
+  ],
+  "task_timeout_seconds": 600
+}

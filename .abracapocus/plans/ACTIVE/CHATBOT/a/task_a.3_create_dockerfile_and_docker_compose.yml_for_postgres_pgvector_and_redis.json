@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "task_id": "a.3",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Create Dockerfile and docker-compose.yml for Postgres+pgvector and Redis",
+  "description": "Create Dockerfile and docker-compose.yml for the chatbot infrastructure.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- pyproject.toml (for Python version and dependency context)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nDockerfile:\n- Base image: python:3.12-slim\n- Install system dependencies needed for psycopg2 build\n- Copy pyproject.toml, install dependencies with uv (pip install uv && uv pip install --system -e .)\n- Copy chatbot/ source\n- Expose port 8000\n- CMD: uvicorn chatbot.api.app:app --host 0.0.0.0 --port 8000\n\ndocker-compose.yml:\n- services: api (build context ., ports 8000:8000, env_file .env, depends_on [db, redis]), db (image pgvector/pgvector:pg16, ports 5432:5432, environment POSTGRES_DB/POSTGRES_USER/POSTGRES_PASSWORD, volumes for data persistence, healthcheck), redis (image redis:7-alpine, ports 6379:6379, healthcheck)\n- Named volume for postgres data\n- Network: chatbot-net (bridge)\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "Dockerfile exists with python:3.12-slim base image",
+    "docker-compose.yml exists with db (pgvector/pgvector:pg16), redis (redis:7-alpine), and api services",
+    "docker-compose.yml config validation passes (docker compose config --dry-run 2>/dev/null || echo 'validation skipped \u2014 docker not available')",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "Dockerfile",
+    "docker-compose.yml"
+  ],
+  "forbidden_changes": [
+    "modify any file other than Dockerfile and docker-compose.yml",
+    "add services beyond db, redis, and api",
+    "use images other than pgvector/pgvector:pg16, redis:7-alpine, python:3.12-slim"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 300
+}

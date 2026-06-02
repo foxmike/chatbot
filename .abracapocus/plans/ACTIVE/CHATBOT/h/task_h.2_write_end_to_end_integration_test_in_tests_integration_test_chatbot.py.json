@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "task_id": "h.2",
+  "phase": "H",
+  "phase_id": "h",
+  "title": "Write end-to-end integration test in tests/integration/test_chatbot.py",
+  "description": "Create tests/integration/test_chatbot.py with a full end-to-end integration test across a multi-turn chatbot conversation that exercises memory persistence and consolidation. The test uses the chatbot/core turn pipeline and chatbot/api endpoints through FastAPI TestClient. It exercises the full path: session creation, multi-message conversation, memory storage via the VectorStore interface (mocked), and verification that the turn pipeline correctly threads context across turns.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- chatbot/core/steps.py\n- chatbot/core/turn.py\n- chatbot/core/__init__.py\n- chatbot/api/chat.py\n- chatbot/api/sessions.py\n- chatbot/api/streaming.py\n- tests/integration/__init__.py (created by task h.1)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY tests/integration/test_chatbot.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create tests/integration/test_chatbot.py with:\n   - Module docstring: 'End-to-end integration tests for the chatbot engine covering multi-turn conversation, memory persistence, and consolidation.'\n   - A pytest fixture `test_app` that constructs a FastAPI app, includes chat_router, sessions_router, and streaming_router from chatbot.api, and yields a starlette TestClient.\n   - A pytest fixture `mock_vectorstore` using unittest.mock.AsyncMock that simulates pgvector-backed memory retrieval and storage: retrieve() returns an empty list by default, store() records memories in an internal list for later assertion.\n   - Test class `TestFullConversation`:\n     * test_create_session_and_send_message: POST /sessions to create session, POST /chat with a greeting, assert 200 and response JSON contains a non-empty response and step_results.\n     * test_multi_turn_conversation: Create session, send 3 sequential messages ('Hello', 'My name is Alice', 'What is my name?'), assert each returns 200, assert the third response references 'Alice' or the name context.\n     * test_session_persistence: Create session, send a message, GET /sessions/{session_id}, assert session has message_count >= 1.\n     * test_conversation_context_threading: Create session, send a first message with a fact ('I live in Berlin'), send a second message asking for that fact, assert the second response references 'Berlin' or addresses the fact.\n     * test_delete_session_and_recreate: POST /sessions to create, DELETE /sessions/{id}, assert deleted=True, POST /sessions again with a different uuid, assert it works.\n   - Test class `TestStreamingConversation`:\n     * test_stream_full_conversation: Create session, POST /chat/stream, assert 200, assert text/event-stream content type, assert [DONE] in streamed body, assert step events in body.\n   - Test class `TestMemoryIntegration`:\n     * test_memory_store_called: Verify that after a conversation turn, memory store was invoked (via mock).\n     * test_memory_retrieval_in_context: Verify that retrieved memories appear in the turn context for subsequent turns.\n   - All async test functions use @pytest.mark.asyncio.\n   - Use pytest.importorskip for any optional dependencies.\n\n2. Do NOT invoke pytest in this task's focused verification (the test file is being created). Use python -m py_compile tests/integration/test_chatbot.py for verification instead.",
+  "acceptance_criteria": [
+    "tests/integration/test_chatbot.py exists with TestFullConversation, TestStreamingConversation, TestMemoryIntegration classes",
+    "test_create_session_and_send_message tests session creation plus chat",
+    "test_multi_turn_conversation tests a 3-message conversation",
+    "test_session_persistence verifies message_count after chat",
+    "test_conversation_context_threading verifies fact retention across turns",
+    "test_stream_full_conversation validates SSE streaming",
+    "python -m py_compile tests/integration/test_chatbot.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "tests/integration/test_chatbot.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside tests/integration/test_chatbot.py",
+    "modify any chatbot/ source file",
+    "add new third-party dependencies",
+    "require Postgres, Redis, or external services running",
+    "call real LLM providers",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "TestFullConversation",
+    "TestStreamingConversation",
+    "TestMemoryIntegration"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use starlette.testclient.TestClient",
+      "use unittest.mock.AsyncMock for vectorstore",
+      "use pytest.mark.asyncio",
+      "use pytest fixtures for app and mock_vectorstore"
+    ],
+    "forbidden": [
+      "call real LLM providers",
+      "require Postgres, Redis, or external services",
+      "modify chatbot source code to fix test failures"
+    ]
+  },
+  "dependencies": [
+    "h.1"
+  ],
+  "task_timeout_seconds": 1200
+}

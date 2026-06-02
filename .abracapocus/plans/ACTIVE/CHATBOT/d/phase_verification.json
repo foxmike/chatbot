@@ -1,0 +1,62 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "compile working_memory",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/memory/working_memory.py"
+        ]
+      },
+      {
+        "name": "compile episodic",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/memory/episodic.py"
+        ]
+      },
+      {
+        "name": "compile retrieval",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/memory/retrieval.py"
+        ]
+      },
+      {
+        "name": "compile context_compiler",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/memory/context_compiler.py"
+        ]
+      },
+      {
+        "name": "compile test_memory_core",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "tests/test_memory_core.py"
+        ]
+      },
+      {
+        "name": "pytest memory core",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "tests/test_memory_core.py",
+          "-v",
+          "-x"
+        ]
+      }
+    ]
+  }
+}

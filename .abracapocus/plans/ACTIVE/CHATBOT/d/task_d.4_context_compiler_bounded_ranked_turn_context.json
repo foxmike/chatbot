@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "task_id": "d.4",
+  "phase": "phase_d",
+  "phase_id": "phase_d",
+  "title": "Context compiler \u2014 bounded, ranked turn context",
+  "description": "Create chatbot/memory/context_compiler.py \u2014 the core differentiator in this phase. This module assembles the final context payload for each chat turn by combining: the working-memory buffer (recent turns), episodic retrieval results (ranked, filtered), and any persona/identity context stubs. It must respect a token/character budget, rank relevance across sources, and produce a deterministic, reproducible assembly. Do not use naive concatenation; implement a tiered merge with deduplication and budget-aware truncation.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- chatbot/memory/working_memory.py (task d.1)\n- chatbot/memory/episodic.py (task d.2)\n- chatbot/memory/retrieval.py (task d.3)\n- Any existing VectorStore interface or base models from prior phases\n- Any existing chatbot/memory/__init__.py\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/memory/context_compiler.py and chatbot/memory/__init__.py (if exports are needed). Do NOT modify any other file under any circumstance.",
+  "acceptance_criteria": [
+    "chatbot/memory/context_compiler.py exists with a compile_context function",
+    "Context assembly pulls from working memory, episodic retrieval, and persona stubs",
+    "Token/character budget is enforced with tiered merge and deduplication",
+    "python -m py_compile chatbot/memory/context_compiler.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "claude_code_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/memory/context_compiler.py",
+    "chatbot/memory/__init__.py"
+  ],
+  "forbidden_changes": [
+    "modify files outside chatbot/memory/",
+    "add new third-party dependencies",
+    "use model-based or non-deterministic context assembly",
+    "modify chatbot/memory/working_memory.py",
+    "modify chatbot/memory/episodic.py",
+    "modify chatbot/memory/retrieval.py",
+    "modify tests/"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

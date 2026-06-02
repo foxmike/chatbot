@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "task_id": "g.2",
+  "phase": "G",
+  "phase_id": "g",
+  "title": "Implement first-party turn pipeline in chatbot/core/turn.py",
+  "description": "Create chatbot/core/turn.py implementing the thin explicit turn pipeline that orchestrates TurnStep instances through the sequence: receive -> retrieve -> compile context -> call provider -> extract/persist memory -> respond. No LangGraph, Letta, Zep, or any orchestration framework. The pipeline is first-party, inspectable, and driven by a list of TurnStep instances.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md\n- chatbot/core/steps.py (created by task g.1)\n- chatbot/core/__init__.py (created by task g.1)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/core/turn.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create chatbot/core/turn.py with:\n   - Module docstring: 'First-party turn pipeline for the chatbot engine. No framework dependency.'\n   - A `TurnPipeline` class that:\n     - Accepts a list of TurnStep instances at construction time (injection, not registration).\n     - Exposes `async def run(self, ctx: TurnContext) -> TurnContext` that iterates steps in order, captures StepResult for each (name, duration, success/error), and stores results in ctx.metadata['step_results'].\n     - If a step raises an exception, the pipeline catches it, records a failed StepResult, sets ctx.metadata['pipeline_error'] = str(e), and returns the partial context rather than crashing.\n     - Includes a `step_results` property returning list[StepResult] from ctx.metadata after a run.\n   - A helper function `build_default_pipeline() -> TurnPipeline` that constructs the canonical 6-step pipeline by instantiating placeholder/default step implementations inline. Each placeholder should be a TurnStep subclass defined in this module that passes the context through (identity step) with a descriptive name ('receive', 'retrieve', 'compile_context', 'call_provider', 'extract_memory', 'respond'). These placeholders let the pipeline be importable and testable before concrete providers, memory, and soul are wired in later tasks.\n   - Type hints throughout.\n   - No imports from langgraph, langchain, letta, zep, or any orchestration/agent framework.\n\n2. Update chatbot/core/__init__.py to additionally export TurnPipeline and build_default_pipeline.\n\n3. Ensure python -m py_compile chatbot/core/turn.py passes.",
+  "acceptance_criteria": [
+    "chatbot/core/turn.py exists and defines TurnPipeline with run(ctx) -> TurnContext",
+    "chatbot/core/turn.py defines build_default_pipeline() returning a TurnPipeline",
+    "TurnPipeline.step_results returns list[StepResult] after a run",
+    "TurnPipeline does not import langgraph, langchain, letta, or zep",
+    "chatbot/core/__init__.py exports TurnPipeline and build_default_pipeline",
+    "python -m py_compile chatbot/core/turn.py passes",
+    "python -m py_compile chatbot/core/__init__.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/core/turn.py",
+    "chatbot/core/__init__.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/core/",
+    "add new third-party dependencies",
+    "introduce LangGraph, LangChain, Letta, Zep, or any orchestration framework",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "TurnPipeline",
+    "build_default_pipeline"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "create placeholder TurnStep subclasses for each pipeline stage",
+      "catch and record step exceptions without crashing the pipeline"
+    ],
+    "forbidden": [
+      "introduce orchestration framework dependency",
+      "add branching, tool-calling, or dynamic step reordering",
+      "add real provider/memory/soul calls (placeholders only)"
+    ]
+  },
+  "dependencies": [
+    "g.1"
+  ],
+  "task_timeout_seconds": 900
+}

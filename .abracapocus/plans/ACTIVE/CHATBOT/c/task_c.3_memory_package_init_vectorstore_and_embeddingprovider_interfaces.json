@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "task_id": "c.3",
+  "phase": "C",
+  "phase_id": "c",
+  "title": "Memory package init, VectorStore and EmbeddingProvider interfaces",
+  "description": "Create chatbot/memory/__init__.py, chatbot/memory/vector_store.py, and chatbot/memory/embeddings.py.\n\nchatbot/memory/__init__.py: Re-export the VectorStore and EmbeddingProvider abstract classes and the data types.\n\nchatbot/memory/vector_store.py: Define an abstract VectorStore interface using abc.ABC with the following async methods:\n- add(ids: list[str], embeddings: list[list[float]], metadata: list[dict] | None) \u2192 None \u2014 insert vectors with optional metadata\n- search(embedding: list[float], top_k: int, filter: dict | None) \u2192 list[SearchResult] \u2014 cosine similarity search returning scored results\n- delete(ids: list[str]) \u2192 int \u2014 delete vectors by id, return count deleted\n- count() \u2192 int \u2014 total vector count\n\nDefine a SearchResult dataclass with fields: id (str), score (float), metadata (dict | None).\n\nchatbot/memory/embeddings.py: Define an abstract EmbeddingProvider interface using abc.ABC with:\n- async embed(texts: list[str]) \u2192 list[list[float]] \u2014 return one embedding vector per input text\n- property dimension \u2192 int \u2014 the output embedding dimension\n\nBoth interfaces must use only stdlib abc. No third-party deps for these files. Annotate with @abstractmethod.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- This task document (task c.3)\n- Any existing files in allowed_write_paths\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/memory/__init__.py exists and re-exports VectorStore and EmbeddingProvider",
+    "chatbot/memory/vector_store.py defines VectorStore (ABC) and SearchResult",
+    "chatbot/memory/embeddings.py defines EmbeddingProvider (ABC)",
+    "python -m py_compile chatbot/memory/__init__.py passes",
+    "python -m py_compile chatbot/memory/vector_store.py passes",
+    "python -m py_compile chatbot/memory/embeddings.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/memory/__init__.py",
+    "chatbot/memory/vector_store.py",
+    "chatbot/memory/embeddings.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/memory/",
+    "add third-party dependencies (stdlib only for interfaces)",
+    "add concrete implementations to the interface files"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

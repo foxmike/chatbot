@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "task_id": "d.2",
+  "phase": "phase_d",
+  "phase_id": "phase_d",
+  "title": "Episodic store",
+  "description": "Create chatbot/memory/episodic.py with an episodic memory store that serializes and persists conversation turns into the VectorStore (via pgvector). Implement save_turn, query_by_session, and query_by_time_range. Use the VectorStore interface from phase c; do not construct SQL directly.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- chatbot/memory/working_memory.py (from task d.1)\n- Any existing VectorStore interface or base models from prior phases (phase c)\n- Any existing chatbot/memory/__init__.py\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/memory/episodic.py and chatbot/memory/__init__.py (if exports are needed). Do NOT modify any other file under any circumstance.",
+  "acceptance_criteria": [
+    "chatbot/memory/episodic.py exists and implements save_turn, query_by_session, query_by_time_range",
+    "python -m py_compile chatbot/memory/episodic.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/memory/episodic.py",
+    "chatbot/memory/__init__.py"
+  ],
+  "forbidden_changes": [
+    "modify files outside chatbot/memory/",
+    "add new third-party dependencies",
+    "write raw SQL instead of using VectorStore interface",
+    "modify tests/",
+    "modify chatbot/memory/working_memory.py"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

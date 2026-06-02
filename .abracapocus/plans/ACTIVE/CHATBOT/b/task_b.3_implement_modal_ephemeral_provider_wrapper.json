@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "task_id": "b.3",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Implement Modal ephemeral provider wrapper",
+  "description": "Create chatbot/providers/modal_ephemeral.py implementing the Provider interface for ephemeral Modal container compute.\n\nThis wrapper handles cold-start, calls an ephemeral Modal-deployed endpoint that serves a model, and performs teardown. It implements the same Provider complete() contract as openai_compat.py so the router can swap without changing calling code.\n\nThe wrapper must:\n- Accept Modal app name/function reference, optional volume mount config, and cold-start timeout configuration.\n- On first complete() call, trigger a Modal Function.spawn or lookup, wait for readiness, and cache the handle.\n- Translate ProviderConfig into the payload for the Modal endpoint.\n- Map Modal response into ProviderResponse.\n- Handle cold-start timeouts by raising ProviderTimeoutError.\n- Handle auth/connection errors by raising ProviderAuthError.\n- Support a teardown/close method that stops the ephemeral container.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- chatbot/providers/base.py (the Provider interface and error hierarchy)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/providers/modal_ephemeral.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, or any code outside the listed path. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/providers/modal_ephemeral.py exists and imports cleanly",
+    "python -m py_compile chatbot/providers/modal_ephemeral.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/providers/modal_ephemeral.py"
+  ],
+  "forbidden_changes": [
+    "modify chatbot/providers/__init__.py",
+    "modify chatbot/providers/base.py",
+    "modify chatbot/providers/openai_compat.py",
+    "modify chatbot/providers/router.py",
+    "modify backends/ directory",
+    "add new third-party dependencies",
+    "modify pyproject.toml",
+    "modify any file outside chatbot/providers/modal_ephemeral.py"
+  ],
+  "allowed_symbols": [
+    "ModalEphemeralProvider"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use Modal SDK for Function.spawn/lookup",
+      "implement async complete() per Provider ABC",
+      "add cold-start readiness polling",
+      "add teardown/close lifecycle method"
+    ],
+    "forbidden": [
+      "modify the Provider interface signature",
+      "introduce orchestration frameworks",
+      "add routing or fallback logic (that belongs in router.py)",
+      "make synchronous blocking calls in the async path"
+    ]
+  },
+  "dependencies": [
+    "b.1"
+  ],
+  "task_timeout_seconds": 900
+}

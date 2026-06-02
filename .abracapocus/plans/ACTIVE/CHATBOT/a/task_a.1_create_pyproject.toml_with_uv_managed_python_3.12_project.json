@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "task_id": "a.1",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Create pyproject.toml with uv-managed Python 3.12 project",
+  "description": "Create pyproject.toml at the repository root for the chatbot project.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md (if it exists)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nProject spec:\n- Python >=3.12\n- Build backend: setuptools (or hatchling if preferred)\n- Dependencies: fastapi, uvicorn[standard], pydantic, pydantic-settings, psycopg2-binary, pgvector, redis[hiredis], alembic, httpx\n- Dev dependencies: pytest, pytest-asyncio, httpx (for TestClient)\n- Tool configs: pytest (minversion 8.0, testpaths [\"tests\"], asyncio_mode=auto), ruff (target-version py312, line-length 100)\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "pyproject.toml exists and is valid TOML",
+    "pyproject.toml specifies requires-python >= 3.12",
+    "pyproject.toml lists fastapi, pydantic, pydantic-settings, psycopg2-binary, pgvector, redis, alembic, httpx, uvicorn as dependencies",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "pyproject.toml"
+  ],
+  "forbidden_changes": [
+    "modify any existing file other than pyproject.toml",
+    "add dependencies not listed in the task description",
+    "change the repository's existing build system or project metadata"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 300
+}

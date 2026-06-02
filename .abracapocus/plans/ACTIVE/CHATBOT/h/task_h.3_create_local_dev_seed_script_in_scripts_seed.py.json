@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "task_id": "h.3",
+  "phase": "H",
+  "phase_id": "h",
+  "title": "Create local dev seed script in scripts/seed.py",
+  "description": "Create scripts/seed.py as a standalone seed script for local chatbot development. The script should populate prerequisite data (sessions, memory entries, persona config) so a developer can start the chatbot API and immediately test conversations without manual setup.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- chatbot/core/steps.py\n- chatbot/core/turn.py\n- chatbot/core/__init__.py\n- chatbot/api/sessions.py\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY scripts/seed.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create scripts/seed.py as a standalone executable Python script with:\n   - Shebang: #!/usr/bin/env python3\n   - Module docstring: 'Seed script for local chatbot development. Populates sessions, memory entries, and persona configuration so the chatbot API can be tested immediately.'\n   - A `main()` function that:\n     * Creates a session via POST to the /sessions endpoint (default base URL http://localhost:8000, overridable via SEED_BASE_URL env var).\n     * Prints the created session ID.\n     * Optionally sends an initial seed message to /chat to warm the conversation context.\n     * Prints a summary of seeded data: session IDs created, message sent (if any).\n   - A `--no-warm` flag to skip the initial seed message.\n   - A `--base-url` flag to override the API base URL.\n   - Uses argparse for CLI flags.\n   - Uses httpx (already a FastAPI dependency) for HTTP calls.\n   - Exits with code 0 on success, code 1 on any HTTP error.\n   - All HTTP calls include timeout=10.\n   - Use `if __name__ == '__main__': asyncio.run(main())` pattern.\n   - Typed with async and proper error messages to stderr.\n\n2. Ensure python -m py_compile scripts/seed.py passes.",
+  "acceptance_criteria": [
+    "scripts/seed.py exists with shebang, argparse CLI, and async main()",
+    "scripts/seed.py supports --base-url and --no-warm flags",
+    "scripts/seed.py uses httpx for HTTP calls with timeout",
+    "python -m py_compile scripts/seed.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "scripts/seed.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside scripts/seed.py",
+    "modify any chatbot/ source file",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends",
+    "require Postgres, Redis, or external services to run"
+  ],
+  "allowed_symbols": [
+    "main"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use argparse for CLI flags",
+      "use httpx for async HTTP calls",
+      "use asyncio.run for entrypoint"
+    ],
+    "forbidden": [
+      "add Django management commands or Flask CLI",
+      "introduce ORM or database seed logic",
+      "require third-party seed libraries"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

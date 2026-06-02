@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "task_id": "g.6",
+  "phase": "G",
+  "phase_id": "g",
+  "title": "Write end-to-end chat pipeline test in tests/test_chat_e2e.py",
+  "description": "Create tests/test_chat_e2e.py with pytest-based end-to-end tests covering the full chat turn spine: TurnContext construction, TurnPipeline execution, step result recording, /chat endpoint via TestClient, /sessions CRUD, and /chat/stream SSE output. Uses httpx or starlette TestClient. Depend only on chatbot/core and chatbot/api modules; mock or stub external dependencies.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md\n- chatbot/core/steps.py (created by task g.1)\n- chatbot/core/turn.py (created by task g.2)\n- chatbot/core/__init__.py (created by task g.1)\n- chatbot/api/__init__.py (created by task g.3)\n- chatbot/api/chat.py (created by task g.3)\n- chatbot/api/sessions.py (created by task g.4)\n- chatbot/api/streaming.py (created by task g.5)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY tests/test_chat_e2e.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create tests/test_chat_e2e.py with:\n   - Module docstring: 'End-to-end tests for the chatbot turn pipeline and API endpoints.'\n   - A pytest fixture `test_app` that constructs a FastAPI app, includes chat_router, sessions_router, and streaming_router, and yields a starlette TestClient.\n   - A pytest fixture `pipeline` that returns build_default_pipeline().\n   - Test class `TestTurnPipeline`:\n     * test_build_default_pipeline_has_six_steps: assert len(pipeline._steps) == 6.\n     * test_pipeline_run_returns_context: construct TurnContext, run pipeline, assert result is TurnContext.\n     * test_pipeline_records_step_results: after run, assert len(pipeline.step_results) == 6.\n     * test_pipeline_sets_final_response: after run, assert ctx.final_response is not None or pipeline_error is set.\n   - Test class `TestChatEndpoint`:\n     * test_post_chat_returns_200: POST /chat with valid body, assert 200.\n     * test_post_chat_response_shape: POST /chat, assert JSON has session_id, response, step_results keys.\n     * test_post_chat_step_results_present: assert len(response['step_results']) == 6.\n   - Test class `TestSessionsEndpoint`:\n     * test_create_session_returns_id: POST /sessions, assert 200 and session_id in JSON.\n     * test_get_session_returns_info: POST then GET, assert 200 and message_count == 0.\n     * test_get_missing_session_returns_404: GET /sessions/nonexistent, assert 404.\n     * test_delete_session: POST then DELETE, assert deleted == True.\n     * test_delete_missing_session_returns_404: DELETE nonexistent, assert 404.\n   - Test class `TestStreamingEndpoint`:\n     * test_stream_returns_200: POST /chat/stream, assert 200.\n     * test_stream_has_sse_content_type: POST /chat/stream, assert response headers include text/event-stream.\n     * test_stream_contains_done: POST /chat/stream, assert '[DONE]' in streamed text.\n     * test_stream_contains_step_events: POST /chat/stream, assert at least one step event in output.\n\n2. Use pytest.importorskip or try/except for optional deps if needed. Prefer starlette.testclient.TestClient over httpx for FastAPI testing.\n\n3. Do NOT invoke pytest in this task's focused verification (the test file is being created). Use python -m py_compile tests/test_chat_e2e.py for verification instead.",
+  "acceptance_criteria": [
+    "tests/test_chat_e2e.py exists with TestTurnPipeline, TestChatEndpoint, TestSessionsEndpoint, TestStreamingEndpoint classes",
+    "test_build_default_pipeline_has_six_steps asserts 6 steps",
+    "test_pipeline_run_returns_context asserts TurnContext return",
+    "test_pipeline_records_step_results asserts 6 results",
+    "test_post_chat_returns_200 tests the /chat endpoint",
+    "test_create_session_returns_id tests POST /sessions",
+    "test_get_session_returns_info tests GET /sessions/{id}",
+    "test_stream_returns_200 tests POST /chat/stream",
+    "test_stream_contains_done asserts [DONE] in stream",
+    "python -m py_compile tests/test_chat_e2e.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "tests/test_chat_e2e.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside tests/test_chat_e2e.py",
+    "modify any chatbot/ source file",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "TestTurnPipeline",
+    "TestChatEndpoint",
+    "TestSessionsEndpoint",
+    "TestStreamingEndpoint"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use starlette.testclient.TestClient",
+      "use pytest fixtures for app and pipeline",
+      "assert on response JSON shape and status codes"
+    ],
+    "forbidden": [
+      "call real LLM providers",
+      "require Postgres, Redis, or external services",
+      "add integration tests requiring running servers"
+    ]
+  },
+  "dependencies": [
+    "g.1",
+    "g.2",
+    "g.3",
+    "g.4",
+    "g.5"
+  ],
+  "task_timeout_seconds": 1200
+}

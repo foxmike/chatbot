@@ -1,0 +1,28 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "py_compile_all",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/__init__.py",
+          "chatbot/config.py",
+          "chatbot/api/__init__.py",
+          "chatbot/api/app.py",
+          "chatbot/api/health.py"
+        ]
+      },
+      {
+        "name": "alembic_init_check",
+        "command": [
+          "python",
+          "-m",
+          "alembic",
+          "check"
+        ]
+      }
+    ]
+  }
+}

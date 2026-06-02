@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "task_id": "e.2",
+  "phase": "E",
+  "phase_id": "e",
+  "title": "Implement durable soul state model",
+  "description": "Create chatbot/soul/state.py with a SoulState dataclass and a StateRepository abstract base class. SoulState fields: session_id (str), user_id (str), personality_id (str referencing a personality name), turn_count (int, default 0), conversation_summary (Optional[str]), identity_anchor (str \u2014 a stable identity description that resists drift), user_name (Optional[str]), user_pronouns (Optional[str]), metadata (dict[str, Any], default factory), created_at (str, ISO 8601), updated_at (str, ISO 8601). Use dataclasses.dataclass with dataclasses_json. StateRepository must be an ABC with async methods: get_state(session_id: str) -> Optional[SoulState], save_state(state: SoulState) -> None, delete_state(session_id: str) -> None. Include a module-level InMemoryStateRepository concrete implementation for testing/development that stores states in a dict. Keep state single-sourced in Postgres as the operator default; the InMemory variant is for dev/test only. The module must expose: SoulState, StateRepository, InMemoryStateRepository.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- docs/operations.md\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/soul/state.py exists and defines SoulState, StateRepository, InMemoryStateRepository",
+    "python -m py_compile chatbot/soul/state.py passes",
+    "SoulState is JSON-serializable via dataclasses_json",
+    "InMemoryStateRepository implements all StateRepository abstract methods",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/soul/state.py"
+  ],
+  "forbidden_changes": [
+    "modify AGENTS.md",
+    "modify any file under abracapocus/",
+    "modify any file under backends/",
+    "modify any file under runtime/",
+    "modify pyproject.toml or requirements.txt",
+    "introduce Postgres or asyncpg dependency in this module",
+    "modify chatbot/soul/personality.py"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

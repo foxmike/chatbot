@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "task_id": "c.6",
+  "phase": "C",
+  "phase_id": "c",
+  "title": "Schema verification tests",
+  "description": "Create tests/test_schema.py with pytest tests covering the persistence layer created in tasks c.1\u2013c.5.\n\nTests to include:\n- test_import_models: verify all six model classes import cleanly from chatbot.db.models\n- test_session_factory_creation: verify async_sessionmaker can be created from chatbot.db.session\n- test_model_instantiation: create instances of User, Session, Message, Episode, SemanticFact, Entity with required fields and verify defaults (UUID generated, created_at set)\n- test_pgvector_column: verify Message.embedding and SemanticFact.embedding are Vector columns\n- test_vector_store_interface: verify PgvectorStore is a subclass of VectorStore (no DB needed)\n- test_embeddings_interface: verify EmbeddingProvider is abstract (cannot instantiate directly)\n- test_migration_reversible_smoke: verify 0001_core_schema.py has upgrade() and downgrade() functions (parse, don't run DB)\n\nDo not require a running Postgres instance. All tests should use in-memory or no-op constructs where possible, with DB-heavy tests conditionally skipped. Use pytest.mark.skipif for any test that needs a live DB.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- This task document (task c.6)\n- chatbot/db/models.py (produced by task c.2)\n- chatbot/db/session.py (produced by task c.1)\n- chatbot/memory/vector_store.py (produced by task c.3)\n- chatbot/memory/pgvector_store.py (produced by task c.5)\n- chatbot/memory/embeddings.py (produced by task c.3)\n- migrations/versions/0001_core_schema.py (produced by task c.4)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "tests/test_schema.py exists",
+    "python -m py_compile tests/test_schema.py passes",
+    "Tests cover model imports, instantiation, pgvector columns, VectorStore subclass check, EmbeddingProvider abstractness, and migration structure",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "tests/test_schema.py"
+  ],
+  "forbidden_changes": [
+    "modify chatbot/ source files",
+    "modify migrations/ source files",
+    "modify any file outside tests/test_schema.py",
+    "add pytest plugins or pytest-asyncio"
+  ],
+  "dependencies": [
+    "c.1",
+    "c.2",
+    "c.3",
+    "c.4",
+    "c.5"
+  ],
+  "task_timeout_seconds": 900
+}

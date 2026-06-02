@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "task_id": "f.2",
+  "phase": "F",
+  "phase_id": "f",
+  "title": "Implement contradiction detection and resolution",
+  "description": "Create chatbot/consolidation/contradiction.py.\n\nImplement a ContradictionResolver class that detects and resolves contradictions in memory:\n- Accept two MemoryEntry records and return a ContradictionResult with fields: has_contradiction (bool), resolution (Optional[str] describing the resolved fact), confidence (float 0-1), and contradictory_facts (list[str] of the conflicting statements).\n- Use a strict comparator (rule-based) for deterministic low-level contradiction checking: identical subject with conflicting values, temporal contradictions (event A before event B but timestamps say otherwise), preference reversals.\n- Use the LLM Provider interface for ambiguous cases where rule-based comparison cannot resolve the contradiction; inject the provider through the constructor.\n- The resolver must be idempotent: the same pair of entries always produces the same ContradictionResult.\n- Handle edge cases: one or both entries being None, empty content, identical entries (should return has_contradiction=False).\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/operations.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md (if present)\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md (if present)\n- Any existing files under chatbot/memory/ that define memory schemas\n- Any existing files under chatbot/providers/ that define the Provider interface\n- chatbot/consolidation/contradiction.py (if it exists)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/consolidation/contradiction.py exists and imports cleanly",
+    "python -m py_compile chatbot/consolidation/contradiction.py passes",
+    "ContradictionResolver class has a resolve(entry_a, entry_b) -> ContradictionResult method",
+    "ContradictionResult dataclass has has_contradiction, resolution, confidence, contradictory_facts fields",
+    "Rule-based comparison handles subject conflict, temporal contradiction, and preference reversal deterministically",
+    "LLM fallback is used only for ambiguous cases",
+    "ContradictionResolver is idempotent for identical input pairs",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/consolidation/contradiction.py"
+  ],
+  "forbidden_changes": [
+    "modify files outside chatbot/consolidation/",
+    "add new third-party dependencies without justification",
+    "modify the Provider interface or memory schemas",
+    "create new files beyond allowed_write_paths"
+  ],
+  "allowed_symbols": [
+    "ContradictionResolver",
+    "ContradictionResult"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "task_id": "c.5",
+  "phase": "C",
+  "phase_id": "c",
+  "title": "Pgvector VectorStore adapter",
+  "description": "Create chatbot/memory/pgvector_store.py implementing the VectorStore abstract interface from chatbot/memory/vector_store.py.\n\nImplement PgvectorStore(VectorStore) with:\n- Constructor takes an async SQLAlchemy session (AsyncSession) and an optional table reference (defaults to a configured table, e.g., SemanticFact or a dedicated vector_items table \u2014 use the SemanticFact model's embedding column for storage)\n- add(): INSERT vectors with metadata using pgvector's <-> cosine distance operator compatible insert\n- search(): SELECT with ORDER BY embedding <-> query_embedding LIMIT top_k, return SearchResult list\n- delete(): DELETE by id filter, return rowcount\n- count(): SELECT COUNT(*) from the backing table\n\nImport and subclass VectorStore from chatbot.memory.vector_store. Import models from chatbot.db.models. Use session.execute() with sqlalchemy text/select constructs. Handle empty results gracefully.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- This task document (task c.5)\n- chatbot/memory/vector_store.py (produced by task c.3)\n- chatbot/db/models.py (produced by task c.2)\n- chatbot/db/session.py (produced by task c.1)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/memory/pgvector_store.py exists",
+    "PgvectorStore inherits from VectorStore",
+    "All five abstract methods (add, search, delete, count) are implemented",
+    "python -m py_compile chatbot/memory/pgvector_store.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/memory/pgvector_store.py"
+  ],
+  "forbidden_changes": [
+    "modify chatbot/memory/vector_store.py",
+    "modify chatbot/db/models.py",
+    "modify any file outside chatbot/memory/pgvector_store.py",
+    "add third-party dependencies beyond sqlalchemy and pgvector"
+  ],
+  "dependencies": [
+    "c.2",
+    "c.3"
+  ],
+  "task_timeout_seconds": 600
+}

@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "task_id": "h.1",
+  "phase": "H",
+  "phase_id": "h",
+  "title": "Scaffold tests/integration package for chatbot",
+  "description": "Create tests/integration/__init__.py to scaffold the integration test package for the chatbot engine. This ensures the package is importable and establishes pytest-asyncio and any shared fixtures needed by subsequent integration tests.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY tests/integration/__init__.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create tests/integration/__init__.py with:\n   - Module docstring: 'Integration test package for the chatbot engine.'\n   - No imports. This is a minimal package marker file.",
+  "acceptance_criteria": [
+    "tests/integration/__init__.py exists",
+    "python -m py_compile tests/integration/__init__.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "tests/integration/__init__.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside tests/integration/__init__.py",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [],
+  "decision_budget": {
+    "allowed": [
+      "create __init__.py as a minimal package marker"
+    ],
+    "forbidden": [
+      "add any code beyond a docstring",
+      "add imports or fixture definitions"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 300
+}

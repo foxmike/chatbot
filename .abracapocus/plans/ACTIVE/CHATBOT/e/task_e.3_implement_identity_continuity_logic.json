@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "task_id": "e.3",
+  "phase": "E",
+  "phase_id": "e",
+  "title": "Implement identity-continuity logic",
+  "description": "Create chatbot/soul/identity.py with identity-continuity logic that resists drift across long conversation horizons. Implement compute_identity_anchor(state: SoulState, personality: Personality) -> str. The function must produce a stable identity description string that does not drift as the conversation grows. Algorithm: if state.identity_anchor is already set and not empty, return it unchanged (anchor persistence). Otherwise, construct an anchor from personality.name, personality.description, personality.core_traits, and personality.tone \u2014 never from the conversation content itself. The anchor must be deterministic given the same personality and state inputs. Additionally implement update_identity_anchor(state: SoulState, personality: Personality, new_anchor: Optional[str] = None) -> SoulState that returns a new SoulState with identity_anchor updated. If new_anchor is None, compute it from personality. If state already has a non-empty anchor, leave it unchanged (no drift).\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- docs/operations.md\n- chatbot/soul/state.py (created by task e.2)\n- chatbot/soul/personality.py (created by task e.1)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/soul/identity.py exists and defines compute_identity_anchor and update_identity_anchor",
+    "python -m py_compile chatbot/soul/identity.py passes",
+    "compute_identity_anchor returns the existing anchor unchanged when state.identity_anchor is non-empty",
+    "compute_identity_anchor produces a deterministic string from Personality fields when anchor is empty",
+    "update_identity_anchor never overwrites an existing non-empty anchor (drift resistance)",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/soul/identity.py"
+  ],
+  "forbidden_changes": [
+    "modify AGENTS.md",
+    "modify any file under abracapocus/",
+    "modify any file under backends/",
+    "modify any file under runtime/",
+    "modify chatbot/soul/personality.py",
+    "modify chatbot/soul/state.py",
+    "modify pyproject.toml or requirements.txt",
+    "use LLM calls or model-dependent logic for identity computation",
+    "leak conversation content into the identity anchor"
+  ],
+  "dependencies": [
+    "e.2"
+  ],
+  "task_timeout_seconds": 900
+}

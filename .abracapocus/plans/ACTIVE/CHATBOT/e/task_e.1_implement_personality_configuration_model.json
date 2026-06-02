@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "task_id": "e.1",
+  "phase": "E",
+  "phase_id": "e",
+  "title": "Implement personality configuration model",
+  "description": "Create chatbot/soul/personality.py with a Personality dataclass that captures bot persona configuration. Include fields: name (str), description (str), core_traits (list[str] of trait keywords like 'witty', 'empathetic', 'analytical'), tone (Literal['casual','formal','neutral']), verbosity (Literal['concise','balanced','detailed']), use_emojis (bool, default False), use_markdown (bool, default True), max_response_length (int, default 2000), and custom_instructions (Optional[str] for operator overrides). Use dataclasses.dataclass with dataclasses_json for JSON serialization. Provide a sensible default instance as a module-level DEFAULT_PERSONALITY. The module must expose exactly one public class (Personality) and one public constant (DEFAULT_PERSONALITY).\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- docs/operations.md\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/soul/personality.py exists and defines a Personality dataclass",
+    "python -m py_compile chatbot/soul/personality.py passes",
+    "Personality is JSON-serializable via dataclasses_json (to_dict/from_dict)",
+    "DEFAULT_PERSONALITY is a valid Personality instance accessible at module level",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/soul/personality.py"
+  ],
+  "forbidden_changes": [
+    "modify AGENTS.md",
+    "modify any file under abracapocus/",
+    "modify any file under backends/",
+    "modify any file under runtime/",
+    "modify pyproject.toml or requirements.txt",
+    "add new third-party dependencies"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

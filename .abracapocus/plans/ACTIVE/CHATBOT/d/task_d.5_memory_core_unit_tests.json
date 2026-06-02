@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "task_id": "d.5",
+  "phase": "phase_d",
+  "phase_id": "phase_d",
+  "title": "Memory core unit tests",
+  "description": "Create tests/test_memory_core.py with focused unit tests covering all four memory modules: working memory buffer operations (append, truncate, window retrieval, edge cases), episodic store (save, query by session, query by time range), retrieval engine (relational filtering, deterministic ranking, deduplication), and context compiler (budget enforcement, tiered merge, source combination). Use pytest with fixtures; do not require a running Postgres database (mock the VectorStore interface).\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- chatbot/memory/working_memory.py (task d.1)\n- chatbot/memory/episodic.py (task d.2)\n- chatbot/memory/retrieval.py (task d.3)\n- chatbot/memory/context_compiler.py (task d.4)\n- Any existing test fixtures or conftest in tests/\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY tests/test_memory_core.py. Do NOT modify any other file under any circumstance.",
+  "acceptance_criteria": [
+    "tests/test_memory_core.py exists with tests for working memory, episodic store, retrieval, and context compiler",
+    "python -m py_compile tests/test_memory_core.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "tests/test_memory_core.py"
+  ],
+  "forbidden_changes": [
+    "modify files outside tests/test_memory_core.py",
+    "add new third-party dependencies",
+    "require a running Postgres database for tests",
+    "modify chatbot/memory/",
+    "modify test conftest or fixtures outside allowed_write_paths"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

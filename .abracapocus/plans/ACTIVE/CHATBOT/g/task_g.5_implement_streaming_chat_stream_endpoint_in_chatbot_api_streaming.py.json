@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "task_id": "g.5",
+  "phase": "G",
+  "phase_id": "g",
+  "title": "Implement streaming /chat/stream endpoint in chatbot/api/streaming.py",
+  "description": "Create chatbot/api/streaming.py exposing a FastAPI POST /chat/stream endpoint that server-sent-event (SSE) streams the turn pipeline progress and final response. Each pipeline step emits an SSE event with step name and status; the final response emits as a 'response' event. Uses the default placeholder pipeline from build_default_pipeline().\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md\n- chatbot/core/steps.py (created by task g.1)\n- chatbot/core/turn.py (created by task g.2)\n- chatbot/core/__init__.py (created by task g.1)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/api/streaming.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create chatbot/api/streaming.py with:\n   - Module docstring: 'Server-sent event streaming endpoint for the chatbot engine.'\n   - Pydantic request model `StreamRequest` with session_id (str) and message (str).\n   - A FastAPI `APIRouter` instance named `streaming_router` with prefix '/chat'.\n   - A POST handler at '/stream' that:\n     * Accepts StreamRequest as JSON body.\n     * Returns a StreamingResponse with media_type 'text/event-stream'.\n     * Uses an async generator that:\n       - Constructs a TurnContext from the request.\n       - Iterates the pipeline steps from build_default_pipeline().\n       - For each step, emits an SSE event: 'data: {\"step\": \"<name>\", \"status\": \"running\"}\\n\\n'\n       - After each step completes, emits: 'data: {\"step\": \"<name>\", \"status\": \"done\", \"duration_ms\": <N>}\\n\\n'\n       - After all steps, emits the final response: 'data: {\"type\": \"response\", \"text\": \"<final_response>\"}\\n\\n'\n       - Ends with 'data: [DONE]\\n\\n'\n     * Wraps the generator body in try/except and emits an error SSE event on failure.\n   - No imports from langgraph, langchain, letta, or zep.\n\n2. Ensure python -m py_compile chatbot/api/streaming.py passes.",
+  "acceptance_criteria": [
+    "chatbot/api/streaming.py exists with streaming_router and StreamRequest",
+    "streaming_router has a POST /chat/stream handler returning StreamingResponse",
+    "Handler emits SSE events for each pipeline step",
+    "Handler emits final response SSE event",
+    "Handler emits [DONE] terminator",
+    "python -m py_compile chatbot/api/streaming.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/streaming.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/api/streaming.py",
+    "add new third-party dependencies beyond what FastAPI already requires",
+    "introduce LangGraph, LangChain, Letta, Zep, or any orchestration framework",
+    "wire concrete provider/memory/soul adapters (use build_default_pipeline only)",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "streaming_router",
+    "StreamRequest"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use Starlette StreamingResponse",
+      "emit SSE format events",
+      "call build_default_pipeline from chatbot.core.turn"
+    ],
+    "forbidden": [
+      "add WebSocket support",
+      "add auth, rate-limiting, or middleware",
+      "wire real provider/memory/soul calls"
+    ]
+  },
+  "dependencies": [
+    "g.1",
+    "g.2"
+  ],
+  "task_timeout_seconds": 900
+}

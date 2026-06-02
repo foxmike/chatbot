@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "task_id": "b.1",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Define Provider interface and errors",
+  "description": "Create chatbot/providers/__init__.py and chatbot/providers/base.py with the abstract Provider interface contract.\n\nThe Provider interface is a public contract consumed by phase g (the turn spine) and all concrete adapters in this phase. Lock its shape early; changing it later ripples.\n\nIn base.py define:\n- An ABC Provider with an async method signature like complete(prompt, history, config) -> ProviderResponse.\n- A ProviderResponse dataclass with at least text content and finish_reason fields.\n- A ProviderConfig dataclass or TypedDict for backend-independent configuration (model, temperature, max_tokens, etc.).\n- ProviderError and its subclasses (ProviderTimeoutError, ProviderAuthError, ProviderRateLimitError).\n- A ProviderRegistry class or helper for registering concrete providers by name.\n\nIn __init__.py export Provider, ProviderResponse, ProviderConfig, ProviderError and its subclasses, and ProviderRegistry.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- backends/base.py (for existing ABC pattern and error conventions in this repo)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/providers/__init__.py and chatbot/providers/base.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, or any code outside the listed paths. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/providers/__init__.py exists and imports cleanly",
+    "chatbot/providers/base.py exists and imports cleanly",
+    "python -m py_compile chatbot/providers/__init__.py passes",
+    "python -m py_compile chatbot/providers/base.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/providers/__init__.py",
+    "chatbot/providers/base.py"
+  ],
+  "forbidden_changes": [
+    "modify backends/ directory",
+    "modify runtime/ directory",
+    "add new third-party dependencies",
+    "modify pyproject.toml",
+    "modify any file outside chatbot/providers/"
+  ],
+  "allowed_symbols": [
+    "Provider",
+    "ProviderResponse",
+    "ProviderConfig",
+    "ProviderError",
+    "ProviderTimeoutError",
+    "ProviderAuthError",
+    "ProviderRateLimitError",
+    "ProviderRegistry"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "define async abstract method signatures",
+      "add dataclass for response shape",
+      "add exception hierarchy under ProviderError"
+    ],
+    "forbidden": [
+      "introduce orchestration frameworks (LangGraph, Letta, Zep)",
+      "add concrete API client code or HTTP calls",
+      "change public method signatures after first commit"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

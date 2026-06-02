@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "task_id": "h.4",
+  "phase": "H",
+  "phase_id": "h",
+  "title": "Write chatbot operations guide in docs/OPERATIONS.md",
+  "description": "Create or extend docs/OPERATIONS.md with a comprehensive chatbot operations section covering local setup, Docker Compose service layout, environment variables, health checks, seed script usage, common failure modes, and troubleshooting. The existing docs/OPERATIONS.md is the Abracapocus runtime operations guide; this task adds a dedicated 'Chatbot Engine Operations' section to it without removing or altering existing content.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md (read the full existing file to understand structure before appending)\n- docs/architecture.md\n- chatbot/core/steps.py\n- chatbot/core/turn.py\n- chatbot/api/chat.py\n- chatbot/api/sessions.py\n- chatbot/api/streaming.py\n- scripts/seed.py (created by task h.3)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Modify ONLY docs/OPERATIONS.md. Do NOT modify any other file under any circumstance. Do NOT update other documentation files, READMEs, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Read the full existing docs/OPERATIONS.md to understand its structure, heading hierarchy, and conventions.\n\n2. Append a new top-level section at the end titled '## Chatbot Engine Operations' with the following subsections:\n\n   ### Local Development Setup\n   - Prerequisites: Python 3.12, uv, Docker (for Postgres/Redis)\n   - `docker compose up -d` to start Postgres and Redis\n   - `uv pip install -r requirements.txt` to install dependencies\n   - `alembic upgrade head` to run migrations\n   - `python scripts/seed.py` to populate seed data\n   - `uvicorn chatbot.main:app --reload` to start the API\n\n   ### Docker Compose Service Layout\n   - chatbot-api: FastAPI service on port 8000\n   - postgres: PostgreSQL 16 with pgvector extension on port 5432\n   - redis: Redis 7 on port 6379\n\n   ### Environment Variables\n   - DATABASE_URL: PostgreSQL connection string (default: postgresql+asyncpg://chatbot:chatbot@localhost:5432/chatbot)\n   - REDIS_URL: Redis connection string (default: redis://localhost:6379/0)\n   - CHATBOT_PROVIDER: LLM provider identifier (default: openrouter)\n   - CHATBOT_MODEL: Model identifier (default: openrouter/deepseek/deepseek-v4-pro)\n   - CHATBOT_API_KEY: API key for the LLM provider (required)\n   - CHATBOT_LOG_LEVEL: Logging level (default: INFO)\n\n   ### Health Checks\n   - GET /health returns 200 with {status: 'ok'} when API and database are reachable\n   - GET /health/ready returns 200 when all dependencies (DB, Redis, Provider) pass readiness check\n\n   ### Seed Script Usage\n   - `python scripts/seed.py` \u2014 basic seed (creates a session)\n   - `python scripts/seed.py --no-warm` \u2014 skip warm-up message\n   - `python scripts/seed.py --base-url http://other-host:8000` \u2014 target alternative API host\n   - SEED_BASE_URL env var can replace --base-url\n\n   ### Common Failure Modes\n   - Provider unreachable: check CHATBOT_API_KEY and network access to the provider endpoint\n   - Database connection refused: verify docker compose is running and DATABASE_URL is correct\n   - Redis connection refused: verify docker compose is running and REDIS_URL is correct\n   - Memory retrieval returns empty: check pgvector extension is installed (CREATE EXTENSION IF NOT EXISTS vector)\n   - Session lost between restarts: sessions are in-memory by default; persistent session storage is a future enhancement\n\n   ### Troubleshooting\n   - `docker compose ps` to verify service status\n   - `docker compose logs -f chatbot-api` to tail API logs\n   - `docker compose logs -f postgres` to tail database logs\n   - `curl -X POST http://localhost:8000/chat -H 'Content-Type: application/json' -d '{\"session_id\":\"test\",\"message\":\"Hello\"}'` to smoke-test the chat endpoint\n\n3. Preserve all existing content in docs/OPERATIONS.md. The new section must be appended after the last existing section. Use the same heading style (## for H2, ### for H3) matching the existing document.\n\n4. No modifications above the appended section are allowed.",
+  "acceptance_criteria": [
+    "docs/OPERATIONS.md contains a '## Chatbot Engine Operations' section",
+    "The section covers local dev setup, Docker Compose layout, env vars, health checks, seed script usage, failure modes, and troubleshooting",
+    "All pre-existing content in docs/OPERATIONS.md is preserved unchanged",
+    "The new section is appended at the end of the file",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "docs/OPERATIONS.md"
+  ],
+  "forbidden_changes": [
+    "modify any file outside docs/OPERATIONS.md",
+    "modify any pre-existing content in docs/OPERATIONS.md above the appended section",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [],
+  "decision_budget": {
+    "allowed": [
+      "append a new top-level ## section at end of file",
+      "follow existing heading conventions (## H2, ### H3)",
+      "reference actual module paths from the chatbot package"
+    ],
+    "forbidden": [
+      "modify or delete any existing section content",
+      "reorganize existing headings or structure",
+      "add links to external services not already in the stack"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

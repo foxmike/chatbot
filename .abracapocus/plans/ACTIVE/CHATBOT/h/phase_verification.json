@@ -1,0 +1,53 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "compile_integration_init",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "tests/integration/__init__.py"
+        ]
+      },
+      {
+        "name": "compile_integration_test",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "tests/integration/test_chatbot.py"
+        ]
+      },
+      {
+        "name": "compile_seed",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "scripts/seed.py"
+        ]
+      },
+      {
+        "name": "pytest_integration",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "tests/integration/test_chatbot.py",
+          "-x",
+          "-v"
+        ]
+      },
+      {
+        "name": "verify_operations_md_section",
+        "command": [
+          "grep",
+          "-q",
+          "## Chatbot Engine Operations",
+          "docs/OPERATIONS.md"
+        ]
+      }
+    ]
+  }
+}

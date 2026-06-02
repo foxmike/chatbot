@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "task_id": "c.4",
+  "phase": "C",
+  "phase_id": "c",
+  "title": "Alembic 0001 reversible migration",
+  "description": "Create the initial Alembic migration at migrations/versions/0001_core_schema.py. This migration must create all six tables from chatbot/db/models.py \u2014 User, Session, Message, Episode, SemanticFact, Entity \u2014 with all columns, foreign keys, indexes, and the pgvector extension.\n\nRequirements:\n- The migration must enable the pgvector extension (CREATE EXTENSION IF NOT EXISTS vector) in upgrade()\n- The Message.embedding and SemanticFact.embedding columns must use sa.Vector(None) so the dimension is configurable at migration time\n- downgrade() must drop all six tables and the pgvector extension (DROP EXTENSION IF EXISTS vector), making the migration fully reversible\n- Use Alembic's autogenerate as a starting point but verify the output matches the models exactly\n- All foreign keys must cascade correctly: Session\u2192User ON DELETE CASCADE, Message\u2192Session ON DELETE CASCADE, etc.\n- Indexes: User.external_id, Entity.name, Session.user_id, Message.session_id\n\nEnsure the migrations/env.py is configured to import the Base metadata from chatbot.db.models and use the async engine from chatbot.db.session.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- This task document (task c.4)\n- chatbot/db/models.py (produced by task c.2)\n- chatbot/db/session.py (produced by task c.1)\n- migrations/env.py (if it exists)\n- migrations/alembic.ini (if it exists)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "migrations/versions/0001_core_schema.py exists",
+    "upgrade() creates all six tables with pgvector extension",
+    "downgrade() drops all six tables and the pgvector extension",
+    "python -m py_compile migrations/versions/0001_core_schema.py passes",
+    "Migration is reversible (upgrade then downgrade runs without error)",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "migrations/versions/0001_core_schema.py",
+    "migrations/env.py"
+  ],
+  "forbidden_changes": [
+    "modify chatbot/db/models.py",
+    "modify chatbot/db/session.py",
+    "modify files outside migrations/",
+    "create additional migration versions"
+  ],
+  "dependencies": [
+    "c.2"
+  ],
+  "task_timeout_seconds": 900
+}

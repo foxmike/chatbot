@@ -1,0 +1,88 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "compile_db_init",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/db/__init__.py"
+        ]
+      },
+      {
+        "name": "compile_db_session",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/db/session.py"
+        ]
+      },
+      {
+        "name": "compile_db_models",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/db/models.py"
+        ]
+      },
+      {
+        "name": "compile_memory_init",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/memory/__init__.py"
+        ]
+      },
+      {
+        "name": "compile_vector_store",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/memory/vector_store.py"
+        ]
+      },
+      {
+        "name": "compile_embeddings",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/memory/embeddings.py"
+        ]
+      },
+      {
+        "name": "compile_pgvector_store",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/memory/pgvector_store.py"
+        ]
+      },
+      {
+        "name": "compile_migration",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "migrations/versions/0001_core_schema.py"
+        ]
+      },
+      {
+        "name": "pytest_schema",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "tests/test_schema.py",
+          "-v"
+        ]
+      }
+    ]
+  }
+}

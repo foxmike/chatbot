@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "task_id": "f.4",
+  "phase": "F",
+  "phase_id": "f",
+  "title": "Implement idempotent consolidation worker",
+  "description": "Create chatbot/consolidation/worker.py.\n\nImplement a ConsolidationWorker class that orchestrates the three consolidation subsystems (summarizer, contradiction resolver, decay engine) in an idempotent run-scoped loop:\n- Import Summarizer from chatbot/consolidation/summarizer.py, ContradictionResolver from chatbot/consolidation/contradiction.py, and MemoryDecayEngine from chatbot/consolidation/decay.py.\n- Accept a Provider instance (for LLM calls) and a memory store/session handle through the constructor.\n- Provide a single async entry point: async def run_consolidation(session_id: str) -> ConsolidationResult.\n- The run_consolidation method must be idempotent and safe to re-run: track a last_consolidation_run timestamp per session and skip if called again within a coalescing window (default 60 seconds).\n- Consolidation pipeline order:\n  1. Fetch unsummarized memory entries from the memory store.\n  2. Run ContradictionResolver.resolve() pairwise across recent entries; apply resolutions.\n  3. Run Summarizer.summarize_turn() on new turns and roll up to session/long-term summaries.\n  4. Run MemoryDecayEngine.prune() on all entries; persist pruned set.\n- Wrap the entire pipeline in a database transaction (using the session's DB connection) so a partial failure rolls back all writes.\n- ConsolidationResult should include: summaries_produced (int), contradictions_resolved (int), entries_pruned (int), and run_timestamp.\n- Handle the case where no work is needed (no new entries, coalescing window active) by returning an empty ConsolidationResult.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/operations.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md (if present)\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md (if present)\n- chatbot/consolidation/summarizer.py\n- chatbot/consolidation/contradiction.py\n- chatbot/consolidation/decay.py\n- Any existing files under chatbot/memory/ that define memory store interfaces\n- Any existing files under chatbot/providers/ that define the Provider interface\n- chatbot/consolidation/worker.py (if it exists)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/consolidation/worker.py exists and imports cleanly",
+    "python -m py_compile chatbot/consolidation/worker.py passes",
+    "ConsolidationWorker class imports and uses Summarizer, ContradictionResolver, MemoryDecayEngine",
+    "ConsolidationWorker has async run_consolidation(session_id: str) -> ConsolidationResult method",
+    "Pipeline order is: contradiction resolution \u2192 summarization \u2192 decay/pruning",
+    "Worker is idempotent with a configurable coalescing window",
+    "Pipeline is wrapped in a database transaction that rolls back on failure",
+    "ConsolidationResult includes summaries_produced, contradictions_resolved, entries_pruned, run_timestamp",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/consolidation/worker.py"
+  ],
+  "forbidden_changes": [
+    "modify files outside chatbot/consolidation/",
+    "modify summarizer.py, contradiction.py, or decay.py",
+    "add new third-party dependencies without justification",
+    "modify the memory store interface",
+    "create new files beyond allowed_write_paths"
+  ],
+  "allowed_symbols": [
+    "ConsolidationWorker",
+    "ConsolidationResult"
+  ],
+  "dependencies": [
+    "f.1",
+    "f.2",
+    "f.3"
+  ],
+  "task_timeout_seconds": 900
+}

@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "task_id": "f.3",
+  "phase": "F",
+  "phase_id": "f",
+  "title": "Implement memory decay and pruning",
+  "description": "Create chatbot/consolidation/decay.py.\n\nImplement a MemoryDecayEngine class that applies decay and pruning to memory:\n- Accept a list of MemoryEntry records and return a pruned list with stale entries removed.\n- Define configurable decay parameters: base_half_life_seconds (default: 7 days), access_count_weight (how much recent access extends lifetime), relevance_threshold (below which entries are pruned).\n- Compute a decay score for each entry based on: age (exponential decay with half-life), access frequency (recent accesses slow decay), and intrinsic relevance (from MemoryEntry metadata).\n- Entries whose decay score falls below relevance_threshold are removed from the returned list.\n- The decay computation must be deterministic and idempotent: given the same entries, timestamps, and access counts, the same entries are always pruned.\n- Handle edge cases: empty input list, all entries below threshold, all entries above threshold, entries with missing timestamps.\n- Do NOT call the LLM Provider; this is a purely algorithmic module.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/operations.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md (if present)\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md (if present)\n- Any existing files under chatbot/memory/ that define memory schemas\n- chatbot/consolidation/decay.py (if it exists)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/consolidation/decay.py exists and imports cleanly",
+    "python -m py_compile chatbot/consolidation/decay.py passes",
+    "MemoryDecayEngine class has a prune(entries: list) -> list method",
+    "Decay parameters (base_half_life_seconds, access_count_weight, relevance_threshold) are configurable via constructor",
+    "Decay score computation uses exponential age decay, access frequency boost, and intrinsic relevance",
+    "Entries below relevance_threshold are removed; entries above remain",
+    "Decay computation is deterministic and idempotent",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/consolidation/decay.py"
+  ],
+  "forbidden_changes": [
+    "modify files outside chatbot/consolidation/",
+    "add new third-party dependencies without justification",
+    "call the LLM Provider from decay.py",
+    "create new files beyond allowed_write_paths"
+  ],
+  "allowed_symbols": [
+    "MemoryDecayEngine"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

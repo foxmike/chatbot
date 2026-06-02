@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "task_id": "f.5",
+  "phase": "F",
+  "phase_id": "f",
+  "title": "Write consolidation tests",
+  "description": "Create tests/test_consolidation.py.\n\nWrite comprehensive tests for all four consolidation modules:\n\nSummarizer tests:\n- summarize_turn returns a non-empty string for valid input messages\n- summarize_session correctly rolls up multiple turn summaries\n- summarize_long_term handles empty input gracefully\n- Summarizer is idempotent: same input produces same output (mock the Provider)\n\nContradictionResolver tests:\n- Rule-based contradiction: same subject, conflicting values \u2192 has_contradiction=True\n- Rule-based non-contradiction: different subjects or same values \u2192 has_contradiction=False\n- Temporal contradiction: incorrect ordering \u2192 detected\n- Preference reversal: detected\n- Empty/None entries: handled without exception, returns has_contradiction=False\n- Idempotency: same pair always returns identical ContradictionResult\n- LLM fallback is called only for ambiguous cases (mock Provider)\n\nMemoryDecayEngine tests:\n- Entries older than half-life receive lower decay scores\n- Recently accessed entries are boosted\n- Entries below relevance_threshold are pruned\n- Empty input returns empty list\n- All entries above threshold: none pruned\n- All entries below threshold: all pruned\n- Idempotency: same inputs produce same pruned list\n\nConsolidationWorker tests:\n- run_consolidation runs the full pipeline when work exists\n- Coalescing window: second call within window returns empty result\n- Transactional rollback: simulated DB failure does not corrupt state\n- ConsolidationResult fields are populated correctly\n\nUse pytest with fixtures and mocks. Do NOT require a real database or LLM provider \u2014 mock all external dependencies.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/operations.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/consolidation/summarizer.py\n- chatbot/consolidation/contradiction.py\n- chatbot/consolidation/decay.py\n- chatbot/consolidation/worker.py\n- tests/test_consolidation.py (if it exists)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "tests/test_consolidation.py exists and imports cleanly",
+    "python -m py_compile tests/test_consolidation.py passes",
+    "Tests cover Summarizer: summarize_turn, summarize_session, summarize_long_term, idempotency",
+    "Tests cover ContradictionResolver: rule-based conflicts, non-conflicts, temporal, preference, edge cases, idempotency",
+    "Tests cover MemoryDecayEngine: age decay, access boost, threshold pruning, edge cases, idempotency",
+    "Tests cover ConsolidationWorker: full pipeline, coalescing window, transactional rollback, result fields",
+    "All external dependencies (Provider, DB, memory store) are mocked; no real LLM calls",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "tests/test_consolidation.py"
+  ],
+  "forbidden_changes": [
+    "modify files outside tests/",
+    "modify any chatbot/consolidation/ source files",
+    "add new third-party dependencies without justification",
+    "create new files beyond allowed_write_paths"
+  ],
+  "allowed_symbols": [],
+  "dependencies": [
+    "f.4"
+  ],
+  "task_timeout_seconds": 900
+}
