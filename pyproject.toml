@@ -12,6 +12,7 @@ dependencies = [
     "uvicorn[standard]",
     "pydantic",
     "pydantic-settings",
+    "asyncpg>=0.29",
     "psycopg2-binary",
     "pgvector",
     "redis[hiredis]",
