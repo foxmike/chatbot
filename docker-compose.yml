@@ -1,0 +1,51 @@
+services:
+  api:
+    build:
+      context: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      - db
+      - redis
+    networks:
+      - chatbot-net
+
+  db:
+    image: pgvector/pgvector:pg16
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: chatbot
+      POSTGRES_USER: chatbot
+      POSTGRES_PASSWORD: chatbot
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chatbot-net
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chatbot-net
+
+volumes:
+  postgres-data:
+
+networks:
+  chatbot-net:
+    driver: bridge
