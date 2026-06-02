@@ -1,1 +1,0 @@
-{"task_id":"b.1","phase_id":"B","run_id":"81017fc9-b440-444e-b60f-45fbf68a4778","accepted_at":"2026-06-02T03:35:56.059214","files_added":["chatbot/providers/"],"files_modified":[],"public_symbols_added":[],"public_symbols_removed":[],"dependencies_added":[],"description_summary":"Define Provider interface and errors"}
