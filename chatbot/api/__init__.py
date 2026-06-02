@@ -1,1 +1,1 @@
-"""API package for the chatbot service."""
+"""Chatbot API package."""
