@@ -29,3 +29,5 @@ logs/
 # Tool transient dirs
 .agents/
 .codex/
+state/runs/
+__pycache__/
