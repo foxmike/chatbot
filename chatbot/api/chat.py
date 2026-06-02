@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
 from chatbot.core import TurnContext, build_default_pipeline
@@ -25,10 +25,11 @@ chat_router = APIRouter(prefix="/chat")
 
 
 @chat_router.post("/", response_model=ChatResponse)
-async def chat(request: ChatRequest) -> ChatResponse:
+async def chat(request: Request, body: ChatRequest) -> ChatResponse:
+    provider_registry = getattr(request.app.state, "provider_registry", None)
     ctx = TurnContext(
-        session_id=request.session_id,
-        user_message=request.message,
+        session_id=body.session_id,
+        user_message=body.message,
         history=[],
         persona={},
         retrieved_memories=[],
@@ -36,7 +37,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
         provider_response=None,
         extracted_memories=[],
         final_response=None,
-        metadata={},
+        metadata={"provider_registry": provider_registry},
     )
 
     ctx = await build_default_pipeline().run(ctx)
