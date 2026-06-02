@@ -10,6 +10,9 @@ from chatbot.memory.embeddings import EmbeddingProvider
 from chatbot.memory.vector_store import SearchResult, VectorStore
 
 
+_RESERVED_METADATA_KEYS = {"session_id", "role", "content", "token_count", "created_at"}
+
+
 @dataclass(frozen=True, slots=True)
 class EpisodicTurn:
     id: str
@@ -133,7 +136,7 @@ async def save_turn(
         role=role,
         content=content,
         token_count=token_count,
-        created_at=created_at or datetime.now(timezone.utc),
+        created_at=_normalize_datetime(created_at or datetime.now(timezone.utc)),
         metadata=dict(metadata or {}),
     )
     embedding = await _embed_one(embeddings, turn.embedding_text())
@@ -176,7 +179,11 @@ async def query_by_time_range(
     candidate_k: int | None = None,
 ) -> list[EpisodicMemoryResult]:
     _validate_top_k(top_k)
-    if start > end:
+    normalized_start = _normalize_datetime(start)
+    normalized_end = _normalize_datetime(end)
+    if normalized_start is None or normalized_end is None:
+        raise ValueError("start and end must not be None")
+    if normalized_start > normalized_end:
         raise ValueError("start must be before or equal to end")
     if candidate_k is not None and candidate_k <= 0:
         raise ValueError("candidate_k must be greater than zero")
@@ -193,8 +200,8 @@ async def query_by_time_range(
     matching_results = []
     for result in results:
         episodic_result = _result_from_search_result(result)
-        created_at = episodic_result.turn.created_at
-        if created_at is not None and start <= created_at <= end:
+        created_at = _normalize_datetime(episodic_result.turn.created_at)
+        if created_at is not None and normalized_start <= created_at <= normalized_end:
             matching_results.append(episodic_result)
         if len(matching_results) >= top_k:
             break
@@ -225,7 +232,7 @@ async def _embed_one(embeddings: EmbeddingProvider, text: str) -> list[float]:
 
 
 def _result_from_search_result(result: SearchResult) -> EpisodicMemoryResult:
-    metadata = result.metadata or {}
+    metadata = _expanded_metadata(result.metadata or {})
     turn = EpisodicTurn(
         id=result.id,
         session_id=_metadata_text(metadata, "session_id"),
@@ -236,10 +243,20 @@ def _result_from_search_result(result: SearchResult) -> EpisodicMemoryResult:
         metadata={
             key: value
             for key, value in metadata.items()
-            if key not in {"session_id", "role", "content", "token_count", "created_at"}
+            if key not in _RESERVED_METADATA_KEYS
         },
     )
     return EpisodicMemoryResult(turn=turn, score=result.score)
+
+
+def _expanded_metadata(metadata: Mapping[str, Any]) -> dict[str, Any]:
+    expanded = dict(metadata)
+    for key in ("metadata", "metadata_json"):
+        nested = expanded.get(key)
+        if isinstance(nested, Mapping):
+            for nested_key, nested_value in nested.items():
+                expanded.setdefault(str(nested_key), nested_value)
+    return expanded
 
 
 def _metadata_text(metadata: Mapping[str, Any], key: str) -> str:
@@ -257,10 +274,18 @@ def _metadata_datetime(value: Any) -> datetime | None:
     if value is None:
         return None
     if isinstance(value, datetime):
-        return value
+        return _normalize_datetime(value)
     if isinstance(value, str):
-        return datetime.fromisoformat(value)
+        return _normalize_datetime(datetime.fromisoformat(value.replace("Z", "+00:00")))
     raise TypeError(f"Unsupported datetime metadata value: {value!r}")
+
+
+def _normalize_datetime(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 def _validate_top_k(top_k: int) -> None:
