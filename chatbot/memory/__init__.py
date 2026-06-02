@@ -1,3 +1,11 @@
+from chatbot.memory.context_compiler import (
+    BudgetCounter,
+    CompiledContext,
+    ContextCompiler,
+    ContextSource,
+    PersonaStub,
+    compile_context,
+)
 from chatbot.memory.embeddings import EmbeddingProvider
 from chatbot.memory.episodic import (
     EpisodicMemoryResult,
@@ -22,10 +30,15 @@ from chatbot.memory.working_memory import (
 )
 
 __all__ = [
+    "BudgetCounter",
+    "CompiledContext",
+    "ContextCompiler",
+    "ContextSource",
     "EmbeddingProvider",
     "EpisodicMemoryResult",
     "EpisodicMemoryStore",
     "EpisodicTurn",
+    "PersonaStub",
     "RetrievalEngine",
     "RetrievalFilter",
     "RetrievalResult",
@@ -35,6 +48,7 @@ __all__ = [
     "WorkingMemoryProvider",
     "WorkingMemoryTurn",
     "WorkingMemoryWindow",
+    "compile_context",
     "query_by_session",
     "query_by_time_range",
     "retrieve",
