@@ -1,0 +1,343 @@
+from __future__ import annotations
+
+import asyncio
+from collections.abc import Mapping, Sequence
+import sys
+from pathlib import Path
+from typing import Any
+
+import httpx
+import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from chatbot.providers.base import (
+    Provider,
+    ProviderAuthError,
+    ProviderConfig,
+    ProviderError,
+    ProviderRateLimitError,
+    ProviderRegistry,
+    ProviderResponse,
+    ProviderTimeoutError,
+)
+from chatbot.providers.modal_ephemeral import ModalEphemeralProvider
+from chatbot.providers.openai_compat import OpenAICompatProvider
+from chatbot.providers.router import ProviderRouter
+
+
+class FakeProvider(Provider):
+    def __init__(self, *, available: bool = True) -> None:
+        self.available = available
+
+    async def complete(
+        self,
+        prompt: str,
+        history: Sequence[Mapping[str, Any]],
+        config: ProviderConfig,
+    ) -> ProviderResponse:
+        return ProviderResponse(text=prompt, finish_reason="stop", model=config.model)
+
+
+class FakeHTTPClient:
+    response: httpx.Response | None = None
+    requests: list[dict[str, Any]] = []
+
+    async def __aenter__(self) -> FakeHTTPClient:
+        return self
+
+    async def __aexit__(self, *_exc_info: object) -> None:
+        return None
+
+    async def post(self, url: str, **kwargs: Any) -> httpx.Response:
+        self.requests.append({"url": url, **kwargs})
+        if self.response is None:
+            raise AssertionError("FakeHTTPClient.response must be set")
+        return self.response
+
+
+class FakeCall:
+    def __init__(self, response: Any) -> None:
+        self.response = response
+        self.get_timeouts: list[float] = []
+        self.cancel_calls: list[dict[str, Any]] = []
+
+    def get(self, *, timeout: float) -> Any:
+        self.get_timeouts.append(timeout)
+        return self.response
+
+    def cancel(self, **kwargs: Any) -> None:
+        self.cancel_calls.append(kwargs)
+
+
+class FakeModalFunction:
+    def __init__(self, responses: Sequence[Any]) -> None:
+        self._responses = list(responses)
+        self.spawn_payloads: list[dict[str, Any]] = []
+        self.calls: list[FakeCall] = []
+        self.hydrated = False
+        self.stop_calls = 0
+
+    def hydrate(self) -> FakeModalFunction:
+        self.hydrated = True
+        return self
+
+    def spawn(self, payload: Mapping[str, Any]) -> FakeCall:
+        self.spawn_payloads.append(dict(payload))
+        if not self._responses:
+            raise AssertionError("unexpected Modal spawn")
+        call = FakeCall(self._responses.pop(0))
+        self.calls.append(call)
+        return call
+
+    def stop(self) -> None:
+        self.stop_calls += 1
+
+
+async def run_immediately(function: Any, /, *args: Any, **kwargs: Any) -> Any:
+    return function(*args, **kwargs)
+
+
+def test_provider_abc_cannot_be_instantiated_directly() -> None:
+    with pytest.raises(TypeError):
+        Provider()
+
+
+def test_provider_response_fields() -> None:
+    raw = {"choices": []}
+    response = ProviderResponse(
+        text="hello",
+        finish_reason="stop",
+        model="model-a",
+        raw=raw,
+    )
+
+    assert response.text == "hello"
+    assert response.finish_reason == "stop"
+    assert response.model == "model-a"
+    assert response.raw is raw
+
+
+def test_provider_error_hierarchy() -> None:
+    for error_type in (ProviderTimeoutError, ProviderAuthError, ProviderRateLimitError):
+        assert isinstance(error_type("boom"), ProviderError)
+
+
+def test_provider_registry_register_and_lookup_by_name() -> None:
+    provider = FakeProvider()
+    registry = ProviderRegistry()
+
+    registry.register("fake", provider)
+
+    assert registry.get("fake") is provider
+    assert registry.names() == ("fake",)
+
+
+def test_openai_compat_complete_maps_success_response(monkeypatch: pytest.MonkeyPatch) -> None:
+    FakeHTTPClient.response = httpx.Response(
+        200,
+        json={
+            "model": "served-model",
+            "choices": [
+                {
+                    "message": {"content": "completed text"},
+                    "finish_reason": "stop",
+                }
+            ],
+        },
+    )
+    FakeHTTPClient.requests = []
+    monkeypatch.setattr("chatbot.providers.openai_compat.httpx.AsyncClient", FakeHTTPClient)
+
+    provider = OpenAICompatProvider(
+        "https://provider.example/v1/",
+        api_key="token",
+        default_model="default-model",
+    )
+    response = asyncio.run(
+        provider.complete(
+            "Tell me",
+            [{"role": "system", "content": "Be direct"}],
+            ProviderConfig(model="", temperature=0.2, max_tokens=12, stop=("END",)),
+        )
+    )
+
+    assert response == ProviderResponse(
+        text="completed text",
+        finish_reason="stop",
+        model="served-model",
+        raw={
+            "model": "served-model",
+            "choices": [
+                {
+                    "message": {"content": "completed text"},
+                    "finish_reason": "stop",
+                }
+            ],
+        },
+    )
+    assert FakeHTTPClient.requests == [
+        {
+            "url": "https://provider.example/v1/chat/completions",
+            "headers": {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer token",
+            },
+            "json": {
+                "model": "default-model",
+                "messages": [
+                    {"role": "system", "content": "Be direct"},
+                    {"role": "user", "content": "Tell me"},
+                ],
+                "temperature": 0.2,
+                "max_tokens": 12,
+                "stop": ["END"],
+            },
+            "timeout": 60.0,
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    ("status_code", "expected_error"),
+    [
+        (401, ProviderAuthError),
+        (429, ProviderRateLimitError),
+    ],
+)
+def test_openai_compat_translates_http_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    status_code: int,
+    expected_error: type[ProviderError],
+) -> None:
+    FakeHTTPClient.response = httpx.Response(
+        status_code,
+        json={"error": {"message": "provider rejected request"}},
+    )
+    FakeHTTPClient.requests = []
+    monkeypatch.setattr("chatbot.providers.openai_compat.httpx.AsyncClient", FakeHTTPClient)
+
+    provider = OpenAICompatProvider("https://provider.example", default_model="model-a")
+
+    with pytest.raises(expected_error) as exc_info:
+        asyncio.run(provider.complete("prompt", [], ProviderConfig(model="")))
+
+    assert f"HTTP {status_code}" in str(exc_info.value)
+    assert "provider rejected request" in str(exc_info.value)
+
+
+def test_modal_ephemeral_cold_start_readiness_loop_and_response_mapping(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("chatbot.providers.modal_ephemeral.asyncio.to_thread", run_immediately)
+    function = FakeModalFunction(
+        responses=[
+            {"text": "ready", "finish_reason": "warmup"},
+            {
+                "model": "modal-model",
+                "choices": [
+                    {
+                        "message": {"content": "modal text"},
+                        "finish_reason": "stop",
+                    }
+                ],
+            },
+            {"text": "second modal text", "finish_reason": "stop", "model": "modal-model"},
+        ]
+    )
+    provider = ModalEphemeralProvider(
+        function_ref=function,
+        default_model="default-modal-model",
+        readiness_payload={"kind": "readiness"},
+    )
+
+    async def exercise_provider() -> tuple[ProviderResponse, ProviderResponse]:
+        first_response = await provider.complete(
+            "Hello",
+            [{"role": "assistant", "content": "Previous"}],
+            ProviderConfig(model="modal-model", top_p=0.9),
+        )
+        second_provider_response = await provider.complete(
+            "Again",
+            [],
+            ProviderConfig(model="modal-model", extra={"seed": 1}),
+        )
+        return first_response, second_provider_response
+
+    response, second_response = asyncio.run(exercise_provider())
+
+    assert response.text == "modal text"
+    assert response.finish_reason == "stop"
+    assert response.model == "modal-model"
+    assert second_response.text == "second modal text"
+    assert function.hydrated is True
+    assert function.spawn_payloads == [
+        {"kind": "readiness"},
+        {
+            "model": "modal-model",
+            "messages": [
+                {"role": "assistant", "content": "Previous"},
+                {"role": "user", "content": "Hello"},
+            ],
+            "top_p": 0.9,
+        },
+        {
+            "model": "modal-model",
+            "messages": [{"role": "user", "content": "Again"}],
+            "seed": 1,
+        },
+    ]
+
+
+def test_modal_ephemeral_teardown_stops_resolved_function(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("chatbot.providers.modal_ephemeral.asyncio.to_thread", run_immediately)
+    function = FakeModalFunction(responses=["modal text"])
+    provider = ModalEphemeralProvider(function_ref=function, default_model="model-a")
+
+    async def exercise_provider() -> None:
+        await provider.complete("Hello", [], ProviderConfig(model=""))
+        await provider.close()
+
+    asyncio.run(exercise_provider())
+
+    assert function.stop_calls == 1
+    assert provider._function is None
+    assert provider._ready is False
+
+
+def test_provider_router_selects_default_provider() -> None:
+    default = FakeProvider()
+    fallback = FakeProvider()
+    router = ProviderRouter(
+        {"default": default, "fallback": fallback},
+        {"default": "default", "fallback": "fallback"},
+    )
+
+    assert router.select("prompt", ProviderConfig(model="anything")) is default
+
+
+def test_provider_router_matches_model_prefix_rule() -> None:
+    default = FakeProvider()
+    modal = FakeProvider()
+    router = ProviderRouter(
+        {"default": default, "modal": modal},
+        {
+            "model_prefix": {"modal/": "modal"},
+            "default": "default",
+        },
+    )
+
+    assert router.select("prompt", ProviderConfig(model="modal/model-a")) is modal
+
+
+def test_provider_router_falls_back_when_primary_is_unavailable() -> None:
+    primary = FakeProvider(available=False)
+    fallback = FakeProvider()
+    router = ProviderRouter(
+        {"primary": primary, "fallback": fallback},
+        {"default": "primary", "fallback": "fallback"},
+    )
+
+    assert router.select("prompt", ProviderConfig(model="model-a")) is fallback
