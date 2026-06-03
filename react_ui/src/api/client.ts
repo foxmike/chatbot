@@ -150,6 +150,100 @@ export interface CreateRitualRequest {
   trigger_prompt: string | null;
 }
 
+// ---------------------------------------------------------------------------
+// Room & Scene types
+// ---------------------------------------------------------------------------
+
+export type RoomType =
+  | "one_on_one_chat"
+  | "roleplay_scene"
+  | "project"
+  | "emotional_support"
+  | "memory_review";
+
+export interface RoomMemoryPolicy {
+  persist_to_durable: boolean;
+  scope: "room" | "companion" | "global";
+  max_context_turns: number;
+  include_embeddings: boolean;
+}
+
+export interface RoomData {
+  room_id: string;
+  user_id: string;
+  companion_id: string | null;
+  room_type: RoomType;
+  display_name: string;
+  memory_policy: RoomMemoryPolicy;
+  scene_id: string | null;
+  created_at: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface RoomCreateParams {
+  user_id: string;
+  room_type: RoomType;
+  display_name?: string;
+  companion_id?: string;
+}
+
+export interface MemoryPolicyUpdateParams {
+  persist_to_durable?: boolean;
+  scope?: string;
+  max_context_turns?: number;
+  include_embeddings?: boolean;
+}
+
+export interface SceneData {
+  scene_id: string;
+  room_id: string;
+  location: string;
+  activity: string;
+  tone: string;
+  intensity: number;
+  is_paused: boolean;
+  started_at: string;
+  paused_at: string | null;
+  resumed_at: string | null;
+  ended_at: string | null;
+  participants: string[];
+  scene_context: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface SceneCreateParams {
+  room_id: string;
+  location: string;
+  activity: string;
+}
+
+export interface SceneUpdateParams {
+  location?: string;
+  activity?: string;
+  tone?: string;
+  intensity?: number;
+  scene_context?: string;
+  participants?: string[];
+}
+
+export interface PersonaParams {
+  name: string;
+  description: string;
+  traits: string[];
+  voice_style: string;
+  backstory?: string;
+  scene_goals?: string[];
+  constraints?: string[];
+}
+
+export interface ScenePromptResponse {
+  system_prompt: string;
+}
+
+export interface ClassificationResponse {
+  classification: "scene_only" | "durable" | "both";
+}
+
 const BASE_URL = "";
 
 async function parseErrorResponse(response: Response): Promise<ApiError> {
@@ -703,4 +797,124 @@ export function fetchSchedule(userId: string): Promise<ScheduleResponse> {
   return requestJson<ScheduleResponse>(`/agency/schedule/${userId}`, {
     method: "GET",
   });
+}
+
+// ---------------------------------------------------------------------------
+// Room API functions
+// ---------------------------------------------------------------------------
+
+export function createRoom(params: RoomCreateParams): Promise<RoomData> {
+  return requestJson<RoomData>("/rooms/", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
+export function listRooms(userId: string): Promise<RoomData[]> {
+  return requestJson<{ rooms: RoomData[] }>(`/rooms/${userId}`, {
+    method: "GET",
+  }).then((res) => res.rooms);
+}
+
+export function getRoom(roomId: string): Promise<RoomData> {
+  return requestJson<RoomData>(`/rooms/detail/${roomId}`, {
+    method: "GET",
+  });
+}
+
+export function updateRoomMemoryPolicy(
+  roomId: string,
+  params: MemoryPolicyUpdateParams,
+): Promise<RoomData> {
+  return requestJson<RoomData>(`/rooms/${roomId}/memory-policy`, {
+    method: "PUT",
+    body: JSON.stringify(params),
+  });
+}
+
+export async function deleteRoom(roomId: string): Promise<void> {
+  const response = await fetch(`${BASE_URL}/rooms/${roomId}`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+  await assertOk(response);
+}
+
+// ---------------------------------------------------------------------------
+// Scene API functions
+// ---------------------------------------------------------------------------
+
+export function createScene(
+  roomId: string,
+  params: SceneCreateParams,
+): Promise<SceneData> {
+  return requestJson<SceneData>(`/rooms/${roomId}/scenes`, {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
+export function getActiveScene(roomId: string): Promise<SceneData> {
+  return requestJson<SceneData>(`/rooms/${roomId}/scenes/active`, {
+    method: "GET",
+  });
+}
+
+export function getScene(sceneId: string): Promise<SceneData> {
+  return requestJson<SceneData>(`/rooms/scenes/${sceneId}`, {
+    method: "GET",
+  });
+}
+
+export function updateScene(
+  sceneId: string,
+  params: SceneUpdateParams,
+): Promise<SceneData> {
+  return requestJson<SceneData>(`/rooms/scenes/${sceneId}`, {
+    method: "PATCH",
+    body: JSON.stringify(params),
+  });
+}
+
+export function pauseScene(sceneId: string): Promise<SceneData> {
+  return requestJson<SceneData>(`/rooms/scenes/${sceneId}/pause`, {
+    method: "POST",
+  });
+}
+
+export function resumeScene(sceneId: string): Promise<SceneData> {
+  return requestJson<SceneData>(`/rooms/scenes/${sceneId}/resume`, {
+    method: "POST",
+  });
+}
+
+export function endScene(sceneId: string): Promise<SceneData> {
+  return requestJson<SceneData>(`/rooms/scenes/${sceneId}/end`, {
+    method: "POST",
+  });
+}
+
+export function setScenePersona(
+  sceneId: string,
+  params: PersonaParams,
+): Promise<ScenePromptResponse> {
+  return requestJson<ScenePromptResponse>(`/rooms/scenes/${sceneId}/persona`, {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
+export function classifySceneMemory(
+  sceneId: string,
+  text: string,
+): Promise<ClassificationResponse> {
+  return requestJson<ClassificationResponse>(
+    `/rooms/scenes/${sceneId}/classify`,
+    {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    },
+  );
 }
