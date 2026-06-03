@@ -5,6 +5,9 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any, Mapping
 
+from chatbot.soul.modes import ConversationMode, ModeSelector
+from chatbot.soul.mood import MoodEngine, MoodState
+
 
 _DEFAULT_CONFIG: dict[str, Any] = {
     "fallback_prompt": (
@@ -95,9 +98,19 @@ class PersonaPromptAssembler:
     ) -> "PersonaPromptAssembler":
         return cls(config)
 
-    def assemble(self, persona: dict[str, Any]) -> str:
+    def assemble(
+        self,
+        persona: dict[str, Any],
+        mood: MoodState | None = None,
+        mode: ConversationMode | None = None,
+    ) -> str:
         if not persona:
-            return str(self._config["fallback_prompt"])
+            return self._with_prompt_modifiers(
+                str(self._config["fallback_prompt"]),
+                "\n",
+                mood,
+                mode,
+            )
 
         style_name = _first_text(persona.get("template"), persona.get("style"))
         if not style_name:
@@ -124,7 +137,31 @@ class PersonaPromptAssembler:
             parts.append(tail)
 
         separator = str(style.get("section_separator", "\n"))
+        modifier_section = _render_prompt_modifiers(
+            style=style,
+            mood=mood,
+            mode=mode,
+        )
+        if modifier_section:
+            parts.append(modifier_section)
+
         return separator.join(parts)
+
+    def _with_prompt_modifiers(
+        self,
+        prompt: str,
+        separator: str,
+        mood: MoodState | None,
+        mode: ConversationMode | None,
+    ) -> str:
+        modifier_section = _render_prompt_modifiers(
+            style=_default_modifier_style(self._config),
+            mood=mood,
+            mode=mode,
+        )
+        if not modifier_section:
+            return prompt
+        return separator.join([prompt, modifier_section])
 
     def _render_sections(
         self, persona: Mapping[str, Any], style: Mapping[str, Any]
@@ -161,9 +198,13 @@ class PersonaPromptAssembler:
         return rendered
 
 
-def assemble_persona_prompt(persona: dict[str, Any]) -> str:
+def assemble_persona_prompt(
+    persona: dict[str, Any],
+    mood: MoodState | None = None,
+    mode: ConversationMode | None = None,
+) -> str:
     assembler = PersonaPromptAssembler()
-    return assembler.assemble(persona)
+    return assembler.assemble(persona, mood, mode)
 
 
 def _merge_config(
@@ -220,6 +261,94 @@ def _render_sequence(value: list[Any] | tuple[Any, ...], item_prefix: str) -> st
         if rendered:
             lines.append(f"{item_prefix}{rendered}")
     return "\n".join(lines)
+
+
+def _render_prompt_modifiers(
+    *,
+    style: Mapping[str, Any],
+    mood: MoodState | None,
+    mode: ConversationMode | None,
+) -> str:
+    hints: list[str] = []
+
+    if mood is not None:
+        hints.append(_clean_text(MoodEngine().to_prompt_hints(mood)))
+
+    if mode is not None:
+        selector = ModeSelector()
+        hints.append(_clean_text(selector.to_prompt_hints(mode)))
+        parameter_hints = _render_response_parameter_hints(
+            selector.get_response_params(mode)
+        )
+        if parameter_hints:
+            hints.append(parameter_hints)
+
+    if not hints:
+        return ""
+
+    hints.append(
+        "Apply these as secondary response-shaping cues while preserving the "
+        "fixed persona, boundaries, and directives above."
+    )
+    content = _render_sequence(hints, str(style.get("item_prefix", "- ")))
+    return _format_template(
+        str(style.get("section_format", "{label}: {content}")),
+        label="Response guidance",
+        content=content,
+    )
+
+
+def _render_response_parameter_hints(params: Mapping[str, Any]) -> str:
+    parts: list[str] = []
+
+    length_ratio = params.get("max_tokens_ratio")
+    if isinstance(length_ratio, (int, float)):
+        parts.append(f"length multiplier {_format_number(float(length_ratio))}")
+
+    initiative = _clean_text(params.get("initiative_level"))
+    if initiative:
+        parts.append(f"initiative {initiative.replace('_', ' ')}")
+
+    temperature = params.get("temperature_modifier")
+    if isinstance(temperature, (int, float)):
+        parts.append(
+            f"temperature adjustment {_format_signed_number(float(temperature))}"
+        )
+
+    should_suggest = params.get("should_suggest_topics")
+    if isinstance(should_suggest, bool):
+        parts.append(
+            "topic suggestions enabled"
+            if should_suggest
+            else "topic suggestions restrained"
+        )
+
+    if not parts:
+        return ""
+    return f"Response parameters: {'; '.join(parts)}."
+
+
+def _default_modifier_style(config: Mapping[str, Any]) -> Mapping[str, Any]:
+    styles = config.get("styles", {})
+    if not isinstance(styles, Mapping):
+        return {}
+
+    default_style = _clean_text(config.get("default_style"))
+    style = styles.get(default_style, {})
+    if isinstance(style, Mapping):
+        return style
+    return {}
+
+
+def _format_number(value: float) -> str:
+    return f"{value:.2f}".rstrip("0").rstrip(".")
+
+
+def _format_signed_number(value: float) -> str:
+    formatted = _format_number(value)
+    if value > 0:
+        return f"+{formatted}"
+    return formatted
 
 
 def _clean_text(value: Any) -> str:
