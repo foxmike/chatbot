@@ -5,14 +5,35 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import math
 import uuid
-from typing import Any
+from typing import Any, Literal, TYPE_CHECKING
 
 from chatbot.memory.embeddings import EmbeddingProvider
 from chatbot.memory.episodic import EpisodicTurn
 from chatbot.memory.vector_store import SearchResult, VectorStore
 
+if TYPE_CHECKING:
+    from chatbot.rooms.room import Room
+    from chatbot.rooms.scene import SceneState
+
 
 _RESERVED_METADATA_KEYS = {"session_id", "role", "content", "token_count", "created_at"}
+
+
+@dataclass(frozen=True, slots=True)
+class RoomMemoryContext:
+    """Room-scoped memory retrieval context.
+
+    Captures the memory policy settings that control how retrieval
+    filters, ranks, and scopes results for a particular room.
+    """
+
+    room_id: str | None = None
+    room_type: str | None = None
+    memory_scope: Literal['room', 'companion', 'global'] = 'global'
+    persist_to_durable: bool = True
+    max_context_turns: int = 50
+    include_embeddings: bool = True
+    companion_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,6 +81,7 @@ class RetrievalEngine:
         metadata: Mapping[str, Any] | None = None,
         tags: Iterable[str] | None = None,
         candidate_k: int | None = None,
+        room_context: RoomMemoryContext | None = None,
     ) -> list[RetrievalResult]:
         return await retrieve(
             self.vector_store,
@@ -73,6 +95,7 @@ class RetrievalEngine:
             metadata=metadata,
             tags=tags,
             candidate_k=candidate_k if candidate_k is not None else self.default_candidate_k,
+            room_context=room_context,
         )
 
 
@@ -89,8 +112,14 @@ async def retrieve(
     metadata: Mapping[str, Any] | None = None,
     tags: Iterable[str] | None = None,
     candidate_k: int | None = None,
+    room_context: RoomMemoryContext | None = None,
 ) -> list[RetrievalResult]:
-    """Retrieve episodic turns with deterministic relational filtering and ranking."""
+    """Retrieve episodic turns with deterministic relational filtering and ranking.
+
+    When *room_context* is provided, results are filtered and ranked according
+    to the room's memory policy: scope (room/companion/global), durability
+    preferences, embedding inclusion, and context-turn limits.
+    """
     _validate_limit(limit, "limit")
     if candidate_k is not None:
         _validate_limit(candidate_k, "candidate_k")
@@ -103,12 +132,20 @@ async def retrieve(
         metadata=metadata,
         tags=tags,
     )
+
+    if room_context is not None:
+        retrieval_filter = _apply_room_context_metadata(retrieval_filter, room_context)
+
     _validate_time_range(retrieval_filter.start, retrieval_filter.end)
+
+    effective_limit = limit
+    if room_context is not None and room_context.max_context_turns > 0:
+        effective_limit = min(limit, room_context.max_context_turns)
 
     query_embedding = await _embed_one(embeddings, query or "")
     raw_results = await vector_store.search(
         embedding=query_embedding,
-        top_k=max(candidate_k or _default_candidate_k(limit), limit),
+        top_k=max(candidate_k or _default_candidate_k(effective_limit), effective_limit),
         filter=_vector_store_filter(retrieval_filter),
     )
 
@@ -116,7 +153,15 @@ async def retrieve(
         _Candidate.from_search_result(result, retrieval_filter)
         for result in raw_results
     ]
+
+    if room_context is not None and not room_context.include_embeddings:
+        candidates = _neutralize_vector_scores(candidates, query or "")
+
     filtered = [candidate for candidate in candidates if _matches_filter(candidate, retrieval_filter)]
+
+    if room_context is not None:
+        filtered = _apply_room_memory_policy(filtered, room_context)
+
     deduped = _deduplicate(filtered)
     ranked = _rank_candidates(deduped, retrieval_filter)
 
@@ -128,7 +173,7 @@ async def retrieve(
             rank=index + 1,
             metadata_matches=candidate.metadata_matches,
         )
-        for index, candidate in enumerate(ranked[:limit])
+        for index, candidate in enumerate(ranked[:effective_limit])
     ]
 
 
@@ -471,9 +516,130 @@ def _validate_time_range(start: datetime | None, end: datetime | None) -> None:
         raise ValueError("start must be before or equal to end")
 
 
+def _apply_room_context_metadata(
+    retrieval_filter: RetrievalFilter,
+    room_context: RoomMemoryContext,
+) -> RetrievalFilter:
+    """Add room-scoped metadata constraints to the retrieval filter."""
+    extra_metadata = dict(retrieval_filter.metadata or {})
+
+    if room_context.memory_scope == 'room' and room_context.room_id is not None:
+        extra_metadata.setdefault('room_id', room_context.room_id)
+    elif room_context.memory_scope == 'companion' and room_context.companion_id is not None:
+        extra_metadata.setdefault('companion_id', room_context.companion_id)
+
+    return RetrievalFilter(
+        session_id=retrieval_filter.session_id,
+        start=retrieval_filter.start,
+        end=retrieval_filter.end,
+        metadata=extra_metadata or None,
+        tags=retrieval_filter.tags,
+    )
+
+
+def _neutralize_vector_scores(
+    candidates: list[_Candidate],
+    query: str,
+) -> list[_Candidate]:
+    """Zero out vector scores and add keyword match info for text-based retrieval.
+
+    When *query* is non-empty, candidates with no keyword overlap are dropped.
+    """
+    result: list[_Candidate] = []
+    for c in candidates:
+        kw_score = _compute_keyword_score(query, c.turn.content)
+        mm = dict(c.metadata_matches)
+        if kw_score > 0:
+            mm['_keyword_match'] = kw_score
+        result.append(_Candidate(
+            turn=c.turn,
+            vector_score=0.0,
+            metadata_matches=mm,
+        ))
+
+    if query.strip():
+        result = [c for c in result if c.metadata_matches.get('_keyword_match', 0) > 0]
+
+    return result
+
+
+def _apply_room_memory_policy(
+    candidates: list[_Candidate],
+    room_context: RoomMemoryContext,
+) -> list[_Candidate]:
+    """Filter candidates by room memory policy: durability and scene isolation."""
+    result: list[_Candidate] = []
+    for candidate in candidates:
+        meta = candidate.turn.metadata
+
+        if not room_context.persist_to_durable and _is_durable_memory(meta):
+            continue
+
+        if room_context.room_type == 'roleplay_scene':
+            if _is_durable_memory(meta) and not _is_cross_scene_persistent(meta):
+                continue
+
+        result.append(candidate)
+    return result
+
+
+def _is_durable_memory(metadata: Mapping[str, Any]) -> bool:
+    """Return True if memory metadata indicates a durable (factual) memory."""
+    if metadata.get('memory_importance') == 'durable':
+        return True
+    if metadata.get('durable') is True:
+        return True
+    if 'durable' in _metadata_tags(metadata):
+        return True
+    return False
+
+
+def _is_cross_scene_persistent(metadata: Mapping[str, Any]) -> bool:
+    """Return True if a durable memory is marked for cross-scene persistence."""
+    if metadata.get('memory_importance') == 'both':
+        return True
+    if metadata.get('cross_scene') is True:
+        return True
+    if 'cross_scene' in _metadata_tags(metadata):
+        return True
+    return False
+
+
+def _compute_keyword_score(query: str, content: str) -> float:
+    """Compute keyword overlap score between query terms and content."""
+    if not query or not content:
+        return 0.0
+    query_terms = set(query.lower().split())
+    if not query_terms:
+        return 0.0
+    content_lower = content.lower()
+    matches = sum(1 for term in query_terms if term in content_lower)
+    return matches / len(query_terms)
+
+
+def build_room_context(room: Room, scene: SceneState | None = None) -> RoomMemoryContext:
+    """Construct a RoomMemoryContext from a Room and optional Scene.
+
+    Extracts memory policy settings from the room and returns a context
+    suitable for passing to :func:`retrieve` or :meth:`RetrievalEngine.retrieve`.
+    """
+    policy = room.memory_policy
+    return RoomMemoryContext(
+        room_id=room.room_id,
+        room_type=room.room_type.value if hasattr(room.room_type, 'value') else str(room.room_type),
+        memory_scope=policy.scope,
+        persist_to_durable=policy.persist_to_durable,
+        max_context_turns=policy.max_context_turns,
+        include_embeddings=policy.include_embeddings,
+        companion_id=room.companion_id,
+    )
+
+
 __all__ = [
     "RetrievalEngine",
     "RetrievalFilter",
     "RetrievalResult",
+    "RoomMemoryContext",
+    "build_room_context",
     "retrieve",
 ]
