@@ -34,6 +34,35 @@ export interface CreateSessionResponse {
   session_id: string;
 }
 
+export interface RelationshipConfig {
+  type: "friend" | "mentor" | "peer" | "partner" | "custom";
+  tone: "warm" | "neutral" | "formal" | "playful" | "sarcastic";
+  directness: number;
+  warmth: number;
+  initiative_level: number;
+  content_level: "light" | "moderate" | "deep" | "intellectual";
+}
+
+export interface CharacterProfile {
+  name: string;
+  backstory: string;
+  personality_sliders: Record<string, number>;
+  humor_style: "dry" | "witty" | "silly" | "dark" | "none";
+  communication_style:
+    | "verbose"
+    | "concise"
+    | "storyteller"
+    | "question_driven"
+    | "aphoristic";
+  favorite_topics: string[];
+}
+
+export interface IdentityState {
+  fixed: Record<string, unknown>;
+  slow: Record<string, unknown>;
+  mood: Record<string, unknown>;
+}
+
 export interface ApiError {
   detail: string;
   status_code: number;

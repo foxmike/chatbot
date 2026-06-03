@@ -1,7 +1,10 @@
 import type {
   ApiError,
   ChatResponse,
+  CharacterProfile,
   CreateSessionResponse,
+  IdentityState,
+  RelationshipConfig,
   StreamEvent,
 } from "../types";
 
@@ -94,6 +97,76 @@ export function sendMessage(
     method: "POST",
     body: JSON.stringify({ message, session_id: sessionId }),
   });
+}
+
+export function getRelationshipConfig(
+  sessionId: string,
+): Promise<RelationshipConfig> {
+  return requestJson<RelationshipConfig>(
+    `/api/config/relationship/${sessionId}`,
+    {
+      method: "GET",
+    },
+  );
+}
+
+export function updateRelationshipConfig(
+  sessionId: string,
+  config: Partial<RelationshipConfig>,
+): Promise<RelationshipConfig> {
+  return requestJson<RelationshipConfig>(
+    `/api/config/relationship/${sessionId}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(config),
+    },
+  );
+}
+
+export function getCharacterProfile(
+  sessionId: string,
+): Promise<CharacterProfile> {
+  return requestJson<CharacterProfile>(`/api/config/character/${sessionId}`, {
+    method: "GET",
+  });
+}
+
+export function updateCharacterProfile(
+  sessionId: string,
+  profile: Partial<CharacterProfile>,
+): Promise<CharacterProfile> {
+  return requestJson<CharacterProfile>(`/api/config/character/${sessionId}`, {
+    method: "PUT",
+    body: JSON.stringify(profile),
+  });
+}
+
+export function getIdentityState(sessionId: string): Promise<IdentityState> {
+  return requestJson<IdentityState>(`/api/config/identity/${sessionId}`, {
+    method: "GET",
+  });
+}
+
+export function evolveIdentity(
+  sessionId: string,
+  context?: Record<string, unknown>,
+): Promise<IdentityState> {
+  return requestJson<IdentityState>(
+    `/api/config/identity/${sessionId}/evolve`,
+    {
+      method: "POST",
+      body: JSON.stringify(context === undefined ? {} : { turn_context: context }),
+    },
+  );
+}
+
+export function resetIdentityMood(sessionId: string): Promise<IdentityState> {
+  return requestJson<IdentityState>(
+    `/api/config/identity/${sessionId}/reset-mood`,
+    {
+      method: "POST",
+    },
+  );
 }
 
 export async function sendMessageStream(
