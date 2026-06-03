@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, is_dataclass
@@ -15,6 +16,17 @@ from typing import Any
 
 from chatbot.core.steps import StepResult, TurnContext, TurnStep
 from chatbot.providers.base import ProviderConfig
+
+try:
+    from chatbot.continuity.rituals import get_due_rituals, trigger_ritual
+except ImportError:
+    get_due_rituals = None  # type: ignore[assignment]
+    trigger_ritual = None  # type: ignore[assignment]
+
+try:
+    from chatbot.continuity.timeline import add_timeline_entry
+except ImportError:
+    add_timeline_entry = None  # type: ignore[assignment]
 
 try:
     from chatbot.db.models import BotMoodLog, Session, UserStateLog
@@ -62,6 +74,114 @@ except ImportError:
     ConversationMode = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
+
+_MILESTONE_KEYWORDS: tuple[str, ...] = (
+    "accepted",
+    "bought a house",
+    "broke up",
+    "completed",
+    "diagnosed",
+    "finished",
+    "first day",
+    "got a new job",
+    "got engaged",
+    "got married",
+    "graduated",
+    "had a baby",
+    "launched",
+    "lost my job",
+    "moved to",
+    "passed",
+    "promoted",
+    "released",
+    "shipped",
+    "started a new job",
+    "won",
+)
+_MILESTONE_PATTERNS: tuple[tuple[str, str], ...] = (
+    ("career change", r"\b(?:started|got|accepted)\s+(?:a\s+)?new job\b"),
+    ("completed work", r"\b(?:finished|completed|shipped|released|launched)\b"),
+    ("life change", r"\b(?:moved|graduated|married|engaged|promoted)\b"),
+)
+_EMOTIONAL_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "distress": (
+        "afraid",
+        "angry",
+        "anxious",
+        "ashamed",
+        "burned out",
+        "burnt out",
+        "crying",
+        "depressed",
+        "frustrated",
+        "grieving",
+        "heartbroken",
+        "hurt",
+        "lonely",
+        "overwhelmed",
+        "panic",
+        "sad",
+        "scared",
+        "stressed",
+        "upset",
+        "worried",
+    ),
+    "positive": (
+        "celebrating",
+        "excited",
+        "grateful",
+        "happy",
+        "hopeful",
+        "proud",
+        "relieved",
+        "thrilled",
+    ),
+}
+_PROMISE_PATTERNS: tuple[tuple[str, str], ...] = (
+    (
+        "future commitment",
+        r"\b(?:i|we)(?:'ll| will)\s+"
+        r"(?:build|check|create|do|draft|fix|follow|handle|help|look|make|prepare|"
+        r"remember|review|send|set|share|take|update|walk|work|write)\b",
+    ),
+    (
+        "going to commitment",
+        r"\b(?:i|we)(?:'m| am|'re| are)\s+going to\s+"
+        r"(?:build|check|create|do|draft|fix|follow|handle|help|look|make|prepare|"
+        r"remember|review|send|set|share|take|update|walk|work|write)\b",
+    ),
+    ("explicit help offer", r"\blet me help you\s+(?:by|with)\b"),
+    ("explicit promise", r"\bi promise\b"),
+)
+_PROJECT_KEYWORDS: tuple[str, ...] = (
+    "app",
+    "book",
+    "campaign",
+    "client work",
+    "dashboard",
+    "feature",
+    "game",
+    "migration",
+    "paper",
+    "plugin",
+    "project",
+    "prototype",
+    "refactor",
+    "repo",
+    "repository",
+    "roadmap",
+    "startup",
+    "thesis",
+    "website",
+)
+_PROJECT_PATTERNS: tuple[tuple[str, str], ...] = (
+    ("new project", r"\b(?:new|next|side|client|work)\s+project\b"),
+    (
+        "active project work",
+        r"\b(?:building|creating|launching|making|planning|starting|started|"
+        r"working on)\s+(?:a|an|the)?\s*[\w -]{3,80}\b",
+    ),
+)
 
 
 class ReceiveStep(TurnStep):
@@ -397,6 +517,53 @@ class ExtractMemoryStep(TurnStep):
         return ctx
 
 
+class TimelineUpdateStep(TurnStep):
+    name = "timeline_update"
+
+    async def run(self, ctx: TurnContext) -> TurnContext:
+        await _trigger_due_rituals(ctx)
+
+        if add_timeline_entry is None:
+            logger.warning("Timeline module is unavailable; no timeline entries added")
+            ctx.metadata["new_timeline_entries"] = _metadata_text_list(
+                ctx,
+                "new_timeline_entries",
+            )
+            return ctx
+
+        entry_ids = _metadata_text_list(ctx, "new_timeline_entries")
+        for event in _detect_timeline_events(ctx):
+            try:
+                entry = await add_timeline_entry(
+                    session_id=ctx.session_id,
+                    entry_type=event["entry_type"],
+                    title=event["title"],
+                    description=event["description"],
+                    content=_timeline_turn_content(ctx),
+                    turn_id=_timeline_turn_id(ctx),
+                    tags=event["tags"],
+                    metadata={
+                        "source": "turn_pipeline",
+                        "detected_at": datetime.now(timezone.utc).isoformat(),
+                        "signals": event["signals"],
+                    },
+                )
+            except Exception:
+                logger.warning(
+                    "Timeline update failed for session %s",
+                    ctx.session_id,
+                    exc_info=True,
+                )
+                continue
+
+            entry_id = getattr(entry, "entry_id", None)
+            if entry_id:
+                entry_ids.append(str(entry_id))
+
+        ctx.metadata["new_timeline_entries"] = entry_ids
+        return ctx
+
+
 class RespondStep(TurnStep):
     name = "respond"
 
@@ -488,6 +655,7 @@ def build_default_pipeline() -> TurnPipeline:
             UpdateMoodStep(MoodEngine),
             PersistEmotionalStateStep(),
             ExtractMemoryStep(MemoryExtractor),
+            TimelineUpdateStep(),
             RespondStep(),
         ]
     )
@@ -506,6 +674,315 @@ def _first_metadata_value(ctx: TurnContext, *keys: str) -> Any | None:
         if value is not None:
             return value
     return None
+
+
+async def _trigger_due_rituals(ctx: TurnContext) -> None:
+    prompts = _metadata_text_list(ctx, "ritual_prompts")
+    if get_due_rituals is None or trigger_ritual is None:
+        return
+
+    try:
+        due_rituals = await get_due_rituals(ctx.session_id)
+    except Exception:
+        logger.warning(
+            "Due ritual lookup failed for session %s",
+            ctx.session_id,
+            exc_info=True,
+        )
+        return
+
+    for ritual in due_rituals:
+        ritual_id = str(getattr(ritual, "ritual_id", "") or "").strip()
+        if not ritual_id:
+            continue
+        try:
+            trigger_prompt = await trigger_ritual(ritual_id)
+        except Exception:
+            logger.warning(
+                "Ritual trigger failed for session %s",
+                ctx.session_id,
+                exc_info=True,
+            )
+            continue
+
+        prompt = str(trigger_prompt or getattr(ritual, "trigger_prompt", "") or "").strip()
+        if prompt:
+            prompts.append(prompt)
+
+    ctx.metadata["ritual_prompts"] = prompts
+
+
+def _detect_timeline_events(ctx: TurnContext) -> list[dict[str, Any]]:
+    events: list[dict[str, Any]] = []
+    for source, text in (
+        ("user", ctx.user_message),
+        ("assistant", _timeline_response_text(ctx)),
+    ):
+        cleaned = str(text or "").strip()
+        if not cleaned:
+            continue
+        events.extend(_timeline_events_for_text(cleaned, source))
+
+    deduped: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for event in events:
+        key = (
+            str(event["entry_type"]),
+            _normalized_timeline_text(str(event["description"]))[:120],
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(event)
+    return deduped[:8]
+
+
+def _timeline_events_for_text(text: str, source: str) -> list[dict[str, Any]]:
+    events: list[dict[str, Any]] = []
+
+    milestone = _first_signal_sentence(text, _MILESTONE_KEYWORDS, _MILESTONE_PATTERNS)
+    if milestone is not None:
+        sentence, signals = milestone
+        events.append(
+            _timeline_event(
+                entry_type="milestone",
+                source=source,
+                sentence=sentence,
+                signals=signals,
+                tags=["milestone"],
+            )
+        )
+
+    emotional = _first_emotional_sentence(text)
+    if emotional is not None:
+        sentence, signals, emotion_tags = emotional
+        events.append(
+            _timeline_event(
+                entry_type="emotional_event",
+                source=source,
+                sentence=sentence,
+                signals=signals,
+                tags=["emotional", *emotion_tags],
+            )
+        )
+
+    promise = _first_pattern_sentence(text, _PROMISE_PATTERNS)
+    if promise is not None:
+        sentence, signals = promise
+        events.append(
+            _timeline_event(
+                entry_type="promise",
+                source=source,
+                sentence=sentence,
+                signals=signals,
+                tags=["promise"],
+            )
+        )
+
+    project = _first_project_sentence(text)
+    if project is not None:
+        sentence, signals, project_tags = project
+        events.append(
+            _timeline_event(
+                entry_type="running_project",
+                source=source,
+                sentence=sentence,
+                signals=signals,
+                tags=["project", *project_tags],
+            )
+        )
+
+    return events
+
+
+def _timeline_event(
+    *,
+    entry_type: str,
+    source: str,
+    sentence: str,
+    signals: list[str],
+    tags: list[str],
+) -> dict[str, Any]:
+    description = _compact_timeline_text(sentence, max_chars=500)
+    return {
+        "entry_type": entry_type,
+        "title": _timeline_title(entry_type, description),
+        "description": description,
+        "signals": signals,
+        "tags": _unique_texts(["turn_pipeline", source, *tags]),
+    }
+
+
+def _first_signal_sentence(
+    text: str,
+    keywords: Sequence[str],
+    patterns: Sequence[tuple[str, str]],
+) -> tuple[str, list[str]] | None:
+    for sentence in _timeline_sentences(text):
+        signals = _keyword_matches(sentence, keywords)
+        signals.extend(_pattern_matches(sentence, patterns))
+        if signals:
+            return sentence, _unique_texts(signals)
+    return None
+
+
+def _first_pattern_sentence(
+    text: str,
+    patterns: Sequence[tuple[str, str]],
+) -> tuple[str, list[str]] | None:
+    for sentence in _timeline_sentences(text):
+        signals = _pattern_matches(sentence, patterns)
+        if signals:
+            return sentence, _unique_texts(signals)
+    return None
+
+
+def _first_emotional_sentence(text: str) -> tuple[str, list[str], list[str]] | None:
+    for sentence in _timeline_sentences(text):
+        signals: list[str] = []
+        tags: list[str] = []
+        for tag, keywords in _EMOTIONAL_KEYWORDS.items():
+            matches = _keyword_matches(sentence, keywords)
+            if matches:
+                signals.extend(matches)
+                tags.append(f"emotion_{tag}")
+        if signals:
+            return sentence, _unique_texts(signals), _unique_texts(tags)
+    return None
+
+
+def _first_project_sentence(text: str) -> tuple[str, list[str], list[str]] | None:
+    for sentence in _timeline_sentences(text):
+        project_terms = _keyword_matches(sentence, _PROJECT_KEYWORDS)
+        action_terms = _pattern_matches(sentence, _PROJECT_PATTERNS)
+        if not project_terms and not action_terms:
+            continue
+        if action_terms or project_terms:
+            tags = [f"project_{_tag_text(term)}" for term in project_terms[:3]]
+            return sentence, _unique_texts([*project_terms, *action_terms]), tags
+    return None
+
+
+def _timeline_sentences(text: str) -> list[str]:
+    compact = _compact_timeline_text(text, max_chars=1200)
+    sentences = [
+        sentence.strip()
+        for sentence in re.split(r"(?<=[.!?])\s+|\n+", compact)
+        if sentence.strip()
+    ]
+    return sentences or ([compact] if compact else [])
+
+
+def _keyword_matches(text: str, keywords: Sequence[str]) -> list[str]:
+    matches: list[str] = []
+    normalized = _normalized_timeline_text(text)
+    for keyword in keywords:
+        normalized_keyword = _normalized_timeline_text(keyword)
+        if not normalized_keyword:
+            continue
+        if " " in normalized_keyword:
+            if normalized_keyword in normalized:
+                matches.append(keyword)
+            continue
+        if re.search(rf"\b{re.escape(normalized_keyword)}\b", normalized):
+            matches.append(keyword)
+    return matches
+
+
+def _pattern_matches(text: str, patterns: Sequence[tuple[str, str]]) -> list[str]:
+    matches: list[str] = []
+    for label, pattern in patterns:
+        if re.search(pattern, text, flags=re.IGNORECASE):
+            matches.append(label)
+    return matches
+
+
+def _timeline_title(entry_type: str, description: str) -> str:
+    labels = {
+        "milestone": "Milestone",
+        "emotional_event": "Emotional event",
+        "promise": "Promise",
+        "running_project": "Project",
+    }
+    label = labels.get(entry_type, "Timeline")
+    summary = _compact_timeline_text(description, max_chars=72)
+    if not summary:
+        return label
+    return _compact_timeline_text(f"{label}: {summary}", max_chars=96)
+
+
+def _timeline_response_text(ctx: TurnContext) -> str:
+    final_response = str(ctx.final_response or "").strip()
+    if final_response:
+        return final_response
+    return str(ctx.provider_response or "").strip()
+
+
+def _timeline_turn_content(ctx: TurnContext) -> str:
+    parts: list[str] = []
+    user_message = str(ctx.user_message or "").strip()
+    response = _timeline_response_text(ctx)
+    if user_message:
+        parts.append(f"User: {user_message}")
+    if response:
+        parts.append(f"Assistant: {response}")
+    return "\n\n".join(parts)
+
+
+def _timeline_turn_id(ctx: TurnContext) -> str:
+    for key in ("turn_id", "current_turn_id"):
+        value = ctx.metadata.get(key)
+        if value:
+            return str(value)
+
+    turn_id = str(uuid.uuid4())
+    ctx.metadata["turn_id"] = turn_id
+    return turn_id
+
+
+def _metadata_text_list(ctx: TurnContext, key: str) -> list[str]:
+    value = ctx.metadata.get(key)
+    if value is None:
+        items: list[str] = []
+    elif isinstance(value, (str, bytes)):
+        text = value.decode() if isinstance(value, bytes) else value
+        items = [text] if text.strip() else []
+    else:
+        try:
+            raw_items = list(value)
+        except TypeError:
+            raw_items = [value]
+        items = [str(item) for item in raw_items if str(item).strip()]
+
+    ctx.metadata[key] = items
+    return items
+
+
+def _normalized_timeline_text(text: str) -> str:
+    return " ".join(str(text or "").lower().split())
+
+
+def _compact_timeline_text(text: str, *, max_chars: int) -> str:
+    compact = " ".join(str(text or "").split())
+    if len(compact) <= max_chars:
+        return compact
+    return compact[: max_chars - 3].rstrip() + "..."
+
+
+def _tag_text(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", _normalized_timeline_text(text)).strip("_")
+
+
+def _unique_texts(values: Sequence[str]) -> list[str]:
+    unique: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text = str(value or "").strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        unique.append(text)
+    return unique
 
 
 def _store_retrieved_memories(ctx: TurnContext) -> None:
