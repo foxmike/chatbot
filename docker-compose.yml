@@ -13,6 +13,21 @@ services:
     networks:
       - chatbot-net
 
+  ui:
+    build:
+      context: ./react_ui
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+    links:
+      - "api:backend"
+    environment:
+      NODE_ENV: production
+    networks:
+      - chatbot-net
+
   db:
     image: pgvector/pgvector:pg16
     ports:
