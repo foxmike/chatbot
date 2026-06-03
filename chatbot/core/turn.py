@@ -73,6 +73,27 @@ except ImportError:
     ModeSelector = None  # type: ignore[assignment]
     ConversationMode = None  # type: ignore[assignment]
 
+try:
+    from chatbot.rooms.room import get_room
+except ImportError:
+    get_room = None  # type: ignore[assignment]
+
+try:
+    from chatbot.rooms.scene import get_active_scene
+except ImportError:
+    get_active_scene = None  # type: ignore[assignment]
+
+try:
+    from chatbot.rooms.roleplay import RoleplayEngine, RoleplayPersona
+except ImportError:
+    RoleplayEngine = None  # type: ignore[assignment]
+    RoleplayPersona = None  # type: ignore[assignment]
+
+try:
+    from chatbot.memory.retrieval import build_room_context
+except ImportError:
+    build_room_context = None  # type: ignore[assignment]
+
 logger = logging.getLogger(__name__)
 
 _MILESTONE_KEYWORDS: tuple[str, ...] = (
@@ -236,10 +257,7 @@ class RetrieveStep(TurnStep):
             _store_retrieved_memories(ctx)
             return ctx
         try:
-            results = await retrieval_engine.retrieve(
-                query=ctx.user_message,
-                session_id=ctx.session_id,
-            )
+            results = await self._do_retrieve(ctx, retrieval_engine)
             ctx.retrieved_memories = _coerce_memory_list(results)
         except Exception:
             logger.warning(
@@ -248,6 +266,12 @@ class RetrieveStep(TurnStep):
             ctx.retrieved_memories = []
         _store_retrieved_memories(ctx)
         return ctx
+
+    async def _do_retrieve(self, ctx: TurnContext, engine: Any) -> Any:
+        return await engine.retrieve(
+            query=ctx.user_message,
+            session_id=ctx.session_id,
+        )
 
 
 class InferUserStateStep(TurnStep):
@@ -574,6 +598,135 @@ class RespondStep(TurnStep):
         return ctx
 
 
+class RoomContextStep(TurnStep):
+    name = "room_context"
+
+    async def run(self, ctx: TurnContext) -> TurnContext:
+        room_id = ctx.metadata.get("room_id")
+        if room_id is None:
+            return ctx
+
+        if get_room is None:
+            logger.warning("Room module is unavailable; skipping room context")
+            return ctx
+
+        try:
+            room = await get_room(str(room_id))
+        except Exception:
+            logger.warning("Room load failed for room %s", room_id, exc_info=True)
+            return ctx
+
+        if room is None:
+            logger.warning("Room not found: %s", room_id)
+            return ctx
+
+        ctx.metadata["_room_object"] = room
+        ctx.metadata["room_type"] = room.room_type.value
+        ctx.metadata["scene_memory_isolation"] = room.room_type.value == "roleplay_scene"
+
+        if get_active_scene is not None:
+            try:
+                scene = await get_active_scene(str(room_id))
+            except Exception:
+                logger.warning(
+                    "Active scene load failed for room %s", room_id, exc_info=True
+                )
+                scene = None
+
+            if scene is not None:
+                ctx.metadata["active_scene"] = scene
+                ctx.metadata["scene_id"] = scene.scene_id
+            elif room.scene_id is not None:
+                ctx.metadata["scene_id"] = room.scene_id
+
+        return ctx
+
+
+class SceneAwareRetrievalStep(RetrieveStep):
+    name = "retrieve"
+
+    async def _do_retrieve(self, ctx: TurnContext, engine: Any) -> Any:
+        room_context = self._build_room_context(ctx)
+        return await engine.retrieve(
+            query=ctx.user_message,
+            session_id=ctx.session_id,
+            room_context=room_context,
+        )
+
+    def _build_room_context(self, ctx: TurnContext) -> Any | None:
+        if not ctx.metadata.get("scene_memory_isolation"):
+            return None
+        if build_room_context is None:
+            return None
+        room = ctx.metadata.get("_room_object")
+        if room is None:
+            return None
+        scene = ctx.metadata.get("active_scene")
+        try:
+            return build_room_context(room, scene)
+        except Exception:
+            logger.warning("Room context build failed", exc_info=True)
+            return None
+
+
+class SceneMemoryGateStep(TurnStep):
+    name = "scene_memory_gate"
+
+    async def run(self, ctx: TurnContext) -> TurnContext:
+        if not ctx.metadata.get("scene_memory_isolation"):
+            return ctx
+
+        if RoleplayEngine is None or RoleplayPersona is None:
+            logger.warning("RoleplayEngine is unavailable; skipping memory gate")
+            return ctx
+
+        scene = ctx.metadata.get("active_scene")
+        if scene is None:
+            return ctx
+
+        try:
+            engine = RoleplayEngine(
+                scene=scene,
+                persona=RoleplayPersona(
+                    name="",
+                    description="",
+                    traits=[],
+                    voice_style="",
+                    backstory="",
+                ),
+            )
+        except Exception:
+            logger.warning(
+                "RoleplayEngine instantiation failed; skipping memory gate",
+                exc_info=True,
+            )
+            return ctx
+
+        classifications: dict[str, str] = {}
+        durable_memories: list[dict] = []
+
+        for memory in ctx.extracted_memories:
+            content = str(
+                memory.get("content") or memory.get("summary") or memory.get("fact_text") or ""
+            )
+            try:
+                is_durable = engine.is_durable_candidate(content)
+            except Exception:
+                logger.warning(
+                    "Memory classification failed; treating as non-durable",
+                    exc_info=True,
+                )
+                is_durable = False
+
+            classifications[content[:64]] = "durable" if is_durable else "scene_only"
+            if is_durable:
+                durable_memories.append(memory)
+
+        ctx.metadata["memory_classifications"] = classifications
+        ctx.extracted_memories = durable_memories
+        return ctx
+
+
 class TurnPipeline:
     def __init__(self, steps: list[TurnStep]) -> None:
         self._steps = list(steps)
@@ -643,11 +796,20 @@ def build_default_pipeline() -> TurnPipeline:
         logger.warning("MemoryExtractor import failed; ExtractMemoryStep will use fallback")
     if not _emotional_intelligence_imports_available():
         logger.warning("Emotional intelligence imports unavailable; EI steps will no-op")
+    if get_room is None:
+        logger.warning("Room module import failed; RoomContextStep will no-op")
+    if get_active_scene is None:
+        logger.warning("Scene module import failed; RoomContextStep will skip scene loading")
+    if RoleplayEngine is None:
+        logger.warning("RoleplayEngine import failed; SceneMemoryGateStep will no-op")
+    if build_room_context is None:
+        logger.warning("Retrieval room context import failed; SceneAwareRetrievalStep will use default retrieval")
 
     return TurnPipeline(
         [
             ReceiveStep(),
-            RetrieveStep(WorkingMemoryLoader),
+            RoomContextStep(),
+            SceneAwareRetrievalStep(WorkingMemoryLoader),
             InferUserStateStep(UserStateEngine, MoodEngine),
             SelectConversationModeStep(ModeSelector),
             CompileContextStep(),
@@ -655,6 +817,7 @@ def build_default_pipeline() -> TurnPipeline:
             UpdateMoodStep(MoodEngine),
             PersistEmotionalStateStep(),
             ExtractMemoryStep(MemoryExtractor),
+            SceneMemoryGateStep(),
             TimelineUpdateStep(),
             RespondStep(),
         ]
