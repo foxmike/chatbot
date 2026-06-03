@@ -83,6 +83,73 @@ export interface MemoryActionResponse {
   [key: string]: unknown;
 }
 
+export interface TimelineEntry {
+  entry_id: string;
+  session_id: string;
+  entry_type: "milestone" | "emotional_event" | "promise" | "running_project";
+  title: string;
+  description: string;
+  content: string;
+  turn_id: string;
+  created_at: string;
+  updated_at: string;
+  status: "active" | "resolved" | "broken" | "completed" | "abandoned";
+  tags: string[];
+  metadata: Record<string, unknown>;
+}
+
+export interface TimelineFilter {
+  session_id: string | null;
+  entry_types: string[] | null;
+  statuses: string[] | null;
+  tags: string[] | null;
+  date_from: string | null;
+  date_to: string | null;
+}
+
+export interface RitualInfo {
+  ritual_id: string;
+  session_id: string;
+  name: string;
+  ritual_type: "check_in" | "recap" | "planning" | "recurring" | "joke" | "custom";
+  description: string;
+  schedule_description: string;
+  last_triggered_at: string | null;
+  next_trigger_at: string | null;
+  is_active: boolean;
+  trigger_prompt: string | null;
+  created_at: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface NarrativeThread {
+  thread_id: string;
+  session_id: string;
+  label: string;
+  turns: string[];
+  created_at: string;
+  last_referenced_at: string;
+  relevance_score: number;
+  summary: string;
+}
+
+export interface ThreadCallback {
+  thread_id: string;
+  label: string;
+  callback_text: string;
+  turn_id: string;
+  confidence: number;
+  thread_summary: string;
+}
+
+export interface CreateRitualRequest {
+  name: string;
+  ritual_type: string;
+  description: string;
+  schedule_description: string;
+  trigger_prompt: string | null;
+}
+
 const BASE_URL = "";
 
 async function parseErrorResponse(response: Response): Promise<ApiError> {
@@ -405,4 +472,118 @@ export function getMemoryProvenance(
     `/api/memories/${memoryId}/provenance`,
     { method: "GET" },
   );
+}
+
+export function fetchTimeline(
+  sessionId: string,
+  filter?: TimelineFilter,
+): Promise<TimelineEntry[]> {
+  const params = new URLSearchParams();
+  if (filter) {
+    if (filter.session_id !== null) params.set("session_id", filter.session_id);
+    if (filter.entry_types) {
+      for (const entryType of filter.entry_types) {
+        params.append("entry_types", entryType);
+      }
+    }
+    if (filter.statuses) {
+      for (const status of filter.statuses) {
+        params.append("statuses", status);
+      }
+    }
+    if (filter.tags) {
+      for (const tag of filter.tags) {
+        params.append("tags", tag);
+      }
+    }
+    if (filter.date_from !== null) params.set("date_from", filter.date_from);
+    if (filter.date_to !== null) params.set("date_to", filter.date_to);
+  }
+  const qs = params.toString();
+  return requestJson<TimelineEntry[]>(
+    `/api/timeline/${sessionId}${qs ? `?${qs}` : ""}`,
+    { method: "GET" },
+  );
+}
+
+export function fetchActiveProjects(sessionId: string): Promise<TimelineEntry[]> {
+  return requestJson<TimelineEntry[]>(
+    `/api/timeline/${sessionId}/projects/active`,
+    { method: "GET" },
+  );
+}
+
+export function fetchPendingPromises(sessionId: string): Promise<TimelineEntry[]> {
+  return requestJson<TimelineEntry[]>(
+    `/api/timeline/${sessionId}/promises/pending`,
+    { method: "GET" },
+  );
+}
+
+export function resolveTimelineEntry(
+  entryId: string,
+  resolution?: string,
+): Promise<TimelineEntry> {
+  return requestJson<TimelineEntry>(`/api/timeline/${entryId}/resolve`, {
+    method: "POST",
+    body: JSON.stringify(
+      resolution === undefined ? {} : { resolution },
+    ),
+  });
+}
+
+export function fetchNarrativeThreads(
+  sessionId: string,
+): Promise<NarrativeThread[]> {
+  return requestJson<NarrativeThread[]>(
+    `/api/narrative/${sessionId}/threads`,
+    { method: "GET" },
+  );
+}
+
+export function fetchThreadCallbacks(
+  sessionId: string,
+  message: string,
+): Promise<ThreadCallback[]> {
+  return requestJson<ThreadCallback[]>(
+    `/api/narrative/${sessionId}/callbacks`,
+    {
+      method: "POST",
+      body: JSON.stringify({ message }),
+    },
+  );
+}
+
+export function fetchRituals(
+  sessionId: string,
+  type?: string,
+): Promise<RitualInfo[]> {
+  const params = new URLSearchParams();
+  if (type !== undefined) params.set("type", type);
+  const qs = params.toString();
+  return requestJson<RitualInfo[]>(
+    `/api/rituals/${sessionId}${qs ? `?${qs}` : ""}`,
+    { method: "GET" },
+  );
+}
+
+export function createRitual(
+  sessionId: string,
+  request: CreateRitualRequest,
+): Promise<RitualInfo> {
+  return requestJson<RitualInfo>(`/api/rituals/${sessionId}`, {
+    method: "POST",
+    body: JSON.stringify(request),
+  });
+}
+
+export async function deactivateRitual(ritualId: string): Promise<void> {
+  const response = await fetch(`${BASE_URL}/api/rituals/${ritualId}`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  await assertOk(response);
 }
