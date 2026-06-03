@@ -91,6 +91,110 @@ class Session(Base):
     user: Mapped[User] = relationship(back_populates="sessions")
     messages: Mapped[list[Message]] = relationship(back_populates="session")
     episodes: Mapped[list[Episode]] = relationship(back_populates="session")
+    relationship_configs: Mapped[list[RelationshipConfigModel]] = relationship(
+        back_populates="session"
+    )
+    character_profiles: Mapped[list[CharacterProfileModel]] = relationship(
+        back_populates="session"
+    )
+    identity_states: Mapped[list[IdentityStateModel]] = relationship(back_populates="session")
+
+
+class RelationshipConfigModel(Base):
+    __tablename__ = "relationship_configs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=sa.text("gen_random_uuid()"),
+    )
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("sessions.id"),
+        index=True,
+        nullable=False,
+    )
+    type: Mapped[str] = mapped_column(sa.String, nullable=False)
+    tone: Mapped[str] = mapped_column(sa.String, nullable=False)
+    directness: Mapped[float] = mapped_column(sa.Float, nullable=False)
+    warmth: Mapped[float] = mapped_column(sa.Float, nullable=False)
+    initiative_level: Mapped[float] = mapped_column(sa.Float, nullable=False)
+    content_level: Mapped[str] = mapped_column(sa.String, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.sql.func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.sql.func.now(),
+        onupdate=sa.sql.func.now(),
+    )
+
+    session: Mapped[Session] = relationship(back_populates="relationship_configs")
+
+
+class CharacterProfileModel(Base):
+    __tablename__ = "character_profiles"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=sa.text("gen_random_uuid()"),
+    )
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("sessions.id"),
+        index=True,
+        nullable=False,
+    )
+    name: Mapped[str] = mapped_column(sa.String, nullable=False)
+    backstory: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    personality_sliders: Mapped[dict[str, object]] = mapped_column(sa.JSON, nullable=False)
+    humor_style: Mapped[str] = mapped_column(sa.String, nullable=False)
+    communication_style: Mapped[str] = mapped_column(sa.String, nullable=False)
+    favorite_topics: Mapped[list[str]] = mapped_column(sa.JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.sql.func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.sql.func.now(),
+        onupdate=sa.sql.func.now(),
+    )
+
+    session: Mapped[Session] = relationship(back_populates="character_profiles")
+
+
+class IdentityStateModel(Base):
+    __tablename__ = "identity_states"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=sa.text("gen_random_uuid()"),
+    )
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("sessions.id"),
+        index=True,
+        nullable=False,
+    )
+    fixed: Mapped[dict[str, object]] = mapped_column(sa.JSON, nullable=False)
+    slow: Mapped[dict[str, object]] = mapped_column(sa.JSON, nullable=False)
+    mood: Mapped[dict[str, object]] = mapped_column(sa.JSON, nullable=False)
+    last_updated: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.sql.func.now(),
+        onupdate=sa.sql.func.now(),
+    )
+
+    session: Mapped[Session] = relationship(back_populates="identity_states")
 
 
 class BotMoodLog(Base):
@@ -256,9 +360,12 @@ class Entity(Base):
 __all__ = [
     "Base",
     "BotMoodLog",
+    "CharacterProfileModel",
     "Entity",
     "Episode",
+    "IdentityStateModel",
     "Message",
+    "RelationshipConfigModel",
     "SemanticFact",
     "Session",
     "User",
