@@ -73,6 +73,9 @@ class Session(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(sa.ForeignKey("users.id"), nullable=False)
     title: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     is_active: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
+    mood_state: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
+    user_state: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
+    conversation_mode: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True),
         nullable=False,
@@ -88,6 +91,54 @@ class Session(Base):
     user: Mapped[User] = relationship(back_populates="sessions")
     messages: Mapped[list[Message]] = relationship(back_populates="session")
     episodes: Mapped[list[Episode]] = relationship(back_populates="session")
+
+
+class BotMoodLog(Base):
+    __tablename__ = "bot_mood_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=sa.text("gen_random_uuid()"),
+    )
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("sessions.id"),
+        index=True,
+        nullable=False,
+    )
+    mood: Mapped[str] = mapped_column(sa.String, nullable=False)
+    energy: Mapped[float] = mapped_column(sa.Float, nullable=False)
+    closeness: Mapped[float] = mapped_column(sa.Float, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.sql.func.now(),
+    )
+
+
+class UserStateLog(Base):
+    __tablename__ = "user_state_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=sa.text("gen_random_uuid()"),
+    )
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("sessions.id"),
+        index=True,
+        nullable=False,
+    )
+    primary_state: Mapped[str | None] = mapped_column(sa.String, nullable=True)
+    confidence: Mapped[float] = mapped_column(sa.Float, nullable=False)
+    evidence_summary: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.sql.func.now(),
+    )
 
 
 class Message(Base):
@@ -204,10 +255,12 @@ class Entity(Base):
 
 __all__ = [
     "Base",
+    "BotMoodLog",
     "Entity",
     "Episode",
     "Message",
     "SemanticFact",
     "Session",
     "User",
+    "UserStateLog",
 ]
