@@ -307,6 +307,16 @@ class Episode(Base):
 
 class SemanticFact(Base):
     __tablename__ = "semantic_facts"
+    __table_args__ = (
+        sa.CheckConstraint(
+            "source_type IN ('explicit', 'inferred')",
+            name="ck_semantic_facts_source_type",
+        ),
+        sa.CheckConstraint(
+            "privacy_level IN ('private', 'temporary', 'permanent')",
+            name="ck_semantic_facts_privacy_level",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -321,7 +331,29 @@ class SemanticFact(Base):
         sa.ForeignKey("messages.id"),
         nullable=True,
     )
+    source_type: Mapped[str] = mapped_column(
+        sa.String,
+        nullable=False,
+        default="inferred",
+        server_default=sa.text("'inferred'"),
+    )
+    source_turn_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=True,
+    )
     confidence: Mapped[float] = mapped_column(sa.Float, nullable=False, default=1.0)
+    privacy_level: Mapped[str] = mapped_column(
+        sa.String,
+        nullable=False,
+        default="temporary",
+        server_default=sa.text("'temporary'"),
+    )
+    pinned: Mapped[bool] = mapped_column(
+        sa.Boolean,
+        nullable=False,
+        default=False,
+        server_default=sa.text("false"),
+    )
     created_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True),
         nullable=False,
