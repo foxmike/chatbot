@@ -20,7 +20,7 @@
     "python -m py_compile chatbot/api/app.py passes",
     "No file outside the task's allowed_write_paths is created or modified"
   ],
-  "selected_backend": "codex_cli",
+  "selected_backend": "pi_cli",
   "verification_profile": "focused",
   "allowed_write_paths": [
     "chatbot/api/images.py",
@@ -72,5 +72,6 @@
     "b.4",
     "b.5"
   ],
-  "task_timeout_seconds": 1200
+  "task_timeout_seconds": 1200,
+  "model": "openrouter/deepseek/deepseek-v4-pro"
 }

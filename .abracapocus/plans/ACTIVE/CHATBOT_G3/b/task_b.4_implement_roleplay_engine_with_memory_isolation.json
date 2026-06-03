@@ -17,7 +17,7 @@
     "python -m py_compile chatbot/rooms/roleplay.py passes",
     "No file outside the task's allowed_write_paths is created or modified"
   ],
-  "selected_backend": "codex_cli",
+  "selected_backend": "claude_code_cli",
   "verification_profile": "focused",
   "allowed_write_paths": [
     "chatbot/rooms/roleplay.py"

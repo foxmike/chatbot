@@ -18,7 +18,7 @@
     "python -m py_compile chatbot/rooms/scene.py passes",
     "No file outside the task's allowed_write_paths is created or modified"
   ],
-  "selected_backend": "codex_cli",
+  "selected_backend": "pi_cli",
   "verification_profile": "focused",
   "allowed_write_paths": [
     "chatbot/rooms/scene.py"
@@ -57,5 +57,6 @@
     ]
   },
   "dependencies": [],
-  "task_timeout_seconds": 900
+  "task_timeout_seconds": 900,
+  "model": "openrouter/deepseek/deepseek-v4-pro"
 }

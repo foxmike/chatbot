@@ -14,7 +14,7 @@
     "Existing API functions in client.ts are not removed or changed",
     "No file outside the task's allowed_write_paths is created or modified"
   ],
-  "selected_backend": "codex_cli",
+  "selected_backend": "pi_cli",
   "verification_profile": "focused",
   "allowed_write_paths": [
     "react_ui/src/api/client.ts"
@@ -68,5 +68,6 @@
   "dependencies": [
     "b.7"
   ],
-  "task_timeout_seconds": 900
+  "task_timeout_seconds": 900,
+  "model": "openrouter/deepseek/deepseek-v4-pro"
 }

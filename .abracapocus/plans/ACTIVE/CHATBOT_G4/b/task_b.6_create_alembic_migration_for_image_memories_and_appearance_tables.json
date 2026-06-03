@@ -15,7 +15,7 @@
     "python -m py_compile on the migration file passes",
     "No file outside the task's allowed_write_paths is created or modified"
   ],
-  "selected_backend": "codex_cli",
+  "selected_backend": "pi_cli",
   "verification_profile": "focused",
   "allowed_write_paths": [
     "migrations/versions/0010_visual.py"
@@ -47,5 +47,6 @@
   "dependencies": [
     "b.3"
   ],
-  "task_timeout_seconds": 600
+  "task_timeout_seconds": 600,
+  "model": "openrouter/deepseek/deepseek-v4-pro"
 }
