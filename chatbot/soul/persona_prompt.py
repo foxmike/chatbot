@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any, Mapping
+from typing import Any, Mapping, Optional
 
+from chatbot.soul.character import CharacterProfile
+from chatbot.soul.evolution import IdentityState
 from chatbot.soul.modes import ConversationMode, ModeSelector
 from chatbot.soul.mood import MoodEngine, MoodState
+from chatbot.soul.relationship import RelationshipConfig
 
 
 _DEFAULT_CONFIG: dict[str, Any] = {
@@ -103,6 +106,9 @@ class PersonaPromptAssembler:
         persona: dict[str, Any],
         mood: MoodState | None = None,
         mode: ConversationMode | None = None,
+        relationship_config: Optional[RelationshipConfig] = None,
+        character_profile: Optional[CharacterProfile] = None,
+        identity_state: Optional[IdentityState] = None,
     ) -> str:
         if not persona:
             return self._with_prompt_modifiers(
@@ -110,6 +116,9 @@ class PersonaPromptAssembler:
                 "\n",
                 mood,
                 mode,
+                relationship_config,
+                character_profile,
+                identity_state,
             )
 
         style_name = _first_text(persona.get("template"), persona.get("style"))
@@ -124,8 +133,19 @@ class PersonaPromptAssembler:
             style = {}
 
         sections = self._render_sections(persona, style)
+        identity_sections = _render_identity_sections(
+            style=style,
+            relationship_config=relationship_config,
+            character_profile=character_profile,
+            identity_state=identity_state,
+        )
         if not sections:
-            return str(self._config["fallback_prompt"])
+            if not identity_sections:
+                return str(self._config["fallback_prompt"])
+            separator = str(style.get("section_separator", "\n"))
+            return separator.join(
+                [str(self._config["fallback_prompt"]), *identity_sections]
+            )
 
         heading = _format_template(
             str(style.get("heading_format", "{heading}")),
@@ -137,6 +157,7 @@ class PersonaPromptAssembler:
             parts.append(tail)
 
         separator = str(style.get("section_separator", "\n"))
+        parts.extend(identity_sections)
         modifier_section = _render_prompt_modifiers(
             style=style,
             mood=mood,
@@ -153,15 +174,28 @@ class PersonaPromptAssembler:
         separator: str,
         mood: MoodState | None,
         mode: ConversationMode | None,
+        relationship_config: Optional[RelationshipConfig],
+        character_profile: Optional[CharacterProfile],
+        identity_state: Optional[IdentityState],
     ) -> str:
+        style = _default_modifier_style(self._config)
+        parts = [prompt]
+        parts.extend(
+            _render_identity_sections(
+                style=style,
+                relationship_config=relationship_config,
+                character_profile=character_profile,
+                identity_state=identity_state,
+            )
+        )
         modifier_section = _render_prompt_modifiers(
-            style=_default_modifier_style(self._config),
+            style=style,
             mood=mood,
             mode=mode,
         )
         if not modifier_section:
-            return prompt
-        return separator.join([prompt, modifier_section])
+            return separator.join(parts)
+        return separator.join([*parts, modifier_section])
 
     def _render_sections(
         self, persona: Mapping[str, Any], style: Mapping[str, Any]
@@ -202,9 +236,19 @@ def assemble_persona_prompt(
     persona: dict[str, Any],
     mood: MoodState | None = None,
     mode: ConversationMode | None = None,
+    relationship_config: Optional[RelationshipConfig] = None,
+    character_profile: Optional[CharacterProfile] = None,
+    identity_state: Optional[IdentityState] = None,
 ) -> str:
     assembler = PersonaPromptAssembler()
-    return assembler.assemble(persona, mood, mode)
+    return assembler.assemble(
+        persona,
+        mood,
+        mode,
+        relationship_config,
+        character_profile,
+        identity_state,
+    )
 
 
 def _merge_config(
@@ -298,6 +342,59 @@ def _render_prompt_modifiers(
     )
 
 
+def _render_identity_sections(
+    *,
+    style: Mapping[str, Any],
+    relationship_config: Optional[RelationshipConfig],
+    character_profile: Optional[CharacterProfile],
+    identity_state: Optional[IdentityState],
+) -> list[str]:
+    sections: list[str] = []
+
+    if relationship_config is not None:
+        sections.append(
+            _render_labeled_section(
+                style,
+                "RELATIONSHIP CONFIG",
+                relationship_config.to_prompt_fragment(),
+            )
+        )
+
+    if character_profile is not None:
+        sections.append(
+            _render_labeled_section(
+                style,
+                "IDENTITY",
+                character_profile.to_prompt_fragment(),
+            )
+        )
+
+    if identity_state is not None:
+        tier_fragments = identity_state.to_prompt_fragment().split("\n\n", 2)
+        for label, fragment in zip(
+            ("FIXED IDENTITY", "CURRENT DRIFT TRAITS", "MOOD"),
+            tier_fragments,
+        ):
+            sections.append(_render_labeled_section(style, label, fragment))
+
+    return [section for section in sections if section]
+
+
+def _render_labeled_section(
+    style: Mapping[str, Any],
+    label: str,
+    content: str,
+) -> str:
+    text = _clean_fragment(content)
+    if not text:
+        return ""
+    return _format_template(
+        str(style.get("section_format", "{label}: {content}")),
+        label=label,
+        content=text,
+    )
+
+
 def _render_response_parameter_hints(params: Mapping[str, Any]) -> str:
     parts: list[str] = []
 
@@ -355,6 +452,13 @@ def _clean_text(value: Any) -> str:
     if value is None:
         return ""
     return " ".join(str(value).strip().split())
+
+
+def _clean_fragment(value: Any) -> str:
+    if value is None:
+        return ""
+    lines = [" ".join(line.strip().split()) for line in str(value).strip().splitlines()]
+    return "\n".join(line for line in lines if line)
 
 
 def _first_text(*values: Any) -> str:
