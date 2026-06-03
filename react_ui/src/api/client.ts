@@ -587,3 +587,120 @@ export async function deactivateRitual(ritualId: string): Promise<void> {
 
   await assertOk(response);
 }
+
+export type InitiativeLevel =
+  | "never_proactive"
+  | "reminders_only"
+  | "gentle_checkins"
+  | "frequent"
+  | "high_energy";
+
+export interface InitiativeSettings {
+  user_id: string;
+  level: InitiativeLevel;
+  quiet_hours_start: string | null;
+  quiet_hours_end: string | null;
+}
+
+export interface InitiativeUpdatePayload {
+  level: string;
+  quiet_hours_start: string | null;
+  quiet_hours_end: string | null;
+}
+
+export interface NotificationItem {
+  notification_id: string;
+  user_id: string;
+  notif_type: string;
+  title: string;
+  body: string;
+  created_at: string;
+  read: boolean;
+  dismissed: boolean;
+  metadata: Record<string, unknown>;
+}
+
+export interface NotificationListResponse {
+  notifications: NotificationItem[];
+  pending_count: number;
+}
+
+export interface CheckInTriggerPayload {
+  checkin_type: string;
+  user_id: string;
+  context: Record<string, unknown> | null;
+}
+
+export interface CheckInResponse {
+  checkin_id: string;
+  message: string;
+  checkin_type: string;
+  priority: number;
+}
+
+export interface ScheduleResponse {
+  events: Record<string, unknown>[];
+  next_event: Record<string, unknown> | null;
+}
+
+export function fetchInitiative(userId: string): Promise<InitiativeSettings> {
+  return requestJson<InitiativeSettings>(`/agency/initiative/${userId}`, {
+    method: "GET",
+  });
+}
+
+export function updateInitiative(
+  userId: string,
+  payload: InitiativeUpdatePayload,
+): Promise<InitiativeSettings> {
+  return requestJson<InitiativeSettings>(`/agency/initiative/${userId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function fetchNotifications(
+  userId: string,
+  since?: string,
+): Promise<NotificationListResponse> {
+  const params = new URLSearchParams();
+  if (since !== undefined) params.set("since", since);
+  const qs = params.toString();
+  return requestJson<NotificationListResponse>(
+    `/agency/notifications/${userId}${qs ? `?${qs}` : ""}`,
+    { method: "GET" },
+  );
+}
+
+export function markNotificationRead(
+  notificationId: string,
+): Promise<{ status: string }> {
+  return requestJson<{ status: string }>(
+    `/agency/notifications/${notificationId}/read`,
+    { method: "PUT" },
+  );
+}
+
+export function dismissNotification(
+  notificationId: string,
+): Promise<{ status: string }> {
+  return requestJson<{ status: string }>(
+    `/agency/notifications/${notificationId}/dismiss`,
+    { method: "PUT" },
+  );
+}
+
+export function triggerCheckIn(
+  payload: CheckInTriggerPayload,
+): Promise<CheckInResponse> {
+  return requestJson<CheckInResponse>("/agency/checkins/trigger", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function fetchSchedule(userId: string): Promise<ScheduleResponse> {
+  return requestJson<ScheduleResponse>(`/agency/schedule/${userId}`, {
+    method: "GET",
+  });
+}
