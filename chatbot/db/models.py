@@ -466,15 +466,100 @@ class Ritual(Base):
     )
 
 
+class AgencyRitual(Base):
+    __tablename__ = "agency_rituals"
+
+    id: Mapped[str] = mapped_column(sa.String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(sa.String(64), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(sa.String(255), nullable=False)
+    ritual_type: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    cron_expression: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    message_template: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    enabled: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
+    metadata: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.sql.func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.sql.func.now(),
+        onupdate=sa.sql.func.now(),
+    )
+
+
+class AgencyTimeline(Base):
+    __tablename__ = "agency_timeline"
+
+    id: Mapped[str] = mapped_column(sa.String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(sa.String(64), nullable=False, index=True)
+    event_type: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    title: Mapped[str] = mapped_column(sa.String(255), nullable=False)
+    occurs_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), nullable=False)
+    context: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
+    recurring: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    recurrence_rule: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.sql.func.now(),
+    )
+
+
+class InitiativeSettings(Base):
+    __tablename__ = "initiative_settings"
+
+    id: Mapped[str] = mapped_column(sa.String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(sa.String(64), nullable=False, unique=True)
+    level: Mapped[str] = mapped_column(sa.String(32), nullable=False, default="gentle_checkins")
+    quiet_hours_start: Mapped[str | None] = mapped_column(sa.String(5), nullable=True)
+    quiet_hours_end: Mapped[str | None] = mapped_column(sa.String(5), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.sql.func.now(),
+        onupdate=sa.sql.func.now(),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.sql.func.now(),
+    )
+
+
+class Notification(Base):
+    __tablename__ = "agency_notifications"
+
+    id: Mapped[str] = mapped_column(sa.String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(sa.String(64), nullable=False, index=True)
+    notif_type: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    title: Mapped[str] = mapped_column(sa.String(255), nullable=False)
+    body: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    read: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    dismissed: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    metadata: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.sql.func.now(),
+    )
+
+
 __all__ = [
+    "AgencyRitual",
+    "AgencyTimeline",
     "Base",
     "BotMoodLog",
     "CharacterProfileModel",
     "Entity",
     "Episode",
     "IdentityStateModel",
+    "InitiativeSettings",
     "Message",
     "NarrativeThread",
+    "Notification",
     "RelationshipConfigModel",
     "Ritual",
     "SemanticFact",
