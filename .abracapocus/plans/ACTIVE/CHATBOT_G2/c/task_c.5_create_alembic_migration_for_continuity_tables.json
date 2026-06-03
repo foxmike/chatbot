@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "task_id": "c.5",
+  "phase": "C",
+  "phase_id": "c",
+  "title": "Create Alembic migration for continuity tables",
+  "description": "Create migrations/versions/0005_continuity.py implementing a reversible Alembic migration that creates the timeline_entries, narrative_threads, and rituals tables.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/db/models.py (updated by task c.4 \u2014 understand the exact table names and column definitions for the three new models)\n- migrations/versions/ (existing migration files \u2014 determine the head revision, numbering convention, and migration structure from the most recent file)\n- migrations/env.py (Alembic environment configuration)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY migrations/versions/0005_continuity.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nIMPORTANT \u2014 Verify the real head revision number before writing. The filename 0005_continuity.py is a placeholder. Inspect the existing migrations/versions/ directory to determine the correct next revision sequence number and naming convention. If the highest existing revision uses a different numbering scheme (alembic hex revisions), follow that convention instead.\n\nImplementation details:\n\n1. Create the migration file with:\n   - A descriptive `revision` matching the filename convention (e.g. '0005_continuity').\n   - `down_revision` pointing to the current head revision identifier from the most recent existing migration. Inspect the most recent migration file in migrations/versions/ to get this value.\n   - Standard Alembic imports: op, sa (and possibly sqlalchemy.dialects.postgresql if using PG-specific types).\n\n2. `upgrade()` must:\n   - Create timeline_entries table with all columns from the TimelineEntry model: id (String(64), pk), session_id, entry_type, title, description, content, turn_id, status, tags (JSON), metadata_ (JSON), created_at, updated_at. Use server_default=sa.text('now()') for DateTime columns.\n   - Create narrative_threads table with: id (String(64), pk), session_id, label, turns (JSON), summary, relevance_score (Float), created_at, last_referenced_at.\n   - Create rituals table with: id (String(64), pk), session_id, name, ritual_type, description, schedule_description, last_triggered_at (nullable), next_trigger_at (nullable), is_active (Boolean, server_default=false), trigger_prompt (nullable), metadata_ (JSON), created_at.\n   - Use op.create_table() for each. Follow the existing migration's formatting style (indentation, line wrapping, docstring style).\n\n3. `downgrade()` must:\n   - Drop the three tables in reverse creation order: rituals, narrative_threads, timeline_entries.\n   - Use op.drop_table() for each.\n\n4. The migration must NOT touch any existing table (memory, conversations, turns, etc.). It must NOT add indexes or foreign keys beyond the implicit primary key.",
+  "acceptance_criteria": [
+    "migrations/versions/0005_continuity.py exists with correct revision chain",
+    "upgrade() creates timeline_entries, narrative_threads, and rituals tables",
+    "downgrade() drops all three tables in reverse order preserving reversibility",
+    "The migration does not alter any existing table",
+    "Column definitions match chatbot/db/models.py exactly",
+    "python -m py_compile on the migration file passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "migrations/versions/0005_continuity.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside migrations/versions/0005_continuity.py",
+    "modify existing migration files",
+    "alter any existing table",
+    "add database indexes, constraints, or foreign keys",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [],
+  "decision_budget": {
+    "allowed": [
+      "use op.create_table and op.drop_table for reversible schema changes",
+      "use sa.Text, sa.String, sa.Float, sa.Boolean, sa.DateTime, sa.JSON column types",
+      "use server_default=sa.text('now()') for DateTime columns",
+      "follow existing migration file conventions for imports and structure"
+    ],
+    "forbidden": [
+      "alter existing tables or their columns",
+      "add foreign key constraints",
+      "introduce Alembic batch operations unless required by existing convention",
+      "change the Abracapocus runtime, orchestrator, or backends"
+    ]
+  },
+  "dependencies": [
+    "c.4"
+  ],
+  "task_timeout_seconds": 600
+}

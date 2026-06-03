@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "task_id": "b.9",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Add room and scene-aware branching to turn pipeline",
+  "description": "Modify chatbot/core/turn.py to add room and scene awareness to the turn pipeline. The pipeline must detect the active room type and scene state, route through scene-aware context compilation for roleplay rooms, apply room memory policy to retrieval, and gate durable memory persistence based on scene memory classification. Default one-on-one chat behavior must be unchanged when no room context is present.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/core/turn.py (existing TurnPipeline implementation, TurnContext fields, build_default_pipeline)\n- chatbot/core/steps.py (existing TurnStep and TurnContext definitions)\n- chatbot/rooms/room.py (created by task b.1 \u2014 Room, RoomType, RoomMemoryPolicy, DEFAULT_ROOM_POLICIES)\n- chatbot/rooms/scene.py (created by task b.2 \u2014 SceneState, get_active_scene)\n- chatbot/rooms/roleplay.py (created by task b.4 \u2014 RoleplayEngine, is_durable_candidate)\n- chatbot/memory/retrieval.py (updated by task b.6 \u2014 RoomMemoryContext, build_room_context)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/core/turn.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Open chatbot/core/turn.py and understand the existing TurnPipeline.run() flow, TurnContext fields, and build_default_pipeline().\n\n2. Add optional fields to TurnContext if not already present: room_id (str | None, default None), scene_id (str | None, default None), room_type (str | None, default None \u2014 derived from room), memory_scope_override (str | None, default None), scene_memory_isolation (bool, default False).\n\n3. Add a new TurnStep subclass `RoomContextStep` that:\n   - In its run(ctx) method, checks if ctx.room_id is set.\n   - If room_id is set, loads the Room from the database and stores room_type, scene_id on ctx.\n   - If room_type is 'roleplay_scene', sets ctx.scene_memory_isolation = True.\n   - If an active scene exists, loads the SceneState and stores it in ctx.metadata['active_scene'].\n   - If room_id is None, does nothing (pass-through for default one-on-one chat).\n\n4. Add a new TurnStep subclass `SceneAwareRetrievalStep` that:\n   - Wraps the existing retrieval step behavior.\n   - When ctx.scene_memory_isolation is True, constructs a RoomMemoryContext from the room and active scene, and passes it to the retrieval function.\n   - When False, passes room_context=None for default behavior.\n\n5. Add a new TurnStep subclass `SceneMemoryGateStep` that:\n   - Runs after memory extraction/persistence.\n   - When ctx.scene_memory_isolation is True, uses RoleplayEngine.is_durable_candidate() to classify extracted content.\n   - Only persists memories classified as durable candidates when in a roleplay scene.\n   - Records classification decisions in ctx.metadata['memory_classifications'].\n\n6. Update build_default_pipeline() to prepend RoomContextStep before the retrieval step, replace the retrieval step with SceneAwareRetrievalStep, and append SceneMemoryGateStep after the memory extraction step.\n\n7. All changes must be additive and room-gated. When no room_id is set on the context, the pipeline behaves exactly as before.",
+  "acceptance_criteria": [
+    "chatbot/core/turn.py has RoomContextStep, SceneAwareRetrievalStep, SceneMemoryGateStep classes",
+    "RoomContextStep loads room and scene state when ctx.room_id is set",
+    "RoomContextStep passes through when ctx.room_id is None",
+    "SceneAwareRetrievalStep passes RoomMemoryContext to retrieval when scene_memory_isolation is True",
+    "SceneAwareRetrievalStep passes room_context=None when scene_memory_isolation is False",
+    "SceneMemoryGateStep classifies extracted memories and gates durable persistence",
+    "build_default_pipeline() includes the new steps in correct pipeline order",
+    "Pipeline behavior is unchanged when no room context is present",
+    "python -m py_compile chatbot/core/turn.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/core/turn.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/core/turn.py",
+    "modify chatbot/core/steps.py or chatbot/core/__init__.py",
+    "modify chatbot/rooms/ source files",
+    "modify chatbot/memory/retrieval.py",
+    "change the TurnPipeline.run() contract or return type",
+    "add new third-party dependencies",
+    "introduce LangGraph, LangChain, or any orchestration framework",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "RoomContextStep",
+    "SceneAwareRetrievalStep",
+    "SceneMemoryGateStep"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add new TurnStep subclasses following existing pattern",
+      "add optional fields to TurnContext",
+      "conditionally branch based on ctx.room_id and ctx.scene_memory_isolation",
+      "load Room and SceneState from the database in the context step",
+      "use RoleplayEngine.is_durable_candidate for memory gating"
+    ],
+    "forbidden": [
+      "change the TurnPipeline.run() flow architecture",
+      "remove or rename existing TurnStep subclasses",
+      "change the build_default_pipeline() return type",
+      "add branching, tool-calling, or dynamic step reordering beyond room-based gating"
+    ]
+  },
+  "dependencies": [
+    "b.1",
+    "b.2",
+    "b.4",
+    "b.6"
+  ],
+  "task_timeout_seconds": 1200
+}

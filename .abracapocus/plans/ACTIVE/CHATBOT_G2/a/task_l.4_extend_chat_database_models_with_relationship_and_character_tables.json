@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "task_id": "l.4",
+  "phase": "L",
+  "phase_id": "l",
+  "title": "Extend chat database models with relationship and character tables",
+  "description": "Extend chatbot/db/models.py with SQLAlchemy models for relationship configuration and character profile persistence.\n\nAdd a RelationshipConfigModel table with columns:\n- id: primary key\n- session_id: foreign key or association to the session\n- type: str (friend, mentor, peer, partner, custom)\n- tone: str\n- directness: float\n- warmth: float\n- initiative_level: float\n- content_level: str\n- created_at: timestamp\n- updated_at: timestamp\n\nAdd a CharacterProfileModel table with columns:\n- id: primary key\n- session_id: foreign key or association\n- name: str\n- backstory: text\n- personality_sliders: JSON column (stores dict)\n- humor_style: str\n- communication_style: str\n- favorite_topics: JSON column (stores list of strings)\n- created_at: timestamp\n- updated_at: timestamp\n\nAdd an IdentityStateModel table with columns:\n- id: primary key\n- session_id: foreign key or association\n- fixed: JSON column (immutable traits)\n- slow: JSON column (slowly-evolving traits)\n- mood: JSON column (temporary mood)\n- last_updated: timestamp\n\nUse the existing session model's foreign key relationship pattern. Follow the table naming conventions and column types already in use in chatbot/db/models.py.\n\nExpected file path: chatbot/db/models.py (modified)\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/db/models.py (existing models, session table, foreign key patterns, import conventions)\n- chatbot/soul/relationship.py\n- chatbot/soul/character.py\n- chatbot/soul/evolution.py\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/db/models.py contains RelationshipConfigModel, CharacterProfileModel, and IdentityStateModel SQLAlchemy tables",
+    "RelationshipConfigModel has columns: type, tone, directness, warmth, initiative_level, content_level",
+    "CharacterProfileModel has columns: name, backstory, personality_sliders, humor_style, communication_style, favorite_topics",
+    "IdentityStateModel has columns: fixed, slow, mood",
+    "New models follow existing session foreign key and import patterns in the file",
+    "python -m py_compile chatbot/db/models.py passes",
+    "No file outside chatbot/db/models.py is created or modified",
+    "No existing tables or columns in models.py are deleted or renamed"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/db/models.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/db/models.py",
+    "delete or rename existing tables or columns",
+    "add new third-party dependencies",
+    "create or modify documentation files",
+    "modify chatbot/soul/ or chatbot/api/ files"
+  ],
+  "allowed_symbols": [
+    "RelationshipConfigModel",
+    "CharacterProfileModel",
+    "IdentityStateModel"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "task_id": "c.10",
+  "phase": "Q",
+  "phase_id": "c",
+  "title": "Scope sessions API to current user and companion in chatbot/api/sessions.py",
+  "description": "Modify chatbot/api/sessions.py to scope all session operations to the authenticated user and optionally to a companion. Apply get_current_user dependency and enforce user_id filtering on all session CRUD endpoints.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md\n- chatbot/api/sessions.py (existing sessions API \u2014 understand current endpoints, router name, data store mechanism, request/response models)\n- chatbot/auth/dependencies.py (created by task c.5 \u2014 get_current_user, CurrentUser, get_current_user_id)\n- chatbot/db/models.py (updated by task c.4 \u2014 Session model with user_id and companion_id columns)\n- chatbot/companions/companion.py (created by task c.3 \u2014 CompanionManager, CompanionResponse)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/api/sessions.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Open chatbot/api/sessions.py and understand:\n   - Current endpoints: POST /, GET /{session_id}, DELETE /{session_id}.\n   - Current data store: in-memory dict, database-backed, or other.\n   - Import paths for existing models and utilities.\n   - Router variable name and prefix.\n\n2. Add user_id scoping to all endpoints:\n   - Import `get_current_user` from chatbot.auth.dependencies.\n   - Add `current_user: CurrentUser = Depends(get_current_user)` to every endpoint.\n   - Modify all database queries to filter by user_id from current_user.\n   - On GET /{session_id}: if the session is not found OR belongs to a different user, return 404 (not 403 \u2014 do not leak that the session exists for another user).\n   - On DELETE /{session_id}: if the session is not found OR belongs to a different user, return 404.\n   - On POST /: store user_id from current_user on the new session record.\n\n3. Add companion_id support:\n   - POST / accepts optional companion_id in the request body.\n   - If companion_id is provided, validate it exists and is owned by the current user (use CompanionManager). If not, return 404.\n   - Store companion_id on the session record.\n   - GET / (list) accepts optional companion_id query parameter to filter sessions by companion.\n\n4. Do NOT rename the router, change endpoint URL paths, or change HTTP methods.",
+  "acceptance_criteria": [
+    "chatbot/api/sessions.py imports and uses get_current_user dependency on all endpoints",
+    "POST /sessions stores user_id from current_user in the session record",
+    "GET /sessions/{session_id} returns 404 when session belongs to a different user",
+    "GET /sessions (list) filters to only the current user's sessions",
+    "DELETE /sessions/{session_id} enforces user ownership before deletion",
+    "POST /sessions accepts optional companion_id and stores it",
+    "Existing endpoint paths, router name, and prefix are preserved",
+    "python -m py_compile chatbot/api/sessions.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/sessions.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/api/sessions.py",
+    "modify chatbot/auth/dependencies.py",
+    "modify chatbot/db/models.py",
+    "modify chatbot/api/chat.py or chatbot/api/app.py",
+    "rename the router or change existing endpoint URL paths",
+    "remove existing functionality that is not related to auth scoping",
+    "return 200 for sessions owned by a different user",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [],
+  "decision_budget": {
+    "allowed": [
+      "add Depends(get_current_user) to existing endpoint signatures",
+      "add user_id and companion_id fields to the session data model",
+      "filter session lists by user_id",
+      "return 404 for cross-user session access"
+    ],
+    "forbidden": [
+      "change existing endpoint URL paths or HTTP methods",
+      "remove existing session features (create, read, delete)",
+      "add new endpoints beyond what already exists",
+      "return 200 or 403 for sessions owned by a different user (use 404 to prevent enumeration)"
+    ]
+  },
+  "dependencies": [
+    "c.3",
+    "c.4",
+    "c.5"
+  ],
+  "task_timeout_seconds": 900
+}

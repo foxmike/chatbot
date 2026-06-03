@@ -1,0 +1,124 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "compile_obs_init",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/observability/__init__.py"
+        ]
+      },
+      {
+        "name": "compile_tracing",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/observability/tracing.py"
+        ]
+      },
+      {
+        "name": "compile_metrics",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/observability/metrics.py"
+        ]
+      },
+      {
+        "name": "compile_logs",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/observability/logs.py"
+        ]
+      },
+      {
+        "name": "compile_router",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/providers/router.py"
+        ]
+      },
+      {
+        "name": "compile_db_models",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/db/models.py"
+        ]
+      },
+      {
+        "name": "compile_migration",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "migrations/versions/0011_observability.py"
+        ]
+      },
+      {
+        "name": "compile_admin_api",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/api/admin.py"
+        ]
+      },
+      {
+        "name": "compile_turn",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/core/turn.py"
+        ]
+      },
+      {
+        "name": "compile_app",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/api/app.py"
+        ]
+      },
+      {
+        "name": "compile_obs_tests",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "tests/test_observability.py"
+        ]
+      },
+      {
+        "name": "pytest_observability",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "tests/test_observability.py",
+          "-x",
+          "-v"
+        ]
+      },
+      {
+        "name": "tsc_typecheck",
+        "command": [
+          "sh",
+          "-c",
+          "cd react_ui && npx tsc --noEmit"
+        ]
+      }
+    ]
+  }
+}

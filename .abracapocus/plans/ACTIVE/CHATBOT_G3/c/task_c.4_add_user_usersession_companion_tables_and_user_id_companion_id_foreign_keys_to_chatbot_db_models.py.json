@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_id": "c.4",
+  "phase": "Q",
+  "phase_id": "c",
+  "title": "Add User, UserSession, Companion tables and user_id/companion_id foreign keys to chatbot/db/models.py",
+  "description": "Modify chatbot/db/models.py to integrate the auth and companion table definitions as SQLAlchemy declarative models (User, UserSession, Companion) and add user_id and companion_id foreign key columns to existing Session and ChatMessage tables.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md\n- chatbot/db/models.py (existing database models \u2014 understand SQLAlchemy base class, column conventions, existing table names, session model class name, chat message model class name, and any existing foreign key patterns)\n- chatbot/auth/models.py (created by task c.1 \u2014 AUTH_MODEL_DEFINITIONS dict)\n- chatbot/companions/companion.py (created by task c.3 \u2014 COMPANION_MODEL_DEFINITIONS dict)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/db/models.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Open chatbot/db/models.py and understand:\n   - The SQLAlchemy declarative base class (likely Base = declarative_base() or similar).\n   - Column naming conventions: snake_case vs CamelCase, column types, default values.\n   - Existing model class names \u2014 the session model class name and chat message model class name must not be renamed.\n   - The import style for SQLAlchemy imports (from sqlalchemy import ... or import sqlalchemy as sa).\n   - Any existing __all__ or module exports.\n\n2. Add three new SQLAlchemy declarative model classes:\n   - `User`: columns per AUTH_MODEL_DEFINITIONS['users'], with __tablename__ = 'users'.\n   - `UserSession`: columns per AUTH_MODEL_DEFINITIONS['user_sessions'], with __tablename__ = 'user_sessions'. Include ForeignKey on user_id referencing users.user_id.\n   - `Companion`: columns per COMPANION_MODEL_DEFINITIONS['companions'], with __tablename__ = 'companions'. Include ForeignKey on user_id referencing users.user_id.\n\n3. Extend the existing session model (whatever it is named \u2014 Session, ConversationSession, etc.):\n   - Add column `user_id` (String(36), ForeignKey('users.user_id'), nullable=True, index=True).\n   - Add column `companion_id` (String(36), ForeignKey('companions.companion_id'), nullable=True, index=True).\n   - Add relationship() backrefs if the existing code pattern uses relationships.\n\n4. Extend the existing chat message/turn model (whatever it is named \u2014 ChatMessage, Turn, Message, etc.):\n   - Add column `user_id` (String(36), ForeignKey('users.user_id'), nullable=True, index=True).\n   - Add column `companion_id` (String(36), ForeignKey('companions.companion_id'), nullable=True, index=True).\n   - Add relationship() backrefs if the existing code pattern uses relationships.\n\n5. Do NOT remove, rename, or retype any existing column on any existing table. All existing columns must remain exactly as they are. The pgvector embedding column (if present) must not be touched.\n\n6. All new FK columns must be nullable to avoid breaking existing rows that have no user or companion assignment.",
+  "acceptance_criteria": [
+    "chatbot/db/models.py defines User, UserSession, and Companion SQLAlchemy declarative models",
+    "User table has user_id, username, email, password_hash, created_at, updated_at columns",
+    "UserSession table has session_id, user_id FK, token_hash, expires_at, created_at, revoked columns",
+    "Companion table has companion_id, user_id FK, name, persona, description, avatar_url, created_at, updated_at columns",
+    "Existing Session model gains user_id and companion_id nullable FK columns with indexes",
+    "Existing ChatMessage/Turn model gains user_id and companion_id nullable FK columns with indexes",
+    "Existing columns on all tables are unchanged",
+    "python -m py_compile chatbot/db/models.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/db/models.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/db/models.py",
+    "remove, rename, or retype any existing column on any existing table",
+    "rename existing model classes or table names",
+    "remove existing relationships, constraints, or indexes",
+    "modify the pgvector embedding column if present",
+    "add new third-party dependencies",
+    "change the SQLAlchemy base class or import conventions",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "User",
+    "UserSession",
+    "Companion"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add new SQLAlchemy declarative model classes",
+      "add nullable ForeignKey columns with indexes to existing tables",
+      "add relationship() backrefs on existing models",
+      "use uuid4 defaults for primary key columns"
+    ],
+    "forbidden": [
+      "remove or rename any existing column",
+      "change any existing table name or model class name",
+      "add non-nullable columns that would break existing data",
+      "remove existing imports or module exports"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

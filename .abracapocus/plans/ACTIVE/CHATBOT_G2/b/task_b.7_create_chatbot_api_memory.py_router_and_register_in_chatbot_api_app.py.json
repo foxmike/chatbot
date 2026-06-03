@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "task_id": "b.7",
+  "phase": "M",
+  "phase_id": "b",
+  "title": "Create chatbot/api/memory.py router and register in chatbot/api/app.py",
+  "description": "Create chatbot/api/memory.py \u2014 the FastAPI router exposing the memory management API endpoints \u2014 and register it in chatbot/api/app.py.\n\nEndpoints to implement:\n- GET /api/memories \u2014 list/view memories (pagination, optional privacy filter)\n- PATCH /api/memories/{memory_id}/pin \u2014 pin/unpin\n- DELETE /api/memories/{memory_id} \u2014 delete (soft or hard)\n- PATCH /api/memories/{memory_id} \u2014 edit content/metadata\n- PATCH /api/memories/{memory_id}/privacy \u2014 set privacy level (private/temporary/permanent)\n- POST /api/memories/{memory_id}/do-not-remember \u2014 flag for exclusion\n- POST /api/memories/{memory_id}/remember-forever \u2014 mark permanent\n- PATCH /api/memories/{memory_id}/correct \u2014 correct a misunderstanding\n- GET /api/memories/search \u2014 search with date/topic/pagination\n- GET /api/memories/export \u2014 export filtered memories as JSON or text\n- GET /api/memories/{memory_id}/provenance \u2014 explain a memory's provenance\n\nWire these to the domain modules from tasks b.1-b.4. Use Pydantic schemas for request/response. Require authentication (reuse the existing auth dependency from the chatbot API). After creating the router, register it in chatbot/api/app.py by adding the router include line.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- chatbot/api/app.py for router registration pattern and auth dependency\n- chatbot/memory/provenance.py, controls.py, search.py, export.py for function signatures\n- chatbot/db/models.py for memory model fields\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.\n\nSINGLE-OWNER FILE: chatbot/api/app.py is owned exclusively by this task in this phase. No other task may modify it.",
+  "acceptance_criteria": [
+    "chatbot/api/memory.py exists with a FastAPI APIRouter",
+    "All listed endpoints are implemented and import cleanly",
+    "Endpoints delegate to chatbot/memory/controls.py, search.py, export.py, and provenance.py",
+    "Auth dependency is applied to all memory endpoints",
+    "chatbot/api/app.py includes the memory router via app.include_router()",
+    "python -m py_compile chatbot/api/memory.py passes",
+    "python -m py_compile chatbot/api/app.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/memory.py",
+    "chatbot/api/app.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/api/memory.py and chatbot/api/app.py",
+    "add new third-party dependencies",
+    "change existing non-memory API routes",
+    "modify auth logic or middleware",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add FastAPI endpoint functions",
+      "add Pydantic request/response models",
+      "use async def"
+    ],
+    "forbidden": [
+      "introduce new framework",
+      "modify existing database schema",
+      "change auth dependency implementation"
+    ]
+  },
+  "dependencies": [
+    "b.1",
+    "b.2",
+    "b.3",
+    "b.4"
+  ],
+  "task_timeout_seconds": 1200
+}

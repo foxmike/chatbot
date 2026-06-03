@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "task_id": "t.6",
+  "phase": "T",
+  "phase_id": "c",
+  "title": "Create admin API endpoints in chatbot/api/admin.py",
+  "description": "Create chatbot/api/admin.py exposing a FastAPI APIRouter with endpoints for the admin dashboard: trace inspection, metrics summaries, structured log queries, and usage reports. All endpoints read from the in-memory TraceCollector, MetricsCollector, and StructuredLogger singletons.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md\n- chatbot/observability/__init__.py (created by task t.1, updated by task t.2 \u2014 understand all exported symbols)\n- chatbot/observability/tracing.py (created by task t.1 \u2014 TraceCollector and TraceRecord APIs)\n- chatbot/observability/metrics.py (created by task t.2 \u2014 MetricsCollector and model metric APIs)\n- chatbot/observability/logs.py (created by task t.2 \u2014 StructuredLogger and event query APIs)\n- chatbot/api/__init__.py or existing API endpoint files for router pattern conventions\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/api/admin.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create chatbot/api/admin.py with:\n   - Module docstring: 'Admin dashboard API endpoints \u2014 trace inspection, metrics summaries, structured log queries, and usage reports.'\n   - A FastAPI `APIRouter` instance named `admin_router` with prefix '/admin' and tag 'admin'.\n\n2. Define Pydantic response models:\n   - `TraceSummary`: trace_id (str), session_id (str), turn_id (str), model_id (str | None), task_class (str | None), total_latency_ms (float), prompt_tokens (int), completion_tokens (int), cost_usd_micros (int), created_at (str).\n   - `TraceDetail`: all TraceRecord fields serialized (extends TraceSummary with prompt, routing_decision, retrieval_snippets, steps, retrieve_latency_ms).\n   - `TraceListResponse`: traces (list[TraceSummary]), total (int), page (int), page_size (int).\n   - `MetricsGlobal`: total_requests (int), total_tokens (int), total_cost_usd_micros (int), avg_latency_ms (float), models_used (int).\n   - `ModelMetricSummary`: model_id (str), provider (str), request_count (int), total_prompt_tokens (int), total_completion_tokens (int), total_cost_usd_micros (int), avg_latency_ms (float), p50_latency_ms (float), p95_latency_ms (float), p99_latency_ms (float).\n   - `ModelMetricsListResponse`: models (list[ModelMetricSummary]).\n   - `LogEventResponse`: event_id (str), event_type (str), timestamp (str), session_id (str | None), turn_id (str | None), details (dict), severity (str).\n   - `LogEventsListResponse`: events (list[LogEventResponse]), total (int).\n   - `UsageReportResponse`: total_sessions (int), total_turns (int), total_tokens (int), total_cost_usd_micros (int), per_model (list[ModelMetricSummary]).\n\n3. Endpoints:\n   - GET '/traces': Accepts session_id (optional query param), page (int, default 1), page_size (int, default 50, max 200). Returns TraceListResponse.\n   - GET '/traces/{trace_id}': Returns TraceDetail or 404.\n   - GET '/metrics/global': Returns MetricsGlobal from metrics_collector.get_global_summary().\n   - GET '/metrics/models': Returns ModelMetricsListResponse from metrics_collector.get_model_metrics_all().\n   - GET '/logs': Accepts event_type (optional), session_id (optional), since (optional ISO timestamp), limit (int, default 100), offset (int, default 0). Returns LogEventsListResponse.\n   - GET '/usage': Returns UsageReportResponse computed from metrics_collector.\n   - GET '/health': Simple alive check returning {'status': 'ok', 'traces_stored': int, 'events_stored': int}.\n\n4. All endpoints are read-only. No write operations. No auth dependency (admin endpoints are for operator use; auth is handled at router registration or via a future middleware). Wrap any internal errors in try/except returning 500 with a standard error message.",
+  "acceptance_criteria": [
+    "chatbot/api/admin.py exists with admin_router and all Pydantic response models",
+    "admin_router has GET /admin/traces endpoint with session_id filter and pagination",
+    "admin_router has GET /admin/traces/{trace_id} endpoint returning full trace detail",
+    "admin_router has GET /admin/metrics/global and GET /admin/metrics/models endpoints",
+    "admin_router has GET /admin/logs endpoint with event_type, session_id, since, and pagination filters",
+    "admin_router has GET /admin/usage endpoint returning per-model usage report",
+    "admin_router has GET /admin/health endpoint for alive check",
+    "All endpoints read from in-memory observability singletons",
+    "python -m py_compile chatbot/api/admin.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/admin.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/api/admin.py",
+    "modify any chatbot/observability/ source file",
+    "modify chatbot/db/models.py",
+    "add database-write operations to admin endpoints",
+    "add auth, rate-limiting, CORS, or middleware to this router",
+    "call external services or LLM providers",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "admin_router",
+    "TraceSummary",
+    "TraceDetail",
+    "TraceListResponse",
+    "MetricsGlobal",
+    "ModelMetricSummary",
+    "ModelMetricsListResponse",
+    "LogEventResponse",
+    "LogEventsListResponse",
+    "UsageReportResponse"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use FastAPI APIRouter with prefix and tag",
+      "use Pydantic for response models",
+      "import observability singletons directly",
+      "use query parameters for pagination and filtering",
+      "return standard HTTP status codes (200, 404, 422, 500)"
+    ],
+    "forbidden": [
+      "implement write operations (POST/PUT/PATCH/DELETE)",
+      "add database dependencies or sessions",
+      "add WebSocket support",
+      "add middleware, auth, or rate-limiting",
+      "modify observability module singletons"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

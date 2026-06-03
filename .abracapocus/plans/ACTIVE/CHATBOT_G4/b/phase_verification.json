@@ -1,0 +1,115 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "compile_visual_init",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/visual/__init__.py"
+        ]
+      },
+      {
+        "name": "compile_visual_base",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/visual/base.py"
+        ]
+      },
+      {
+        "name": "compile_visual_appearance",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/visual/appearance.py"
+        ]
+      },
+      {
+        "name": "compile_visual_generation",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/visual/generation.py"
+        ]
+      },
+      {
+        "name": "compile_visual_understanding",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/visual/understanding.py"
+        ]
+      },
+      {
+        "name": "compile_models",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/db/models.py"
+        ]
+      },
+      {
+        "name": "compile_migration",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "migrations/versions/0010_visual.py"
+        ]
+      },
+      {
+        "name": "compile_images_api",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/api/images.py"
+        ]
+      },
+      {
+        "name": "compile_app",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/api/app.py"
+        ]
+      },
+      {
+        "name": "compile_visual_tests",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "tests/test_visual.py"
+        ]
+      },
+      {
+        "name": "pytest_visual",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "tests/test_visual.py",
+          "-x",
+          "-v"
+        ]
+      },
+      {
+        "name": "tsc_typecheck",
+        "command": [
+          "sh",
+          "-c",
+          "cd react_ui && npx tsc --noEmit"
+        ]
+      }
+    ]
+  }
+}

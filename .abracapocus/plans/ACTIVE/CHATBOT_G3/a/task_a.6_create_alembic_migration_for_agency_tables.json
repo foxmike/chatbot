@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "task_id": "a.6",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Create Alembic migration for agency tables",
+  "description": "Create migrations/versions/0006_agency.py implementing a reversible Alembic migration that creates the agency_rituals, agency_timeline, initiative_settings, and agency_notifications tables. This migration must chain correctly from the current head revision and must be downgradable.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/db/models.py (updated by task a.5 \u2014 understand exact table names, column names, types, and nullability)\n- migrations/versions/ (existing migration files \u2014 determine correct head revision identifier, filename convention, and migration structure)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY migrations/versions/0006_agency.py. Do NOT modify any other file under any circumstance.\n\nIMPORTANT \u2014 Verify the real head revision number before writing. The filename 0006_agency.py is a placeholder. Inspect migrations/versions/ to determine the correct next revision sequence number and naming convention. If the highest existing revision uses alembic hex revisions, follow that convention instead.\n\nImplementation:\n\n1. Inspect migrations/versions/ to find: highest revision number and its revision identifier (the revision variable value), naming convention for migration filenames, and structure (imports, revision/down_revision/branch_labels/depends_on variables).\n\n2. Create the migration file setting: revision to a new unique hex id, down_revision to the current head's revision id, branch_labels=None, depends_on=None.\n\n3. upgrade() creates four tables using op.create_table: agency_rituals, agency_timeline, initiative_settings, agency_notifications. Each table has all columns from models.py with correct sa.Column specs. initiative_settings has sa.UniqueConstraint('user_id').\n\n4. downgrade() drops the four tables in reverse order using op.drop_table. No CASCADE or IF EXISTS.",
+  "acceptance_criteria": [
+    "migrations/versions/0006_agency.py exists with correct revision chain to head",
+    "upgrade() creates agency_rituals, agency_timeline, initiative_settings, and agency_notifications tables",
+    "Each table has all columns from chatbot/db/models.py with correct types, nullability, and defaults",
+    "initiative_settings table has a unique constraint on user_id",
+    "downgrade() drops the four tables in reverse order without CASCADE or IF EXISTS",
+    "python -m py_compile on the migration file passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "migrations/versions/0006_agency.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside migrations/versions/0006_agency.py",
+    "modify existing migration files",
+    "modify chatbot/db/models.py",
+    "add new third-party dependencies",
+    "add CASCADE, IF EXISTS, or conditional logic to downgrade()",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [],
+  "decision_budget": {
+    "allowed": [
+      "use op.create_table and op.drop_table for reversible migrations",
+      "use sa.Column, sa.UniqueConstraint, and standard sa types",
+      "follow existing migration file conventions for imports and structure",
+      "create indexes via index=True on sa.Column"
+    ],
+    "forbidden": [
+      "alter existing tables",
+      "add foreign key constraints",
+      "add triggers, sequences, or custom SQL",
+      "add CASCADE or IF EXISTS to drop_table"
+    ]
+  },
+  "dependencies": [
+    "a.5"
+  ],
+  "task_timeout_seconds": 600
+}

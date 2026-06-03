@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "task_id": "k.2",
+  "phase": "K",
+  "phase_id": "k",
+  "title": "User-state inference module",
+  "description": "Create chatbot/soul/user_state.py with a module that estimates likely user emotional state slowly and without overstating certainty.\n\nImplement a UserState dataclass (or Pydantic model) with fields:\n- primary_state: Optional[str] \u2014 most likely state from a closed set: stressed, playful, lonely, excited, frustrated, tired, focused, grieving, angry, neutral\n- confidence: float \u2014 0.0 to 1.0, capped at 0.6 maximum to avoid overconfidence\n- secondary_states: list[tuple[str, float]] \u2014 other plausible states with lower confidence\n- evidence_summary: str \u2014 short string of why the inference was made (for logging, not prompt injection)\n- last_inferred: datetime\n- inference_count: int \u2014 number of inferences run (used for persistence decisions)\n\nImplement a UserStateEngine class with:\n- infer(messages: list[dict], topics: list[str], mood_state: MoodState, prior_user_state: Optional[UserState]) -> UserState\n- Uses cheap heuristics (keyword counts, sentiment polarity, turn length, topic clustering) \u2014 NOT an LLM call\n- Confidence is never higher than 0.6; defaults to 0.3 for first inference\n- State must shift slowly: the primary_state may only change if new evidence across 3+ consecutive turns consistently favors a different state\n- Returns prior_user_state unchanged (with incremented inference_count) if insufficient evidence\n- is_stable(state: UserState) -> bool \u2014 returns True when inference_count >= 5 and confidence hasn't changed by >0.1 in the last 3 inferences\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- This task document (task k.2)\n- chatbot/soul/mood.py (if it exists, produced by task k.1)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/soul/user_state.py exists and defines UserState and UserStateEngine",
+    "python -m py_compile chatbot/soul/user_state.py passes",
+    "UserState.primary_state is from the closed set described in the task",
+    "UserState.confidence is capped at max 0.6",
+    "UserStateEngine.infer() returns a UserState object and never exceeds confidence 0.6",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/soul/user_state.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/soul/user_state.py",
+    "add LLM/API calls to the inference engine",
+    "add new third-party dependencies",
+    "persist user state directly to the database"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

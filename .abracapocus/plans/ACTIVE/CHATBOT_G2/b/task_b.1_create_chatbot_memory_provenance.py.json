@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "task_id": "b.1",
+  "phase": "M",
+  "phase_id": "b",
+  "title": "Create chatbot/memory/provenance.py",
+  "description": "Create chatbot/memory/provenance.py \u2014 the provenance tracking module for explainable memory.\n\nThis module tracks how each memory was created: explicit user instruction vs inferred by the system, which turn it originated from, and a confidence score. Implement a ProvenanceTracker class or equivalent that can annotate memory records with provenance metadata before they are stored.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- chatbot/memory/ (any existing modules) for import conventions\n- chatbot/db/models.py for the memory model shape to align provenance fields\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/memory/provenance.py exists and is a valid Python module",
+    "python -m py_compile chatbot/memory/provenance.py passes",
+    "Module exports provenance types and a ProvenanceTracker or equivalent",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/memory/provenance.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/memory/provenance.py",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add dataclasses or Pydantic models for provenance",
+      "use async functions"
+    ],
+    "forbidden": [
+      "introduce new framework",
+      "modify existing database schema"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

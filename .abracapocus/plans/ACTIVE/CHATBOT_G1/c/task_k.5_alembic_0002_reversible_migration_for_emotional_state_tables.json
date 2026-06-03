@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "task_id": "k.5",
+  "phase": "K",
+  "phase_id": "k",
+  "title": "Alembic 0002 reversible migration for emotional state tables",
+  "description": "Create migrations/versions/0002_emotional_state.py with a reversible Alembic migration.\n\nThis migration must:\n- Add columns to the Session table: mood_state (JSON, nullable), user_state (JSON, nullable), conversation_mode (VARCHAR, nullable)\n- Create the bot_mood_log table with all columns from task k.4\n- Create the user_state_log table with all columns from task k.4\n- Add indexes on bot_mood_log.session_id and user_state_log.session_id\n- Add foreign keys: bot_mood_log.session_id -> session.id ON DELETE CASCADE, user_state_log.session_id -> session.id ON DELETE CASCADE\n- downgrade() must drop the new columns from Session and drop both new tables, making the migration fully reversible\n\nThe migration must not conflict with or re-execute operations from 0001_core_schema.py. Do not recreate the pgvector extension (already handled by 0001).\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- This task document (task k.5)\n- chatbot/db/models.py (updated by task k.4 with new columns and tables)\n- migrations/versions/0001_core_schema.py (existing migration)\n- migrations/env.py (if it exists)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "migrations/versions/0002_emotional_state.py exists",
+    "upgrade() adds mood_state, user_state, conversation_mode columns to session table",
+    "upgrade() creates bot_mood_log and user_state_log tables",
+    "downgrade() drops the new columns and tables",
+    "python -m py_compile migrations/versions/0002_emotional_state.py passes",
+    "Migration is reversible (upgrade then downgrade runs without error)",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "migrations/versions/0002_emotional_state.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside migrations/versions/0002_emotional_state.py",
+    "modify migrations/versions/0001_core_schema.py",
+    "modify chatbot/db/models.py",
+    "add new third-party dependencies"
+  ],
+  "dependencies": [
+    "k.4"
+  ],
+  "task_timeout_seconds": 900
+}

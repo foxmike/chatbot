@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "task_id": "r.5",
+  "phase": "R",
+  "phase_id": "r",
+  "title": "Implement STT adapter in chatbot/voice/stt.py",
+  "description": "Create chatbot/voice/stt.py implementing a concrete STT adapter that subclasses STTProvider from base.py for speech-to-text transcription.\n\nThe module must define:\n- An `STTAdapter` class that extends `STTProvider` (from task r.1) and implements `transcribe()`. The adapter accepts a provider_id and model_id at construction, validates them, and stores them.\n- The `transcribe()` method must: (1) accept a VoiceTranscriptionRequest with audio_data (bytes), audio_format (str), and optional language, (2) construct an API call to the configured STT provider/model, (3) return a VoiceTranscriptionResult with text, confidence, and detected language.\n- A `validate_identifier()` classmethod that checks provider_id/model_id against a hardcoded list of known valid STT providers (initially: openai/whisper-1, deepgram/nova-2).\n- The actual API call body may be a placeholder (raise NotImplementedError with a descriptive message) \u2014 the adapter must be structurally complete and importable.\n- The adapter must handle large audio payloads gracefully: raise ValueError if audio_data is empty, reject audio formats not in a supported list.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- chatbot/voice/__init__.py and base.py (created by task r.1) for STTProvider ABC and type definitions\n- chatbot/voice/tts.py (created by task r.4) for adapter implementation patterns\n- chatbot/providers/ (any existing provider implementations) for adapter conventions\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/voice/stt.py exists and defines STTAdapter extending STTProvider",
+    "STTAdapter implements transcribe() accepting VoiceTranscriptionRequest and returning VoiceTranscriptionResult",
+    "STTAdapter raises ValueError for empty audio_data",
+    "STTAdapter raises ValueError for unsupported audio format",
+    "STTAdapter.validate_identifier() returns True for known provider/model pairs",
+    "python -m py_compile chatbot/voice/stt.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/voice/stt.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/voice/stt.py",
+    "add new third-party dependencies",
+    "modify chatbot/voice/base.py or tts.py",
+    "change the Abracapocus runtime, orchestrator, or backends",
+    "make real API calls that require credentials"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "extend STTProvider ABC",
+      "validate audio format strings",
+      "use placeholder API call"
+    ],
+    "forbidden": [
+      "introduce new framework",
+      "modify base.py or tts.py",
+      "make real HTTP calls"
+    ]
+  },
+  "dependencies": [
+    "r.1"
+  ],
+  "task_timeout_seconds": 900
+}

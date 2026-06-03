@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_id": "b.2",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Create appearance module with seed lock and outfit continuity",
+  "description": "Create chatbot/visual/appearance.py implementing the canonical appearance profile, character seed lock for visual continuity, and outfit continuity tracking.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/visual/base.py (created by task b.1 \u2014 understand the provider interface and ImageGenerationResult shape)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/visual/appearance.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create chatbot/visual/appearance.py with:\n   - Module docstring: 'Appearance management for visual identity continuity. Provides a canonical appearance profile with a character seed lock, outfit tracking, and visual trait customization.'\n   \n2. An `AppearanceProfile` (Pydantic BaseModel) with:\n   - `character_seed` (int): a deterministic seed that locks the character's visual identity across generations. Default to `42`.\n   - `character_description` (str): prose description of the character's physical appearance (hair color, eye color, face shape, age, body type, etc.). Default to empty string.\n   - `visual_traits` (list[str]): keyword traits for image prompts (e.g. 'blue_eyes', 'curly_hair', 'warm_smile'). Default to empty list.\n   - `art_style` (str): the art style directive for generation (e.g. 'digital illustration', 'anime', 'realistic'). Default to 'digital illustration'.\n   - `color_palette` (list[str]): hex color strings for consistent palette across generations. Default to empty list.\n   - `created_at` (str): ISO timestamp set in __init__ via datetime.utcnow().isoformat().\n   - `updated_at` (str | None): ISO timestamp, None on creation.\n   - Add a `model_config` with `frozen=False` (allow mutation but track via updated_at).\n   - Add a method `touch()` that sets `updated_at` to `datetime.utcnow().isoformat()`.\n\n3. An `Outfit` (Pydantic BaseModel) with:\n   - `outfit_id` (str): UUID4 string.\n   - `name` (str): short label (e.g. 'casual', 'formal', 'adventure'). Default to 'default'.\n   - `description` (str): prose description of the outfit.\n   - `visual_tags` (list[str]): prompt-keyword tags for the outfit (e.g. 'wearing_blue_hoodie', 'jeans', 'sneakers').\n   - `is_active` (bool): whether this is the currently equipped outfit. Default to False.\n   - `created_at` (str): ISO timestamp.\n\n4. An `OutfitManager` class with:\n   - `__init__(self, outfits: list[Outfit] | None = None)`: initializes with an optional pre-existing list. If none provided, creates a single default Outfit with name 'default', description 'Default outfit', and is_active=True. Stores outfits in `self._outfits`.\n   - `add_outfit(self, name: str, description: str, visual_tags: list[str]) -> Outfit`: creates a new Outfit with is_active=False and appends it.\n   - `activate_outfit(self, outfit_id: str) -> Outfit`: sets the given outfit's is_active=True and all others to False. Raises ValueError if outfit_id not found.\n   - `get_active_outfit(self) -> Outfit | None`: returns the outfit with is_active=True, or None.\n   - `list_outfits(self) -> list[Outfit]`: returns a copy of the outfit list.\n   - `remove_outfit(self, outfit_id: str) -> None`: removes the outfit. Raises ValueError if it is the only remaining outfit or if outfit_id not found.\n\n5. An `AppearanceManager` class with:\n   - `__init__(self, profile: AppearanceProfile | None = None, outfit_manager: OutfitManager | None = None)`: initializes with an optional profile (creates default AppearanceProfile if None) and optional OutfitManager (creates default if None).\n   - `get_profile(self) -> AppearanceProfile`: returns the profile.\n   - `update_character_description(self, description: str) -> None`: sets profile.character_description and calls profile.touch().\n   - `update_visual_traits(self, traits: list[str]) -> None`: sets profile.visual_traits and calls profile.touch().\n   - `update_art_style(self, style: str) -> None`: sets profile.art_style and calls profile.touch().\n   - `update_color_palette(self, palette: list[str]) -> None`: sets profile.color_palette and calls profile.touch().\n   - `build_generation_prompt(self, scene_description: str, negative_prompt: str | None = None) -> tuple[str, str, int]`: returns (full_prompt, full_negative, seed). The full_prompt combines the scene_description with character_description, visual_traits joined with commas, art_style directive, and active outfit tags. The seed is profile.character_seed. If negative_prompt is None, build a sensible default from anti-traits.\n   - `lock_seed(self, seed: int) -> None`: sets profile.character_seed, calls profile.touch(), returns the new seed.\n   - `get_outfit_manager(self) -> OutfitManager`: returns the outfit manager.",
+  "acceptance_criteria": [
+    "chatbot/visual/appearance.py exists and defines AppearanceProfile, Outfit, OutfitManager, AppearanceManager",
+    "AppearanceProfile has character_seed, character_description, visual_traits, art_style, color_palette fields",
+    "Outfit has outfit_id, name, description, visual_tags, is_active, created_at fields",
+    "OutfitManager.activate_outfit sets one outfit active and all others inactive",
+    "OutfitManager.remove_outfit raises ValueError when trying to remove the only outfit",
+    "AppearanceManager.build_generation_prompt combines scene, character, style, and outfit tags",
+    "AppearanceManager.lock_seed sets and returns the character seed",
+    "AppearanceManager.update_* methods all call profile.touch() to update timestamps",
+    "python -m py_compile chatbot/visual/appearance.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/visual/appearance.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/visual/appearance.py",
+    "modify chatbot/visual/base.py or chatbot/visual/__init__.py",
+    "modify chatbot/db/models.py",
+    "add new third-party dependencies",
+    "call any image generation API",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "AppearanceProfile",
+    "Outfit",
+    "OutfitManager",
+    "AppearanceManager"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use Pydantic BaseModel for data classes",
+      "use uuid4 for outfit_id generation",
+      "use datetime for timestamp management",
+      "build prompt strings from structured profile data"
+    ],
+    "forbidden": [
+      "introduce image processing or generation logic",
+      "add database persistence in this module (pure in-memory)",
+      "hard-code specific character descriptions or art styles",
+      "add filesystem I/O for appearance data"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

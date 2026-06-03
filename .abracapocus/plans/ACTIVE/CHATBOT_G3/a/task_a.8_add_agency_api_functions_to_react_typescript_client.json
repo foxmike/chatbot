@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "task_id": "a.8",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Add agency API functions to React TypeScript client",
+  "description": "Modify react_ui/src/api/client.ts to add TypeScript fetch functions for all agency API endpoints: get/update initiative settings, poll/dismiss/read notifications, trigger proactive check-ins, and fetch user schedule.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- react_ui/src/api/client.ts (existing API client \u2014 understand base URL configuration, fetch wrapper patterns, TypeScript type conventions, and error handling)\n- chatbot/api/agency.py (created by task a.7 \u2014 understand the endpoint paths, query parameters, request bodies, and response shapes)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY react_ui/src/api/client.ts. Do NOT modify any other file under any circumstance.\n\nImplementation:\n\n1. Open react_ui/src/api/client.ts and inspect: base URL config (BASE_URL), fetch wrapper patterns, TypeScript type conventions (interface vs type, PascalCase), error handling.\n\n2. Add TypeScript types: InitiativeSettings (user_id string, level union type of five level strings, quiet_hours_start string|null, quiet_hours_end string|null), InitiativeUpdatePayload (level string, quiet_hours_start string|null, quiet_hours_end string|null), NotificationItem (notification_id, user_id, notif_type, title, body, created_at, read, dismissed, metadata), NotificationListResponse (notifications NotificationItem[], pending_count number), CheckInTriggerPayload (checkin_type string, user_id string, context object|null), CheckInResponse (checkin_id, message, checkin_type, priority), ScheduleResponse (events object[], next_event object|null).\n\n3. Add async fetch functions: fetchInitiative(userId), updateInitiative(userId, payload), fetchNotifications(userId, since?), markNotificationRead(notificationId), dismissNotification(notificationId), triggerCheckIn(payload), fetchSchedule(userId). All follow existing client.ts patterns for fetch, error handling, and return types.\n\n4. Do NOT modify existing exports, change the fetch wrapper, or add new HTTP libraries.",
+  "acceptance_criteria": [
+    "react_ui/src/api/client.ts exports all seven agency API functions",
+    "react_ui/src/api/client.ts exports InitiativeSettings, InitiativeUpdatePayload, NotificationItem, NotificationListResponse, CheckInTriggerPayload, CheckInResponse, and ScheduleResponse types",
+    "All new functions use the existing fetch wrapper or URL pattern from client.ts",
+    "fetchNotifications supports optional since query parameter",
+    "Existing API functions and types in client.ts are unchanged",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/api/client.ts"
+  ],
+  "forbidden_changes": [
+    "modify any file outside react_ui/src/api/client.ts",
+    "remove or rename existing exported functions or types from client.ts",
+    "add new third-party dependencies",
+    "introduce a new HTTP client library (axios, react-query, etc.)",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "InitiativeSettings",
+    "InitiativeUpdatePayload",
+    "NotificationItem",
+    "NotificationListResponse",
+    "CheckInTriggerPayload",
+    "CheckInResponse",
+    "ScheduleResponse",
+    "fetchInitiative",
+    "updateInitiative",
+    "fetchNotifications",
+    "markNotificationRead",
+    "dismissNotification",
+    "triggerCheckIn",
+    "fetchSchedule"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add TypeScript interfaces/types matching the API Pydantic models",
+      "add async fetch wrapper functions following existing client.ts patterns",
+      "use the existing base URL and error handling conventions"
+    ],
+    "forbidden": [
+      "introduce axios, react-query, swr, or any new HTTP/data-fetching library",
+      "change the fetch wrapper pattern or base URL configuration",
+      "add polling intervals or WebSocket logic"
+    ]
+  },
+  "dependencies": [
+    "a.7"
+  ],
+  "task_timeout_seconds": 900
+}

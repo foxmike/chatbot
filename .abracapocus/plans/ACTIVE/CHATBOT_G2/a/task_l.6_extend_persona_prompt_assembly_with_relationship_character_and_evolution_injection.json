@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "task_id": "l.6",
+  "phase": "L",
+  "phase_id": "l",
+  "title": "Extend persona prompt assembly with relationship, character, and evolution injection",
+  "description": "Extend chatbot/soul/persona_prompt.py to consume RelationshipConfig, CharacterProfile, and IdentityState and inject their prompt fragments into the assembled persona prompt.\n\nThis file was finalized in a prior phase (J). Read it first to understand the existing assemble_persona_prompt() function signature, its argument list, and how it builds the prompt text.\n\nModifications:\n1. Add optional parameters to the prompt assembly function: relationship_config: Optional[RelationshipConfig] = None, character_profile: Optional[CharacterProfile] = None, identity_state: Optional[IdentityState] = None\n2. In the prompt assembly body, call relationship_config.to_prompt_fragment() and inject the result into a labeled section (e.g., \"RELATIONSHIP CONFIG\") if provided.\n3. In the prompt assembly body, call character_profile.to_prompt_fragment() and inject the result into a labeled character section (e.g., \"IDENTITY\") if provided.\n4. Call identity_state.to_prompt_fragment() and inject the three tier fragments (fixed identity, current drift traits, mood) into labeled sections if provided.\n5. Preserve all existing prompt assembly logic. Only add new sections; do not restructure or delete existing sections.\n6. If none of the new optional args are provided, the function produces exactly the same output as before the change (backward compatibility).\n\nImport from chatbot.soul.relationship, chatbot.soul.character, and chatbot.soul.evolution.\n\nThe to_prompt_fragment() methods on these models (created in tasks l.1\u2013l.3) return text suitable for direct injection into the assembled prompt.\n\nExpected file path: chatbot/soul/persona_prompt.py (modified)\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/soul/persona_prompt.py (read the full file to understand assemble_persona_prompt or equivalent)\n- chatbot/soul/relationship.py\n- chatbot/soul/character.py\n- chatbot/soul/evolution.py\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/soul/persona_prompt.py accepts RelationshipConfig, CharacterProfile, and IdentityState as optional parameters",
+    "Relationship config is injected as a labeled prompt section when provided",
+    "Character profile is injected as a labeled prompt section when provided",
+    "Identity state fixed/slow/mood tiers are injected as labeled prompt sections when provided",
+    "When no optional args are passed, the function produces identical output to before the change",
+    "python -m py_compile chatbot/soul/persona_prompt.py passes",
+    "No file outside chatbot/soul/persona_prompt.py is created or modified",
+    "No existing prompt sections are deleted or restructured"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/soul/persona_prompt.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/soul/persona_prompt.py",
+    "delete or restructure existing prompt assembly sections",
+    "add new third-party dependencies",
+    "create or modify documentation files",
+    "modify chatbot/soul/relationship.py",
+    "modify chatbot/soul/character.py",
+    "modify chatbot/soul/evolution.py"
+  ],
+  "allowed_symbols": [
+    "assemble_persona_prompt"
+  ],
+  "dependencies": [
+    "l.1",
+    "l.2",
+    "l.3"
+  ],
+  "task_timeout_seconds": 900
+}

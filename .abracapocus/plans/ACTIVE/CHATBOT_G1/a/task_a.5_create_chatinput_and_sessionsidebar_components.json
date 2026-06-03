@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "task_id": "a.5",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Create ChatInput and SessionSidebar components",
+  "description": "Create react_ui/src/components/ChatInput.tsx and react_ui/src/components/SessionSidebar.tsx.\n\nChatInput.tsx:\n- Props: { onSend: (message: string) => void; disabled: boolean }\n- Renders a textarea input field and a send button in a bottom bar layout\n- Textarea auto-grows height within a max-height bound using onInput + ref to adjust rows\n- Enter key sends the message (clears input after send) unless Shift+Enter is held, which inserts a newline\n- Send button is an SVG arrow icon in a rounded button; disabled state dims the button and disables the textarea\n- The disabled prop locks both the textarea and the send button\n- Uses Tailwind dark theme: dark background (gray-800), light text, border-gray-600, focus ring\n\nSessionSidebar.tsx:\n- Props: { sessions: Session[]; activeSessionId: string | null; onSelect: (sessionId: string) => void; onNewSession: () => void }\n- Renders a vertical sidebar (w-64) on the left side of the chat layout\n- Shows a 'New Chat' button at the top with a plus icon\n- Lists sessions below the button. Each session row shows the session title and a truncated created_at date\n- The active session row has a highlighted background (gray-700) and a left border accent (indigo-500)\n- Session rows are clickable and call onSelect(session.session_id)\n- When sessions is empty, shows a subtle message: 'No conversations yet'\n- Session list is scrollable (overflow-y-auto) with flex-1 to fill remaining sidebar space\n- Import Session type from ../types\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- react_ui/src/types.ts\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "react_ui/src/components/ChatInput.tsx exists",
+    "react_ui/src/components/SessionSidebar.tsx exists",
+    "ChatInput sends message on Enter, inserts newline on Shift+Enter",
+    "ChatInput clears input after send and disables when disabled prop is true",
+    "ChatInput renders a send button with SVG arrow icon",
+    "SessionSidebar renders New Chat button that calls onNewSession",
+    "SessionSidebar highlights active session with indigo left border",
+    "SessionSidebar shows scrollable session list with truncated dates",
+    "SessionSidebar shows empty state when sessions is empty",
+    "Both components import Session from ../types",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/components/ChatInput.tsx",
+    "react_ui/src/components/SessionSidebar.tsx"
+  ],
+  "forbidden_changes": [
+    "modify react_ui/src/types.ts",
+    "modify any file outside the listed allowed_write_paths",
+    "add custom CSS or inline styles; use Tailwind classes only"
+  ],
+  "dependencies": [
+    "a.2"
+  ],
+  "task_timeout_seconds": 300
+}

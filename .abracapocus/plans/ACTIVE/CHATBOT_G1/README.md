@@ -1,0 +1,5 @@
+# CHATBOT
+
+## Purpose
+
+Group 1 of the companion buildout on top of the completed chatbot engine (phases a-h: infrastructure, providers, schema, memory core, soul/state, consolidation, turn spine, integration). This group delivers a usable, emotionally coherent companion. Phase I adds a self-contained React chat UI so the product is testable in a browser. Phase J completes the turn pipeline so the engine stops behaving as a stateless LLM passthrough: the soul/persona is injected into prompt assembly, working-memory conversation history flows into the provider call, and real memory extraction replaces the current stub. Phase K adds emotional intelligence: a dynamic bot mood/affect model distinct from fixed personality, slow low-overconfidence inference of user state, and conversation modes that reshape persona prompt assembly. The existing FastAPI + Postgres/pgvector + Redis stack is unchanged; the UI attaches over the existing API surface and all new logic lands inside the existing chatbot package. Content behavior is governed by configurable runtime settings, not hardcoded blocks.

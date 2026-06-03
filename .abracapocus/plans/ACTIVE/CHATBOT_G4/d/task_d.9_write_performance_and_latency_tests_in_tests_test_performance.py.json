@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "task_id": "d.9",
+  "phase": "D",
+  "phase_id": "d",
+  "title": "Write performance and latency tests in tests/test_performance.py",
+  "description": "Create tests/test_performance.py with pytest-based tests covering the persona cache, background queue, turn pipeline split, streaming endpoint token events, and end-to-end latency measurement.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- tests/ for existing test patterns, conftest.py fixtures, and import conventions\n- chatbot/perf/cache.py (created by task d.1) for PersonaCache API\n- chatbot/perf/background.py (created by task d.2) for BackgroundQueue, BackgroundTask, run_background_worker\n- chatbot/core/turn.py (updated by task d.5) for TurnPipeline with fast/deferred split\n- chatbot/api/streaming.py (updated by task d.3) for SSE token/typing events\n- chatbot/api/chat.py (updated by task d.8) for background queue wiring\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create tests/test_performance.py with:\n   - Module docstring: 'Tests for latency and scale \u2014 persona cache, background queue, turn pipeline split, streaming, and end-to-end latency.'\n\n2. Test classes:\n\n   - `TestPersonaCache`:\n     * test_get_returns_none_on_miss \u2014 empty cache.\n     * test_set_and_get \u2014 store and retrieve.\n     * test_ttl_expiry \u2014 set with short TTL, wait, get returns None.\n     * test_invalidate \u2014 set, invalidate, get returns None.\n     * test_invalidate_user \u2014 set entries for two companion IDs, invalidate_user, both return None.\n     * test_different_users_isolated \u2014 set for user A, get for user B returns None.\n\n   - `TestBackgroundQueue`:\n     * test_enqueue_and_dequeue \u2014 enqueue one, dequeue returns it.\n     * test_priority_ordering \u2014 enqueue normal and high_priority, dequeue returns high first.\n     * test_dequeue_returns_none_when_empty \u2014 empty queue.\n     * test_convenience_methods \u2014 enqueue_memory_extraction creates correct task.\n     * test_pending_count \u2014 enqueue N tasks, pending_count returns N.\n     * test_run_background_worker \u2014 enqueue tasks, start worker, verify handler is called for each, worker stops on stop_event.\n     * test_run_background_worker_retry \u2014 handler raises on first call, task retried, success on retry.\n     * test_run_background_worker_drops_after_max_retries \u2014 handler always raises, task dropped after max_retries.\n\n   - `TestTurnPipelineSplit`:\n     * test_fast_path_completes_without_deferred \u2014 run_fast returns context with final_response.\n     * test_enqueue_deferred_creates_tasks \u2014 after run_fast, enqueue_deferred adds tasks to queue.\n     * test_run_with_background_queue \u2014 run() runs fast path then enqueues deferred.\n     * test_run_without_queue_runs_all_inline \u2014 run() without queue runs all steps inline.\n     * test_cache_hit_skips_compile \u2014 set persona cache, run_fast, compile_context uses cache.\n     * test_cache_miss_computes_and_stores \u2014 empty cache, run_fast, compile_context computes and stores.\n\n   - `TestStreamingEndpoint`:\n     * test_stream_emits_typing_events \u2014 POST /chat/stream, assert started and stopped typing events in output.\n     * test_stream_emits_step_events \u2014 assert step events present.\n     * test_stream_emits_response_event \u2014 assert final response event present.\n     * test_stream_contains_done \u2014 assert [DONE] terminator.\n     * test_stream_backward_compatible \u2014 existing clients that ignore token events still receive final response event.\n\n   - `TestEndToEndLatency`:\n     * test_chat_endpoint_response_time_under_target \u2014 POST /chat with a session_id, assert response returns in under X seconds (set a generous target like 5 seconds for placeholder pipeline, noting this tightens with real providers).\n     * test_fast_path_executes_in_order \u2014 verify step_results from run_fast follow FAST_PATH_STEPS order.\n     * test_deferred_does_not_block_response \u2014 with background_queue, the chat endpoint returns before deferred tasks complete.\n\n3. Use starlette TestClient for endpoint tests. Use pytest fixtures and mocks. No real LLM providers, Postgres, or Redis. Use the placeholder/default pipeline.\n\n4. Do NOT invoke pytest in this task's focused verification (the test file is being created). Use python -m py_compile tests/test_performance.py instead.",
+  "acceptance_criteria": [
+    "tests/test_performance.py exists with TestPersonaCache, TestBackgroundQueue, TestTurnPipelineSplit, TestStreamingEndpoint, and TestEndToEndLatency",
+    "TestPersonaCache covers get/set, TTL expiry, invalidate, invalidate_user, and user isolation (6 tests)",
+    "TestBackgroundQueue covers enqueue/dequeue, priority ordering, convenience methods, pending_count, worker lifecycle, retry, and max_retries drop (8 tests)",
+    "TestTurnPipelineSplit covers fast path, enqueue_deferred, cache hit/miss, and inline fallback (6 tests)",
+    "TestStreamingEndpoint covers typing events, step events, response event, [DONE], and backward compatibility (5 tests)",
+    "TestEndToEndLatency covers response time, fast-path ordering, and deferred non-blocking (3 tests)",
+    "All tests use mocks for external dependencies",
+    "No test requires Postgres, Redis, or real LLM providers",
+    "python -m py_compile tests/test_performance.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/moonshotai/kimi-k2-0905",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "tests/test_performance.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside tests/test_performance.py",
+    "modify any chatbot/ source file",
+    "modify any react_ui/ source file",
+    "add new third-party dependencies",
+    "require a running Postgres, Redis, or external service for test execution",
+    "call real LLM providers, embedding services, or external APIs",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "TestPersonaCache",
+    "TestBackgroundQueue",
+    "TestTurnPipelineSplit",
+    "TestStreamingEndpoint",
+    "TestEndToEndLatency"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use starlette TestClient for endpoint tests",
+      "use pytest fixtures for cache, queue, pipeline, and app",
+      "use unittest.mock for external dependencies",
+      "assert on method return values, status codes, and SSE event content"
+    ],
+    "forbidden": [
+      "call real LLM providers or embedding services",
+      "require a running database server",
+      "add integration tests requiring network access",
+      "use pytest-asyncio decorators incompatible with the project's event loop setup"
+    ]
+  },
+  "dependencies": [
+    "d.1",
+    "d.2",
+    "d.3",
+    "d.5",
+    "d.8"
+  ],
+  "task_timeout_seconds": 1500
+}

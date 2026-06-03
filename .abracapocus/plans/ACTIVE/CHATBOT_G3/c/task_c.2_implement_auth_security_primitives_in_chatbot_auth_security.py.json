@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_id": "c.2",
+  "phase": "Q",
+  "phase_id": "c",
+  "title": "Implement auth security primitives in chatbot/auth/security.py",
+  "description": "Create chatbot/auth/security.py implementing password hashing, JWT token issuance, and JWT token verification for the authentication system.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/auth/security.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create chatbot/auth/security.py with:\n   - Module docstring: 'Authentication security primitives \u2014 password hashing, JWT token issue and verify.'\n   - Constants loaded from environment variables with sensible defaults:\n     * `SECRET_KEY` (str): os.environ.get('CHATBOT_SECRET_KEY', secrets.token_hex(32))\n     * `ACCESS_TOKEN_EXPIRE_MINUTES` (int): int(os.environ.get('CHATBOT_TOKEN_EXPIRE_MINUTES', 60))\n     * `ALGORITHM` (str): 'HS256'\n   - A `PasswordHasher` class that:\n     * Uses passlib.context.CryptContext with bcrypt scheme.\n     * `hash_password(password: str) -> str`: hash and return.\n     * `verify_password(plain_password: str, hashed_password: str) -> bool`: verify against stored hash.\n   - `def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str`:\n     * Uses PyJWT (import jwt) to encode a JWT with the data dict as payload, adding an 'exp' claim.\n     * If expires_delta is None, uses ACCESS_TOKEN_EXPIRE_MINUTES.\n     * Returns the encoded JWT string.\n   - `def decode_access_token(token: str) -> dict | None`:\n     * Uses PyJWT to decode and validate the token.\n     * Returns the payload dict on success.\n     * Returns None (not raise) on PyJWTError (invalid signature, expired, etc.).\n\n2. The module must not depend on SQLAlchemy, FastAPI, or any database access.",
+  "acceptance_criteria": [
+    "chatbot/auth/security.py exists with PasswordHasher class",
+    "chatbot/auth/security.py defines hash_password, verify_password, create_access_token, decode_access_token",
+    "SECRET_KEY, ACCESS_TOKEN_EXPIRE_MINUTES, and ALGORITHM are defined from environment with defaults",
+    "decode_access_token returns None on invalid or expired tokens without raising",
+    "python -m py_compile chatbot/auth/security.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/auth/security.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/auth/security.py",
+    "modify requirements.txt or any dependency manifest",
+    "modify chatbot/auth/models.py or chatbot/auth/__init__.py",
+    "add new third-party dependencies to the project config",
+    "store secrets or keys in source code (use env vars or secrets module)",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "PasswordHasher",
+    "hash_password",
+    "verify_password",
+    "create_access_token",
+    "decode_access_token",
+    "SECRET_KEY",
+    "ACCESS_TOKEN_EXPIRE_MINUTES",
+    "ALGORITHM"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use passlib for bcrypt password hashing",
+      "use PyJWT for token encoding/decoding",
+      "read configuration from environment variables",
+      "use HS256 as the JWT algorithm"
+    ],
+    "forbidden": [
+      "use oauth, OIDC, or external identity providers",
+      "use asymmetric JWT algorithms (RS256, ES256)",
+      "store credentials in source files",
+      "implement session refresh logic in this task"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "task_id": "b.4",
+  "phase": "J",
+  "phase_id": "b",
+  "title": "Wire persona, working memory, and memory extraction into the turn pipeline",
+  "description": "Modify chatbot/core/turn.py to replace the placeholder step bodies in Retrieve, CompileContext, CallProvider, and ExtractMemory with real implementations that consume the modules from tasks b.1, b.2, and b.3. Preserve the existing TurnPipeline class contract, step ordering, StepResult recording, and error-handling semantics. Do NOT recreate the file \u2014 complete and wire the placeholder steps.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/core/steps.py (TurnContext, TurnStep, StepResult contracts)\n- chatbot/core/turn.py (existing TurnPipeline, build_default_pipeline, placeholder steps)\n- chatbot/core/__init__.py (existing exports)\n- chatbot/soul/persona_prompt.py (PersonaPromptAssembler, created by task b.1)\n- chatbot/memory/working_memory.py (WorkingMemoryLoader, created by task b.3)\n- chatbot/memory/extraction.py (MemoryExtractor, created by task b.2)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Modify ONLY chatbot/core/turn.py and chatbot/core/__init__.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Wire the Retrieve step:\n   - Import WorkingMemoryLoader from chatbot.memory.working_memory.\n   - Replace the no-op Retrieve body with a call to WorkingMemoryLoader.load(session_id) that populates ctx.history with the bounded prior-turn list.\n   - If the loader or store is unavailable, degrade gracefully: set ctx.history to an empty list and record success (do not crash the pipeline).\n\n2. Wire the CompileContext step:\n   - Import PersonaPromptAssembler (or assemble_persona_prompt) from chatbot.soul.persona_prompt.\n   - Replace the no-op CompileContext body to:\n     a. Call persona assembly with ctx.persona to produce the system-prompt string.\n     b. Concatenate persona prompt + history + retrieved_memories into ctx.compiled_context.\n     c. The compiled_context format should be a single string or structured representation consumable by the CallProvider step for prompt construction.\n   - Persona assembly must remain deterministic (no LLM calls, no random).\n\n3. Wire the ExtractMemory step:\n   - Import MemoryExtractor from chatbot.memory.extraction.\n   - Replace the no-op ExtractMemory body with a call to MemoryExtractor.extract(session_id, user_message, provider_response).\n   - Store the returned list in ctx.extracted_memories.\n   - If the extractor or store is unavailable, set ctx.extracted_memories to an empty list and record success.\n\n4. Wire the CallProvider step:\n   - Replace the placeholder response ('This is a placeholder response') with a real provider call.\n   - Use ctx.compiled_context as the system/context prompt and ctx.history + ctx.user_message as the conversation messages.\n   - Depend on whatever provider router was built in the prior provider-infrastructure phase. If the provider router module path is discoverable, import it. If it is not yet present, implement a thin provider-stub module under chatbot/core/ that accepts a model name, compiled context, and message list and returns a response string \u2014 so the pipeline produces a real response flow even without the full provider backend wired.\n   - Store the provider response in ctx.provider_response.\n\n5. Update build_default_pipeline() to inject the wired step implementations. If any module is not importable (because its creating task has not yet run), use a graceful fallback that logs the unavailability and continues with the placeholder behavior.\n\n6. Preserve the existing StepResult contract: every step must record name, duration_ms, success, error. Preserve the existing error-handling pattern: on exception, catch, record a failed StepResult, and return partial context.\n\n7. Update chatbot/core/__init__.py exports if new symbols need to be exposed.\n\n8. Ensure python -m py_compile chatbot/core/turn.py and chatbot/core/__init__.py pass.",
+  "acceptance_criteria": [
+    "chatbot/core/turn.py Retrieve step populates ctx.history from WorkingMemoryLoader",
+    "chatbot/core/turn.py CompileContext step assembles persona prompt and populates ctx.compiled_context",
+    "chatbot/core/turn.py ExtractMemory step calls MemoryExtractor and populates ctx.extracted_memories",
+    "chatbot/core/turn.py CallProvider step produces a real (non-placeholder) ctx.provider_response",
+    "TurnPipeline.run() still records 6 StepResults and handles exceptions without crashing",
+    "Existing StepResult contract is preserved",
+    "build_default_pipeline() returns a wired TurnPipeline (not placeholder-only)",
+    "python -m py_compile chatbot/core/turn.py passes",
+    "python -m py_compile chatbot/core/__init__.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/core/turn.py",
+    "chatbot/core/__init__.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/core/turn.py and chatbot/core/__init__.py",
+    "modify chatbot/core/steps.py (TurnContext/TurnStep/StepResult definitions)",
+    "modify chatbot/soul/, chatbot/memory/, or chatbot/api/ files",
+    "add new third-party dependencies",
+    "introduce LangGraph, LangChain, Letta, Zep, or any orchestration framework",
+    "remove or reorder existing pipeline steps",
+    "change the step interface (TurnStep.run signature)",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "TurnPipeline",
+    "build_default_pipeline"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "import and call PersonaPromptAssembler, WorkingMemoryLoader, MemoryExtractor",
+      "add graceful fallback when a dependency module is not importable",
+      "implement a thin provider-stub under chatbot/core/ if the real provider router is not importable",
+      "construct provider prompt from compiled_context + history + user_message"
+    ],
+    "forbidden": [
+      "recreate TurnContext, TurnStep, or StepResult",
+      "change step ordering or add/remove steps",
+      "break the existing error-handling pattern",
+      "call LLM providers from persona assembly",
+      "hardcode provider credentials or model names"
+    ]
+  },
+  "dependencies": [
+    "b.1",
+    "b.2",
+    "b.3"
+  ],
+  "exclusivity_category": "turn_pipeline_wiring",
+  "max_in_category": 1,
+  "task_timeout_seconds": 1200
+}

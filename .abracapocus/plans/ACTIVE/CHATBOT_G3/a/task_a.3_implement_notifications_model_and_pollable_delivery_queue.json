@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_id": "a.3",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Implement notifications model and pollable delivery queue",
+  "description": "Create chatbot/agency/notifications.py implementing a Notification dataclass, a pollable in-memory delivery queue, and standard enqueue/dequeue/list/read/dismiss operations. Notifications cover reminders, emotional check-ins, continuation prompts, milestone callbacks, and event callbacks.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/agency/__init__.py (created by task a.1)\n- chatbot/agency/checkins.py (created by task a.2 \u2014 understand CheckInType and CheckIn dataclass)\n- chatbot/agency/initiative.py (created by task a.4 \u2014 understand InitiativeLevel enum for gating)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/agency/notifications.py. Do NOT modify any other file under any circumstance.\n\nImplementation:\n\n1. chatbot/agency/notifications.py:\n  - NotificationType literal: 'reminder', 'emotional_checkin', 'continuation_prompt', 'milestone', 'event_callback'.\n  - Notification dataclass: notification_id (str), user_id (str), notif_type (NotificationType), title (str), body (str), created_at (str, ISO timestamp), read (bool default False), dismissed (bool default False), metadata (dict default_factory=dict).\n  - NotificationQueue class:\n    * In-memory queue (dict[str, list[Notification]] keyed by user_id).\n    * enqueue(user_id, notification, initiative_level) respects initiative gating: returns False when 'never', only allows reminder/milestone for 'reminders_only'.\n    * dequeue(user_id) returns the oldest unread/undismissed notification or None.\n    * poll(user_id, since=None) returns list of notifications for user, optionally filtered to those after a since timestamp.\n    * mark_read(notification_id) / dismiss(notification_id) update notification state; return False for unknown IDs.\n    * pending_count(user_id) returns count of unread/undismissed notifications.\n  - No push, email, or SMS integration. No persistence to database in v1.",
+  "acceptance_criteria": [
+    "chatbot/agency/notifications.py exists and defines NotificationType, Notification, NotificationQueue",
+    "Notification has notification_id, user_id, notif_type, title, body, created_at, read, dismissed, metadata fields",
+    "NotificationQueue.enqueue() returns False when initiative is 'never'",
+    "NotificationQueue.enqueue() only allows 'reminder' and 'milestone' types for 'reminders_only'",
+    "NotificationQueue.dequeue() returns the oldest unread/undismissed notification",
+    "NotificationQueue.poll() supports since timestamp filtering and returns empty list for empty queue",
+    "NotificationQueue.mark_read() and dismiss() return False for unknown notification_id",
+    "NotificationQueue.pending_count() returns count of unread/undismissed notifications",
+    "No push, email, or SMS integration",
+    "python -m py_compile chatbot/agency/notifications.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/agency/notifications.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/agency/notifications.py",
+    "modify chatbot/agency/__init__.py, scheduler.py, or checkins.py",
+    "integrate push notification infrastructure, email, SMS, or external delivery services",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "NotificationType",
+    "Notification",
+    "NotificationQueue"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use in-memory queue (dict[str, list]) for v1",
+      "use uuid4 for notification_id generation",
+      "use datetime.utcnow for created_at timestamps",
+      "declare methods as async for future database-backed compatibility",
+      "respect initiative level gating in enqueue()"
+    ],
+    "forbidden": [
+      "add threading locks, multiprocessing, or distributed queue primitives",
+      "add rate limiting or throttling",
+      "add notification expiration or TTL logic",
+      "persist notifications to database"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

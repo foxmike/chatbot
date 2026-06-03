@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_id": "b.4",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Create image generation adapter module",
+  "description": "Create chatbot/visual/generation.py implementing a concrete ImageGenerationProvider adapter. The adapter must use the appearance profile from chatbot/visual/appearance.py for seed-locked visual continuity. Generated images should produce ImageMemory records through the existing database session.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/visual/base.py (created by task b.1 \u2014 ImageGenerationProvider ABC, ImageGenerationResult, VISUAL_PROVIDER_REGISTRY, register_visual_provider, VisualModelIdentifier)\n- chatbot/visual/appearance.py (created by task b.2 \u2014 AppearanceProfile, AppearanceManager, OutfitManager)\n- chatbot/db/models.py (updated by task b.3 \u2014 ImageMemory model columns)\n- chatbot/providers/ (existing LLM provider adapter pattern for reference)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/visual/generation.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create chatbot/visual/generation.py with:\n   - Module docstring: 'Image generation adapter. Provides concrete ImageGenerationProvider implementations and a generation service that uses the appearance profile for visual continuity. Generated images are persisted as ImageMemory records.'\n\n2. A `GenerationOptions` dataclass with: width (int, default 512), height (int, default 512), negative_prompt (str | None, default None), num_inference_steps (int, default 30), guidance_scale (float, default 7.5), seed (int | None, default None \u2014 if None, use the character seed from the appearance profile).\n\n3. A concrete `ImageGenerationService` class:\n   - `__init__(self, appearance_manager: AppearanceManager, provider: ImageGenerationProvider)`: stores both dependencies.\n   - `async def generate_and_persist(self, scene_description: str, options: GenerationOptions | None = None, session_id: str | None = None, turn_id: str | None = None, user_id: str | None = None, db_session=None) -> ImageGenerationResult`:\n     * Uses appearance_manager.build_generation_prompt(scene_description, negative_prompt) to get (full_prompt, full_negative, character_seed).\n     * Overrides seed with options.seed if provided.\n     * Calls provider.generate(full_prompt, negative_prompt=full_negative, width=options.width, height=options.height, seed=seed, appearance_profile=appearance_manager.get_profile().model_dump()).\n     * Records start time, calls generate, records end time for generation_time_ms.\n     * If db_session is provided, creates an ImageMemory record with source_type='generated', the prompt, seed, dimensions, etc., and commits.\n     * Returns the ImageGenerationResult.\n   - `async def generate_only(self, scene_description: str, options: GenerationOptions | None = None) -> ImageGenerationResult`:\n     * Same as generate_and_persist but without database persistence.\n     * For preview/test use.\n\n4. A `GenerationError` exception class that wraps provider errors.\n\n5. The provider `__init__` must call `validate_model_identifier()` before storing the identifier, matching the validation discipline of LLM providers.",
+  "acceptance_criteria": [
+    "chatbot/visual/generation.py exists and defines GenerationOptions, ImageGenerationService, GenerationError",
+    "ImageGenerationService.generate_and_persist uses appearance_manager.build_generation_prompt for seed-locked continuity",
+    "ImageGenerationService.generate_and_persist creates an ImageMemory database record when db_session is provided",
+    "ImageGenerationService.generate_only does same generation but skips database persistence",
+    "GenerationOptions.seed overrides character_seed when explicitly provided",
+    "Provider __init__ validates the model identifier before storing",
+    "python -m py_compile chatbot/visual/generation.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/visual/generation.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/visual/generation.py",
+    "modify chatbot/visual/base.py or chatbot/visual/appearance.py",
+    "modify chatbot/db/models.py",
+    "add new third-party dependencies",
+    "call real image generation APIs in module-level code",
+    "implement rate-limiting, retry, or caching logic",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "GenerationOptions",
+    "ImageGenerationService",
+    "GenerationError"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use AppearanceManager for prompt construction and seed management",
+      "use async SQLAlchemy session for ImageMemory persistence",
+      "wrap provider calls in try/except with GenerationError wrapping",
+      "use time.monotonic for generation timing"
+    ],
+    "forbidden": [
+      "implement a concrete provider class in this task (only the service layer)",
+      "add HTTP client code or API key handling",
+      "modify the appearance profile from the generation service",
+      "implement streaming or partial-generation support"
+    ]
+  },
+  "dependencies": [
+    "b.1",
+    "b.2"
+  ],
+  "task_timeout_seconds": 900
+}

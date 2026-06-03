@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "task_id": "l.3",
+  "phase": "L",
+  "phase_id": "l",
+  "title": "Create controlled identity evolution module (evolution.py)",
+  "description": "Create chatbot/soul/evolution.py implementing slow controlled identity evolution that distinguishes three tiers of companion identity: fixed identity (immutable), slowly-changing identity (drifts over many interactions), and temporary mood (resets each session).\n\nImplement an IdentityState model/class with:\n- fixed: dict[str, Any] \u2014 immutable traits (e.g., core personality, fundamental values, character name, backstory)\n- slow: dict[str, Any] \u2014 slowly-changing traits (e.g., communication style weight, favorite topics, relationship warmth) that evolve via small drift steps\n- mood: dict[str, Any] \u2014 temporary state (e.g., conversational energy, current interest, short-term tone) that resets or decays\n\nImplement a bounded_drift(current: dict[str, Any], baseline: dict[str, Any], rate: float = 0.02) function that applies small random perturbations to each slow field, bounded so no field drifts more than 20% from its baseline value. Rate controls the per-interaction adjustment magnitude.\n\nImplement a mood_decay(mood: dict[str, Any], reset_target: dict[str, Any], steps: int = 10) function that linearly regresses mood fields toward a reset target over the given number of turn steps.\n\nImplement an apply_evolution(state: IdentityState, context: dict[str, Any]) method on IdentityState that:\n- Updates mood based on conversation context signals (e.g., positive sentiment nudges energy up, negative nudges it down)\n- Keeps mood bounded within 0.0\u20131.0\n- Periodically (every N interactions) applies bounded_drift to slow fields\n- Never modifies fixed fields\n\nImplement a to_prompt_fragment() method that produces text fragments for each tier: stable identity block, current drift-adjusted traits, and a mood annotation for the current turn.\n\nAdd classmethod defaults() returning a fresh IdentityState from the CharacterProfile and RelationshipConfig defaults.\n\nExpected file path: chatbot/soul/evolution.py\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/soul/character.py (if it already exists from task l.2)\n- chatbot/soul/relationship.py (if it already exists from task l.1)\n- chatbot/soul/persona_prompt.py\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/soul/evolution.py exists",
+    "IdentityState model is defined with fixed, slow, and mood fields",
+    "bounded_drift() prevents any field from drifting more than 20% from baseline",
+    "mood_decay() regresses mood toward reset_target over steps",
+    "apply_evolution() updates mood from context signals and never modifies fixed fields",
+    "to_prompt_fragment() returns distinct text fragments for each tier",
+    "IdentityState.defaults() returns a valid instance without errors",
+    "python -m py_compile chatbot/soul/evolution.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/soul/evolution.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/soul/evolution.py",
+    "add new third-party dependencies to pyproject.toml or requirements.txt",
+    "create or modify documentation files",
+    "modify chatbot/soul/character.py",
+    "modify chatbot/soul/relationship.py"
+  ],
+  "allowed_symbols": [
+    "IdentityState",
+    "bounded_drift",
+    "mood_decay",
+    "apply_evolution"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

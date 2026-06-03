@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "task_id": "r.1",
+  "phase": "R",
+  "phase_id": "r",
+  "title": "Create chatbot/voice/__init__.py and base provider interface",
+  "description": "Create the chatbot/voice/ package with an abstract provider interface that mirrors the LLM Provider pattern from chatbot/providers/. Define TTSProvider and STTProvider abstract base classes with exact-identifier validation (provider_id, model_id) matching the existing provider discipline.\n\nThe package init must export the base classes. The base module must define:\n- A `VoiceSynthesisRequest` dataclass with text (str), voice_params (dict[str, Any]), and format (str, default 'mp3').\n- A `VoiceSynthesisResult` dataclass with audio_data (bytes), content_type (str), duration_ms (float), and format (str).\n- A `VoiceTranscriptionRequest` dataclass with audio_data (bytes), audio_format (str), and language (str | None).\n- A `VoiceTranscriptionResult` dataclass with text (str), confidence (float), and language_detected (str | None).\n- An abstract `TTSProvider` ABC with async method `synthesize(request: VoiceSynthesisRequest) -> VoiceSynthesisResult` and a classmethod `validate_identifier(provider_id: str, model_id: str) -> bool`.\n- An abstract `STTProvider` ABC with async method `transcribe(request: VoiceTranscriptionRequest) -> VoiceTranscriptionResult` and a classmethod `validate_identifier(provider_id: str, model_id: str) -> bool`.\n- A `get_voice_providers() -> dict[str, type[TTSProvider|STTProvider]]` registry function (initially empty dict literal).\n\nVoice provider/model identifiers must follow the exact same validation discipline as the LLM providers in chatbot/providers/. Provider IDs use the format `provider_name` (lowercase, no slashes). Model IDs for OpenRouter-hosted voice models use `openrouter/voice/vendor/model`.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- chatbot/providers/ (any existing provider base classes) for the Provider interface pattern, identifier validation, and registry conventions\n- backends/openrouter_models.py for model identifier format conventions\n- chatbot/ (any existing package __init__.py files) for export patterns\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/voice/__init__.py exists and exports TTSProvider, STTProvider, and get_voice_providers",
+    "chatbot/voice/base.py exists and defines VoiceSynthesisRequest, VoiceSynthesisResult, VoiceTranscriptionRequest, VoiceTranscriptionResult",
+    "chatbot/voice/base.py defines abstract TTSProvider ABC with synthesize() and validate_identifier()",
+    "chatbot/voice/base.py defines abstract STTProvider ABC with transcribe() and validate_identifier()",
+    "python -m py_compile chatbot/voice/__init__.py passes",
+    "python -m py_compile chatbot/voice/base.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/voice/__init__.py",
+    "chatbot/voice/base.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/voice/__init__.py and chatbot/voice/base.py",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends",
+    "wire concrete TTS/STT implementations or API clients"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add dataclasses for voice types",
+      "use abc.ABC for abstract base classes",
+      "add a registry dict for provider discovery"
+    ],
+    "forbidden": [
+      "introduce new framework",
+      "call external APIs",
+      "add concrete provider implementations"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "task_id": "r.10",
+  "phase": "R",
+  "phase_id": "r",
+  "title": "Write voice module tests in tests/test_voice.py",
+  "description": "Create tests/test_voice.py with pytest-based tests covering the voice provider interfaces, cadence mapper, TTS and STT adapters, voice API endpoints, and migration.\n\nTest classes:\n\n- `TestVoiceBase`: verify VoiceSynthesisRequest/Result and VoiceTranscriptionRequest/Result dataclass construction, TTSProvider/STTProvider abstractness (cannot instantiate directly), get_voice_providers() returns a dict.\n\n- `TestCadenceMapper`: verify CadenceMapper.map() returns correct profiles for known moods (happy -> faster/higher pitch, sad -> slower/lower, angry -> faster/higher/shorter pauses, calm -> slower/gentle, excited -> fast/high, neutral -> DEFAULT_CADENCE), unknown mood returns DEFAULT_CADENCE, mode overrides (storytelling -> slower/more pauses, coaching -> measured/emphatic, playful -> faster/livelier).\n\n- `TestTTSAdapter`: verify construct with valid provider/model, reject invalid provider/model, synthesize() raises ValueError when disabled, synthesize() returns correct result structure, validate_identifier() returns True/False correctly.\n\n- `TestSTTAdapter`: verify construct with valid provider/model, reject invalid provider/model, transcribe() raises ValueError for empty audio, transcribe() raises ValueError for unsupported format, transcribe() returns correct result structure, validate_identifier() returns True/False correctly.\n\n- `TestVoiceAPI`: use starlette TestClient against a FastAPI app with voice_router included. Test: POST /api/voice/synthesize returns 200 with audio_base64, POST /api/voice/transcribe returns 200 with text/confidence, GET /api/voice/preferences returns defaults, PUT /api/voice/preferences updates and validates.\n\nUse pytest fixtures. Mock database calls. No test requires a running Postgres or external service.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- tests/ for existing test patterns, conftest.py fixtures, and import conventions\n- chatbot/voice/__init__.py, base.py (r.1), cadence.py (r.2), tts.py (r.4), stt.py (r.5)\n- chatbot/db/models.py (r.3)\n- chatbot/api/voice.py and app.py (r.8)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "tests/test_voice.py exists with five test classes: TestVoiceBase, TestCadenceMapper, TestTTSAdapter, TestSTTAdapter, TestVoiceAPI",
+    "TestVoiceBase verifies dataclass construction and abstract provider enforcement",
+    "TestCadenceMapper verifies mood-to-profile and mode-to-profile mappings with at least 6 moods",
+    "TestTTSAdapter tests construct, validate_identifier, synthesize with disabled check",
+    "TestSTTAdapter tests construct, validate_identifier, transcribe with empty/unsupported audio",
+    "TestVoiceAPI tests all four endpoints with TestClient",
+    "All tests use mocks for database calls and external dependencies",
+    "No test requires Postgres, Redis, or external services",
+    "python -m py_compile tests/test_voice.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "tests/test_voice.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside tests/test_voice.py",
+    "modify any chatbot/ source file",
+    "modify any react_ui/ source file",
+    "add new third-party dependencies",
+    "require a running Postgres, Redis, or external service",
+    "call real LLM, TTS, or STT providers",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use starlette TestClient",
+      "use pytest fixtures",
+      "use unittest.mock.patch for DB and adapter mocking",
+      "assert on response JSON shape and status codes"
+    ],
+    "forbidden": [
+      "call real TTS/STT APIs",
+      "require running database server",
+      "add integration tests requiring network access"
+    ]
+  },
+  "dependencies": [
+    "r.1",
+    "r.2",
+    "r.3",
+    "r.4",
+    "r.5",
+    "r.6",
+    "r.7",
+    "r.8",
+    "r.9"
+  ],
+  "task_timeout_seconds": 1200
+}

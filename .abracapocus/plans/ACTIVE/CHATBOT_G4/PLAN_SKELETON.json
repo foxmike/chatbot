@@ -1,0 +1,101 @@
+{
+  "plan_name": "CHATBOT",
+  "purpose": "Group 4 of the companion buildout, run after Group 3 (phases o, p, q) is accepted. This group adds modalities and production operations. Phase R adds voice: a TTS/STT provider interface mirroring the existing LLM Provider pattern, a TTS adapter with emotional cadence driven by the phase-K mood/mode state, an STT adapter for voice input, and a call/phone mode. Phase S adds visual identity: an image-generation and image-understanding provider interface, generation with an appearance/character seed lock for visual continuity, customizable appearance and outfit continuity, event-based images that become image memories in shared history, and multimodal image understanding for user-sent images. Phase T adds observability and intelligent routing: per-turn tracing (prompt, retrieval, routing, latency), structured logs (memory-write, contradiction, failed-retrieval), latency/token/cost metering, an admin dashboard, and a task-class-aware extension of the provider policy router (casual vs emotional vs summarize vs extract vs embed). Phase U adds latency and scale: token streaming with typing indicators and partial generation, background async processing to move memory extraction and consolidation off the response path, cached persona context, and short-response mode — directly targeting the cold-start latency observed in early testing. All work lands inside the existing chatbot package and react_ui frontend; modality providers follow the same exact-identifier validation discipline as the LLM providers.",
+  "async_strategy": "Phases are dependency-ordered synchronous boundaries. Within each phase, provider interfaces and new modules form wave 1 on disjoint allowed_write_paths; concrete adapters depending on an interface run in wave 2; database model edits are wave 1 with their migration in wave 2; routers are wave 2 or 3; and existing shared files that must be extended (chatbot/core/turn.py, chatbot/providers/router.py, chatbot/api/app.py, chatbot/api/chat.py, chatbot/api/streaming.py, chatbot/consolidation/worker.py, react_ui/src/api/client.ts, react_ui/src/components/MessageList.tsx) are each owned by exactly one task in a later wave. React components and hooks run after the client extension lands.",
+  "cost_estimate": "balanced, default model openrouter/deepseek/deepseek-v4-pro via opencode_cli. Adapters, endpoints, and UI route to deepseek v4 pro. The provider-router extension in phase T and the pipeline split in phase U are higher-judgment and may route to a stronger profile if review warrants. After materialization, edit documentation tasks to openrouter/google/gemma-4-31b-it and test-only tasks to openrouter/moonshotai/kimi-k2.5. Voice and image provider/model identifiers must be validated before phase execution exactly like LLM backend/model pairs.",
+  "operator_questions": [
+    "Voice providers for v1: which TTS and STT (e.g. hosted API vs self-hosted), and is real-time streaming call mode in scope or is asynchronous voice-message synthesis enough for v1?",
+    "Image generation for v1: hosted API or self-hosted (SDXL/Flux-class), and which appearance-consistency method — fixed seed, reference image, or a trained character LoRA?",
+    "Observability storage: keep traces and metrics in Postgres tables, or route them to a separate store (e.g. SQLite sidecar, ClickHouse, or files) to avoid load on the primary database?",
+    "Intelligent routing: should task-class routing be automatic from the start (router picks model by turn class), or behind a config flag with a single default model until validated?",
+    "Background processing in phase U: Redis-backed in-process worker reusing the consolidation worker, or a separate process/queue — which matches the intended VPS deployment topology?"
+  ],
+  "phases": [
+    {
+      "phase_id": "phase_r",
+      "goal": "Voice. A TTS/STT provider interface mirroring the LLM Provider pattern. A TTS adapter with emotional cadence mapped from phase-K mood and mode. An STT adapter for voice input. A call/phone mode. API endpoints for synthesize and transcribe, plus UI voice controls and a recorder hook. Voice preferences persist for continuity.",
+      "expected_changed_files": [
+        "chatbot/voice/__init__.py",
+        "chatbot/voice/base.py",
+        "chatbot/voice/tts.py",
+        "chatbot/voice/stt.py",
+        "chatbot/voice/cadence.py",
+        "chatbot/db/models.py",
+        "migrations/versions/0009_voice_prefs.py",
+        "chatbot/api/voice.py",
+        "chatbot/api/app.py",
+        "react_ui/src/api/client.ts",
+        "react_ui/src/hooks/useAudioRecorder.ts",
+        "react_ui/src/components/VoiceControls.tsx",
+        "react_ui/src/components/CallMode.tsx",
+        "tests/test_voice.py"
+      ],
+      "async_notes": "Wave 1 (disjoint): voice/__init__.py + base.py as one package task, cadence.py (maps mood/mode to voice params), and db/models.py voice-preference fields. Wave 2: tts.py (depends on base.py), stt.py (depends on base.py), the 0009 migration (depends on models.py), client.ts audio extension, and useAudioRecorder.ts hook. Wave 3: api/voice.py endpoints (depends on tts, stt, cadence), api/app.py registering the voice router (single-owner, depends on voice.py), and the VoiceControls and CallMode React components (depend on client.ts and the recorder hook). Test fan-in last.",
+      "risk_notes": "Voice TTS/STT model identifiers must be validated like LLM backend/model pairs before execution. db/models.py and api/app.py single-owner. The 0009 migration must be reversible with its real head revision verified at materialize time. Streaming call mode is in scope only if the operator confirms; otherwise build async voice-message synthesis.",
+      "estimated_task_count": 10
+    },
+    {
+      "phase_id": "phase_s",
+      "goal": "Visual identity and image. An image-generation and image-understanding provider interface. Generation with an appearance/character seed lock for visual continuity, customizable appearance, and outfit continuity. Event-based images that become image memories in shared history. Multimodal image understanding for user-sent images. API endpoints and UI for avatar display and image messages.",
+      "expected_changed_files": [
+        "chatbot/visual/__init__.py",
+        "chatbot/visual/base.py",
+        "chatbot/visual/appearance.py",
+        "chatbot/visual/generation.py",
+        "chatbot/visual/understanding.py",
+        "chatbot/db/models.py",
+        "migrations/versions/0010_visual.py",
+        "chatbot/api/images.py",
+        "chatbot/api/app.py",
+        "react_ui/src/api/client.ts",
+        "react_ui/src/components/AvatarDisplay.tsx",
+        "react_ui/src/components/ImageMessage.tsx",
+        "tests/test_visual.py"
+      ],
+      "async_notes": "Wave 1 (disjoint): visual/__init__.py + base.py as one package task, appearance.py (canonical appearance + outfit continuity), and db/models.py image-memory and appearance tables. Wave 2: generation.py (depends on base.py and appearance.py), understanding.py (depends on base.py), the 0010 migration (depends on models.py), and client.ts extension. Wave 3: api/images.py endpoints (depends on generation and understanding), api/app.py registering the images router (single-owner, depends on images.py), and the AvatarDisplay and ImageMessage React components (depend on client.ts). Test fan-in last.",
+      "risk_notes": "Image model identifiers and the appearance-consistency method must be validated before execution per the operator answer. db/models.py and api/app.py single-owner. The 0010 migration must be reversible with its real head revision verified at materialize time. Image memories must integrate with the existing memory/provenance model rather than a parallel store.",
+      "estimated_task_count": 10
+    },
+    {
+      "phase_id": "phase_t",
+      "goal": "Observability and intelligent routing. Per-turn tracing (prompt, retrieval, model routing, latency). Structured logs for memory-write, contradiction, and failed-retrieval events. Latency, token, and cost metering per conversation and per model. An admin dashboard. A task-class-aware extension of the provider policy router (casual, emotional, summarize, extract, embed) so cheap models handle casual turns and stronger models handle nuance.",
+      "expected_changed_files": [
+        "chatbot/observability/__init__.py",
+        "chatbot/observability/tracing.py",
+        "chatbot/observability/metrics.py",
+        "chatbot/observability/logs.py",
+        "chatbot/providers/router.py",
+        "chatbot/db/models.py",
+        "migrations/versions/0011_observability.py",
+        "chatbot/api/admin.py",
+        "chatbot/api/app.py",
+        "chatbot/core/turn.py",
+        "react_ui/src/api/client.ts",
+        "react_ui/src/components/AdminDashboard.tsx",
+        "tests/test_observability.py"
+      ],
+      "async_notes": "Wave 1 (disjoint): observability/__init__.py + tracing.py as one package task, metrics.py, logs.py, router.py task-class routing extension, and db/models.py trace/usage tables. Wave 2: the 0011 migration (depends on models.py), api/admin.py endpoints (depends on tracing/metrics/logs), chatbot/core/turn.py emitting traces per step (single-owner, depends on tracing.py), and client.ts extension. Wave 3: api/app.py registering the admin router (single-owner, depends on admin.py), and the AdminDashboard React component (depends on client.ts). Test fan-in last.",
+      "risk_notes": "router.py and turn.py are core; each is single-owner and changes must be additive. Task-class routing should default safe (single model) unless the operator enables automatic routing, and any new routed model identifiers must be validated. Choose the trace/metric store per the operator answer to avoid loading the primary database. The 0011 migration must be reversible with its real head revision verified at materialize time.",
+      "estimated_task_count": 11
+    },
+    {
+      "phase_id": "phase_u",
+      "goal": "Latency and scale. Token streaming with typing indicators and partial generation on the /chat/stream path. Background async processing moving memory extraction and consolidation off the response path so replies return fast. Cached persona context to avoid recompiling persona/prompt every turn. Short-response mode. Targets the cold-start and on-path-work latency observed in early testing.",
+      "expected_changed_files": [
+        "chatbot/perf/__init__.py",
+        "chatbot/perf/cache.py",
+        "chatbot/perf/background.py",
+        "chatbot/api/streaming.py",
+        "chatbot/core/turn.py",
+        "chatbot/api/chat.py",
+        "chatbot/consolidation/worker.py",
+        "react_ui/src/api/client.ts",
+        "react_ui/src/components/MessageList.tsx",
+        "tests/test_performance.py"
+      ],
+      "async_notes": "Wave 1 (disjoint): perf/__init__.py + cache.py as one package task, background.py (async task queue), api/streaming.py token streaming and typing indicators, and client.ts SSE consumption. Wave 2: chatbot/core/turn.py splitting fast response path from deferred background steps (single-owner, depends on cache.py and background.py), consolidation/worker.py consuming the background queue (depends on background.py), and react MessageList streaming render and typing indicator (depends on client.ts). Wave 3: chatbot/api/chat.py enqueuing background work instead of running it inline (single-owner, depends on the turn.py task and background.py). Test fan-in last.",
+      "risk_notes": "turn.py and chat.py are core and single-owner; the fast/deferred split must preserve correctness — a reply must never depend on work that was deferred. Background processing topology (in-process Redis worker vs separate process) follows the operator answer and must match the VPS deployment. cache.py invalidation must not serve stale persona after a character/relationship change from phase L. The streaming change must remain compatible with the existing /chat/stream contract.",
+      "estimated_task_count": 9
+    }
+  ]
+}

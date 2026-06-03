@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "task_id": "a.5",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Add agency-related SQLAlchemy models to chatbot/db/models.py",
+  "description": "Extend chatbot/db/models.py with agency-related SQLAlchemy model classes: AgencyRitual, AgencyTimeline, InitiativeSettings, and Notification. Add these as new model classes following the existing model conventions in the file.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/db/models.py (existing model classes \u2014 understand base class, column conventions, import style, and existing table naming patterns)\n- chatbot/agency/initiative.py (created by task a.4 \u2014 understand the InitiativeLevel enum values for column constraint)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/db/models.py. Do NOT modify any other file under any circumstance.\n\nImplementation:\n\n1. Inspect chatbot/db/models.py to understand: base class (Base = declarative_base()), import style, __tablename__ convention, id column convention, column naming style.\n\n2. Add four new model classes after the last existing class:\n  a) AgencyRitual (table agency_rituals): id (PK matching project convention), user_id (String(64), nullable=False, index=True), name (String(255)), ritual_type (String(64)), cron_expression (String(128), nullable=True), message_template (Text), enabled (Boolean default True), metadata (JSON, nullable=True), created_at (DateTime server_default=func.now()), updated_at (DateTime onupdate=func.now()).\n  b) AgencyTimeline (table agency_timeline): id (PK), user_id (String(64), nullable=False, index=True), event_type (String(64)), title (String(255)), occurs_at (DateTime), context (JSON, nullable=True), recurring (Boolean default False), recurrence_rule (String(128), nullable=True), created_at (DateTime server_default=func.now()).\n  c) InitiativeSettings (table initiative_settings): id (PK), user_id (String(64), nullable=False, unique=True), level (String(32) default 'gentle_checkins'), quiet_hours_start (String(5), nullable=True), quiet_hours_end (String(5), nullable=True), updated_at (DateTime onupdate=func.now()), created_at (DateTime server_default=func.now()).\n  d) Notification (table agency_notifications): id (PK matching convention), user_id (String(64), nullable=False, index=True), notif_type (String(64)), title (String(255)), body (Text), read (Boolean default False), dismissed (Boolean default False), metadata (JSON, nullable=True), created_at (DateTime server_default=func.now()).\n\n3. Do NOT modify existing model classes, columns, imports, or the declarative base. Do NOT add foreign key constraints between new and existing tables.",
+  "acceptance_criteria": [
+    "chatbot/db/models.py has AgencyRitual model class with all specified columns and agency_rituals tablename",
+    "chatbot/db/models.py has AgencyTimeline model class with all specified columns and agency_timeline tablename",
+    "chatbot/db/models.py has InitiativeSettings model class with unique user_id and all specified columns",
+    "chatbot/db/models.py has Notification model class with all specified columns and agency_notifications tablename",
+    "New model classes follow the id convention, base class, and column naming from existing models",
+    "Existing model classes and columns in models.py are unchanged",
+    "python -m py_compile chatbot/db/models.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/db/models.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/db/models.py",
+    "modify existing model classes, columns, or table definitions",
+    "remove or rename existing imports",
+    "add new database frameworks or ORMs",
+    "add indexes or constraints beyond what each column definition specifies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "AgencyRitual",
+    "AgencyTimeline",
+    "InitiativeSettings",
+    "Notification"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add new SQLAlchemy model classes following existing conventions",
+      "use the Column types already imported in the file",
+      "set server_default and onupdate on DateTime columns"
+    ],
+    "forbidden": [
+      "change the base class or declarative_base import",
+      "change the table naming convention",
+      "add foreign key constraints between new tables and existing tables",
+      "add new import statements unless the Column types are not already available"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

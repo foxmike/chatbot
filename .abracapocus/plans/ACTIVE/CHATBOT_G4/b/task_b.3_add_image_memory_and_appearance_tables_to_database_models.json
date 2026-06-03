@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "task_id": "b.3",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Add image-memory and appearance tables to database models",
+  "description": "Modify chatbot/db/models.py to add ImageMemory and Appearance models plus a nullable appearance_id foreign key on the existing companion model, integrating with the existing memory/provenance model rather than a parallel store.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/db/models.py (existing database models \u2014 understand SQLAlchemy base class, column conventions, existing table names, memory model class name, companion model class name, and existing provenance columns)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/db/models.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Open chatbot/db/models.py and understand:\n   - The SQLAlchemy declarative base class and import conventions.\n   - Existing model class names for Companion (from earlier auth/companion phases) and Memory (from earlier memory phases).\n   - Column naming conventions and existing relationship patterns.\n   - Existing memory model table name (the table that holds pgvector embeddings and provenance columns).\n\n2. Add an `ImageMemory` SQLAlchemy declarative model class with table name 'image_memories':\n   - `id` (Column(Integer), primary_key=True, autoincrement=True) or use existing primary key convention.\n   - `image_id` (Column(String(36)), unique=True, nullable=False, default=uuid4 string).\n   - `source_type` (Column(String(20)), nullable=False): Literal['generated', 'uploaded', 'understood'].\n   - `turn_id` (Column(String(64)), nullable=True): the conversation turn that produced or received this image.\n   - `session_id` (Column(String(64)), nullable=True): the session context.\n   - `user_id` (Column(String(36)), nullable=True): FK to users table (nullable because system-generated images may have no user).\n   - `image_data` (Column(LargeBinary), nullable=True): the raw image bytes. Nullable for external-URL images.\n   - `image_url` (Column(String(1024)), nullable=True): external URL for the image. Nullable for locally stored images.\n   - `mime_type` (Column(String(64)), nullable=False): e.g. 'image/png', 'image/jpeg'.\n   - `prompt_used` (Column(Text), nullable=True): the generation prompt (for generated images).\n   - `seed_used` (Column(Integer), nullable=True): the random seed (for generated images).\n   - `model_used` (Column(String(128)), nullable=True): the provider/model that generated or understood the image.\n   - `width` (Column(Integer), nullable=True), `height` (Column(Integer), nullable=True): pixel dimensions.\n   - `generation_time_ms` (Column(Float), nullable=True): generation latency.\n   - `description` (Column(Text), nullable=True): AI-generated description (for understood images).\n   - `detected_objects` (Column(JSON), nullable=True): JSON array of detected objects.\n   - `detected_text` (Column(Text), nullable=True): OCR'd text from the image.\n   - `scene_category` (Column(String(128)), nullable=True): scene classification.\n   - `understanding_confidence` (Column(Float), nullable=True): confidence score from understanding.\n   - `processing_time_ms` (Column(Float), nullable=True): understanding latency.\n   - `created_at` (Column(DateTime), nullable=False, default=datetime.utcnow).\n   - Use nullable columns for generation-specific and understanding-specific fields so one table serves both purposes.\n\n3. Add an `Appearance` SQLAlchemy declarative model class with table name 'appearances':\n   - `id` (Column(Integer), primary_key=True, autoincrement=True).\n   - `appearance_id` (Column(String(36)), unique=True, nullable=False, default=uuid4 string).\n   - `companion_id` (Column(String(36)), nullable=True): the companion this appearance belongs to. FK to companions table.\n   - `character_seed` (Column(Integer), nullable=False, default=42).\n   - `character_description` (Column(Text), nullable=False, default='').\n   - `visual_traits` (Column(JSON), nullable=False, default=list): JSON array of trait strings.\n   - `art_style` (Column(String(128)), nullable=False, default='digital illustration').\n   - `color_palette` (Column(JSON), nullable=False, default=list): JSON array of hex color strings.\n   - `created_at` (Column(DateTime), nullable=False, default=datetime.utcnow).\n   - `updated_at` (Column(DateTime), nullable=True, onupdate=datetime.utcnow).\n\n4. Add an `OutfitRecord` SQLAlchemy declarative model class with table name 'outfit_records':\n   - `id` (Column(Integer), primary_key=True, autoincrement=True).\n   - `outfit_id` (Column(String(36)), unique=True, nullable=False, default=uuid4 string).\n   - `appearance_id` (Column(String(36)), nullable=False): FK to appearances table.\n   - `name` (Column(String(128)), nullable=False, default='default').\n   - `description` (Column(Text), nullable=False, default='').\n   - `visual_tags` (Column(JSON), nullable=False, default=list): JSON array of tag strings.\n   - `is_active` (Column(Boolean), nullable=False, default=False).\n   - `created_at` (Column(DateTime), nullable=False, default=datetime.utcnow).\n\n5. Add an `appearance_id` column to the existing Companion model:\n   - `appearance_id` (Column(String(36)), ForeignKey('appearances.appearance_id'), nullable=True).\n\n6. Do not modify existing columns, table names, or model class names.\n7. Ensure all new JSON columns have sensible defaults (empty list).",
+  "acceptance_criteria": [
+    "chatbot/db/models.py defines ImageMemory SQLAlchemy model with table name 'image_memories'",
+    "ImageMemory has all generation-specific columns (prompt_used, seed_used, width, height, generation_time_ms)",
+    "ImageMemory has all understanding-specific columns (description, detected_objects, detected_text, scene_category, confidence, processing_time_ms)",
+    "chatbot/db/models.py defines Appearance model with character_seed, character_description, visual_traits, art_style, color_palette",
+    "chatbot/db/models.py defines OutfitRecord model with name, description, visual_tags, is_active",
+    "Existing Companion model gains a nullable appearance_id ForeignKey column",
+    "All existing columns and model classes are unchanged",
+    "python -m py_compile chatbot/db/models.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/db/models.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/db/models.py",
+    "remove, rename, or retype any existing column on any existing table",
+    "rename existing model classes or table names",
+    "remove existing relationships, constraints, or indexes",
+    "modify the pgvector embedding column",
+    "modify the Memory model or its provenance columns",
+    "add new third-party dependencies",
+    "change the SQLAlchemy base class or import conventions",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "ImageMemory",
+    "Appearance",
+    "OutfitRecord"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add new SQLAlchemy declarative model classes with new table names",
+      "add nullable ForeignKey columns to existing models",
+      "use JSON columns for list-typed data",
+      "use uuid4 defaults for string-typed ID columns",
+      "use DateTime with default for created_at"
+    ],
+    "forbidden": [
+      "remove or rename any existing column",
+      "change any existing table name or model class name",
+      "add non-nullable columns that would break existing data",
+      "add database indexes beyond column definitions",
+      "create a parallel memory store separate from the existing Memory model"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

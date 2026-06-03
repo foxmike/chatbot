@@ -1,0 +1,245 @@
+# Plan Review Report
+
+Plan directory: /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1
+
+## Warnings
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.1_scaffold_react_ui_project_with_vite_typescript_tailwind.json] allowed_write_paths list length > 4
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.1_scaffold_react_ui_project_with_vite_typescript_tailwind.json] allowed_write_paths entry 'react_ui/package.json' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.1_scaffold_react_ui_project_with_vite_typescript_tailwind.json] allowed_write_paths entry 'react_ui/vite.config.ts' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.1_scaffold_react_ui_project_with_vite_typescript_tailwind.json] allowed_write_paths entry 'react_ui/tsconfig.json' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.1_scaffold_react_ui_project_with_vite_typescript_tailwind.json] allowed_write_paths entry 'react_ui/tailwind.config.js' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.1_scaffold_react_ui_project_with_vite_typescript_tailwind.json] allowed_write_paths entry 'react_ui/postcss.config.js' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.1_scaffold_react_ui_project_with_vite_typescript_tailwind.json] allowed_write_paths entry 'react_ui/index.html' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.1_scaffold_react_ui_project_with_vite_typescript_tailwind.json] allowed_write_paths entry 'react_ui/src/main.tsx' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.1_scaffold_react_ui_project_with_vite_typescript_tailwind.json] allowed_write_paths entry 'react_ui/src/index.css' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.1_scaffold_react_ui_project_with_vite_typescript_tailwind.json] acceptance_criteria list length > 5
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.1_scaffold_react_ui_project_with_vite_typescript_tailwind.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.2_create_typescript_types_for_chat_api_and_ui_state.json] allowed_write_paths entry 'react_ui/src/types.ts' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.2_create_typescript_types_for_chat_api_and_ui_state.json] acceptance_criteria list length > 5
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.2_create_typescript_types_for_chat_api_and_ui_state.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.2_create_typescript_types_for_chat_api_and_ui_state.json] description contains broad word: all
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.2_create_typescript_types_for_chat_api_and_ui_state.json] acceptance_criteria[3] contains broad word: all
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.3_create_api_client_for_chat_endpoints.json] allowed_write_paths entry 'react_ui/src/api/client.ts' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.3_create_api_client_for_chat_endpoints.json] acceptance_criteria list length > 5
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.3_create_api_client_for_chat_endpoints.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.4_create_chatmessage_and_messagelist_components.json] allowed_write_paths entry 'react_ui/src/components/ChatMessage.tsx' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.4_create_chatmessage_and_messagelist_components.json] allowed_write_paths entry 'react_ui/src/components/MessageList.tsx' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.4_create_chatmessage_and_messagelist_components.json] acceptance_criteria list length > 5
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.4_create_chatmessage_and_messagelist_components.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.5_create_chatinput_and_sessionsidebar_components.json] allowed_write_paths entry 'react_ui/src/components/ChatInput.tsx' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.5_create_chatinput_and_sessionsidebar_components.json] allowed_write_paths entry 'react_ui/src/components/SessionSidebar.tsx' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.5_create_chatinput_and_sessionsidebar_components.json] acceptance_criteria list length > 5
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.5_create_chatinput_and_sessionsidebar_components.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.6_create_app.tsx_wiring_client_and_components_together.json] allowed_write_paths entry 'react_ui/src/App.tsx' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.6_create_app.tsx_wiring_client_and_components_together.json] acceptance_criteria list length > 5
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.6_create_app.tsx_wiring_client_and_components_together.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.6_create_app.tsx_wiring_client_and_components_together.json] description contains broad word: full
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.6_create_app.tsx_wiring_client_and_components_together.json] acceptance_criteria[6] contains broad word: full
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.7_create_production_dockerfile_nginx.conf_and_wire_docker_compose.yml.json] allowed_write_paths entry 'react_ui/Dockerfile' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.7_create_production_dockerfile_nginx.conf_and_wire_docker_compose.yml.json] allowed_write_paths entry 'react_ui/nginx.conf' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.7_create_production_dockerfile_nginx.conf_and_wire_docker_compose.yml.json] acceptance_criteria list length > 5
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.7_create_production_dockerfile_nginx.conf_and_wire_docker_compose.yml.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.7_create_production_dockerfile_nginx.conf_and_wire_docker_compose.yml.json] description contains broad word: all
+- Task 'a.3' depends on 'a.2' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'a.4' depends on 'a.2' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'a.5' depends on 'a.2' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'a.6' depends on 'a.3' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'a.6' depends on 'a.4' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'a.6' depends on 'a.5' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'a.1' acceptance_criteria[8] may produce unsatisfied reconciliation: 'cd react_ui && npm install succeeds with exit code 0...' lacks file reference or test command
+- Task 'a.1' acceptance_criteria[9] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'a.2' acceptance_criteria[1] may produce unsatisfied reconciliation: 'Session, Message, ChatRequest, ChatResponse, StreamEvent, Cr...' lacks file reference or test command
+- Task 'a.2' acceptance_criteria[3] may produce unsatisfied reconciliation: 'All types use TypeScript strict syntax with no any types...' lacks file reference or test command
+- Task 'a.2' acceptance_criteria[4] may produce unsatisfied reconciliation: 'File contains only type/interface declarations and no runtim...' lacks file reference or test command
+- Task 'a.2' acceptance_criteria[5] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'a.3' acceptance_criteria[1] may produce unsatisfied reconciliation: 'createSession, sendMessage, sendMessageStream functions are ...' lacks file reference or test command
+- Task 'a.3' acceptance_criteria[2] may produce unsatisfied reconciliation: 'sendMessage sends POST to /api/chat/ with correct JSON body...' lacks file reference or test command
+- Task 'a.3' acceptance_criteria[3] may produce unsatisfied reconciliation: 'sendMessageStream parses SSE from a ReadableStream response...' lacks file reference or test command
+- Task 'a.3' acceptance_criteria[4] may produce unsatisfied reconciliation: 'Error responses are handled with typed ApiError rejection...' lacks file reference or test command
+- Task 'a.3' acceptance_criteria[5] may produce unsatisfied reconciliation: 'Import paths reference ../types correctly...' lacks file reference or test command
+- Task 'a.3' acceptance_criteria[6] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'a.4' acceptance_criteria[2] may produce unsatisfied reconciliation: 'ChatMessage renders user messages right-aligned with indigo ...' lacks file reference or test command
+- Task 'a.4' acceptance_criteria[3] may produce unsatisfied reconciliation: 'ChatMessage renders assistant messages left-aligned with gra...' lacks file reference or test command
+- Task 'a.4' acceptance_criteria[5] may produce unsatisfied reconciliation: 'MessageList scrolls to bottom on new messages...' lacks file reference or test command
+- Task 'a.4' acceptance_criteria[6] may produce unsatisfied reconciliation: 'MessageList shows typing indicator with animated dots when i...' lacks file reference or test command
+- Task 'a.4' acceptance_criteria[7] may produce unsatisfied reconciliation: 'MessageList shows empty state when messages is empty and not...' lacks file reference or test command
+- Task 'a.4' acceptance_criteria[8] may produce unsatisfied reconciliation: 'Both components import Message from ../types...' lacks file reference or test command
+- Task 'a.4' acceptance_criteria[9] may produce unsatisfied reconciliation: 'Only Tailwind classes are used for styling; no custom CSS...' lacks file reference or test command
+- Task 'a.4' acceptance_criteria[10] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'a.5' acceptance_criteria[2] may produce unsatisfied reconciliation: 'ChatInput sends message on Enter, inserts newline on Shift+E...' lacks file reference or test command
+- Task 'a.5' acceptance_criteria[3] may produce unsatisfied reconciliation: 'ChatInput clears input after send and disables when disabled...' lacks file reference or test command
+- Task 'a.5' acceptance_criteria[4] may produce unsatisfied reconciliation: 'ChatInput renders a send button with SVG arrow icon...' lacks file reference or test command
+- Task 'a.5' acceptance_criteria[5] may produce unsatisfied reconciliation: 'SessionSidebar renders New Chat button that calls onNewSessi...' lacks file reference or test command
+- Task 'a.5' acceptance_criteria[6] may produce unsatisfied reconciliation: 'SessionSidebar highlights active session with indigo left bo...' lacks file reference or test command
+- Task 'a.5' acceptance_criteria[7] may produce unsatisfied reconciliation: 'SessionSidebar shows scrollable session list with truncated ...' lacks file reference or test command
+- Task 'a.5' acceptance_criteria[8] may produce unsatisfied reconciliation: 'SessionSidebar shows empty state when sessions is empty...' lacks file reference or test command
+- Task 'a.5' acceptance_criteria[9] may produce unsatisfied reconciliation: 'Both components import Session from ../types...' lacks file reference or test command
+- Task 'a.5' acceptance_criteria[10] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'a.6' acceptance_criteria[1] may produce unsatisfied reconciliation: 'Imports and uses createSession, sendMessage from api/client...' lacks file reference or test command
+- Task 'a.6' acceptance_criteria[2] may produce unsatisfied reconciliation: 'Imports and uses ChatInput, MessageList, SessionSidebar, Cha...' lacks file reference or test command
+- Task 'a.6' acceptance_criteria[3] may produce unsatisfied reconciliation: 'On mount, creates a session via createSession() and sets act...' lacks file reference or test command
+- Task 'a.6' acceptance_criteria[4] may produce unsatisfied reconciliation: 'Sending a message calls sendMessage and appends user + assis...' lacks file reference or test command
+- Task 'a.6' acceptance_criteria[5] may produce unsatisfied reconciliation: 'SessionSidebar, MessageList, and ChatInput are wired with co...' lacks file reference or test command
+- Task 'a.6' acceptance_criteria[6] may produce unsatisfied reconciliation: 'App renders a full-height dark-themed layout with sidebar an...' lacks file reference or test command
+- Task 'a.6' acceptance_criteria[7] may produce unsatisfied reconciliation: 'Empty message input does not trigger send...' lacks file reference or test command
+- Task 'a.6' acceptance_criteria[8] may produce unsatisfied reconciliation: 'Loading state disables ChatInput...' lacks file reference or test command
+- Task 'a.6' acceptance_criteria[9] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'a.7' acceptance_criteria[0] may produce unsatisfied reconciliation: 'react_ui/Dockerfile exists with multi-stage Node build + ngi...' lacks file reference or test command
+- Task 'a.7' acceptance_criteria[5] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/b/task_b.1_implement_deterministic_persona_prompt_assembly_in_chatbot_soul_persona_prompt.py.json] acceptance_criteria list length > 5
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/b/task_b.1_implement_deterministic_persona_prompt_assembly_in_chatbot_soul_persona_prompt.py.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/b/task_b.2_implement_memory_extraction_in_chatbot_memory_extraction.py.json] allowed_write_paths entry 'chatbot/memory/extraction.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/b/task_b.2_implement_memory_extraction_in_chatbot_memory_extraction.py.json] acceptance_criteria list length > 5
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/b/task_b.2_implement_memory_extraction_in_chatbot_memory_extraction.py.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/b/task_b.2_implement_memory_extraction_in_chatbot_memory_extraction.py.json] description contains broad word: full
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/b/task_b.3_implement_working_memory_history_loader_in_chatbot_memory_working_memory.py.json] acceptance_criteria list length > 5
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/b/task_b.3_implement_working_memory_history_loader_in_chatbot_memory_working_memory.py.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/b/task_b.4_wire_persona_working_memory_and_memory_extraction_into_the_turn_pipeline.json] acceptance_criteria list length > 5
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/b/task_b.4_wire_persona_working_memory_and_memory_extraction_into_the_turn_pipeline.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/b/task_b.4_wire_persona_working_memory_and_memory_extraction_into_the_turn_pipeline.json] description contains broad word: complete
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/b/task_b.4_wire_persona_working_memory_and_memory_extraction_into_the_turn_pipeline.json] description contains broad word: full
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/b/task_b.4_wire_persona_working_memory_and_memory_extraction_into_the_turn_pipeline.json] description contains broad word: every
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/b/task_b.5_wire_session_history_and_persona_context_into_chat_api_endpoint.json] acceptance_criteria list length > 5
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/b/task_b.5_wire_session_history_and_persona_context_into_chat_api_endpoint.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/b/task_b.6_write_pipeline_integration_test_in_tests_test_pipeline_integration.py.json] allowed_write_paths entry 'tests/test_pipeline_integration.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/b/task_b.6_write_pipeline_integration_test_in_tests_test_pipeline_integration.py.json] acceptance_criteria list length > 5
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/b/task_b.6_write_pipeline_integration_test_in_tests_test_pipeline_integration.py.json] acceptance_criteria item length > 120 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/b/task_b.6_write_pipeline_integration_test_in_tests_test_pipeline_integration.py.json] acceptance_criteria references pytest or test without a test allowed_write_path
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/b/task_b.6_write_pipeline_integration_test_in_tests_test_pipeline_integration.py.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/b/task_b.6_write_pipeline_integration_test_in_tests_test_pipeline_integration.py.json] description contains broad word: all
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/b/task_b.6_write_pipeline_integration_test_in_tests_test_pipeline_integration.py.json] acceptance_criteria[10] contains broad word: all
+- Task 'b.4' depends on 'b.1' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'b.4' depends on 'b.2' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'b.4' depends on 'b.3' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'b.5' depends on 'b.4' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'b.6' depends on 'b.5' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'b.4' has 3 broad words (limit 2)
+- Task 'b.1' acceptance_criteria[3] may produce unsatisfied reconciliation: 'assemble_persona_prompt() convenience function works...' lacks file reference or test command
+- Task 'b.1' acceptance_criteria[4] may produce unsatisfied reconciliation: 'Empty persona dict returns a neutral fallback, not an error...' lacks file reference or test command
+- Task 'b.1' acceptance_criteria[7] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'b.2' acceptance_criteria[3] may produce unsatisfied reconciliation: 'Extract path gracefully handles missing/unavailable database...' lacks file reference or test command
+- Task 'b.2' acceptance_criteria[4] may produce unsatisfied reconciliation: 'Writes use transactional semantics (begin/commit/rollback pa...' lacks file reference or test command
+- Task 'b.2' acceptance_criteria[6] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'b.3' acceptance_criteria[2] may produce unsatisfied reconciliation: 'load() returns list[dict] with role and content keys in chro...' lacks file reference or test command
+- Task 'b.3' acceptance_criteria[3] may produce unsatisfied reconciliation: 'load() enforces max_turns bound...' lacks file reference or test command
+- Task 'b.3' acceptance_criteria[4] may produce unsatisfied reconciliation: 'load() enforces max_tokens_estimate bound using a token heur...' lacks file reference or test command
+- Task 'b.3' acceptance_criteria[5] may produce unsatisfied reconciliation: 'Empty/new session returns empty list without error...' lacks file reference or test command
+- Task 'b.3' acceptance_criteria[7] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'b.4' acceptance_criteria[5] may produce unsatisfied reconciliation: 'Existing StepResult contract is preserved...' lacks file reference or test command
+- Task 'b.4' acceptance_criteria[6] may produce unsatisfied reconciliation: 'build_default_pipeline() returns a wired TurnPipeline (not p...' lacks file reference or test command
+- Task 'b.4' acceptance_criteria[9] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'b.5' acceptance_criteria[2] may produce unsatisfied reconciliation: 'ChatRequest and ChatResponse models are unchanged...' lacks file reference or test command
+- Task 'b.5' acceptance_criteria[3] may produce unsatisfied reconciliation: 'Existing chat_router prefix and route signature are preserve...' lacks file reference or test command
+- Task 'b.5' acceptance_criteria[4] may produce unsatisfied reconciliation: 'Handler falls back gracefully if wired modules are not impor...' lacks file reference or test command
+- Task 'b.5' acceptance_criteria[6] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'b.6' acceptance_criteria[1] may produce unsatisfied reconciliation: 'test_persona_prompt_is_deterministic passes...' lacks file reference or test command
+- Task 'b.6' acceptance_criteria[2] may produce unsatisfied reconciliation: 'test_persona_injected_into_context passes...' lacks file reference or test command
+- Task 'b.6' acceptance_criteria[3] may produce unsatisfied reconciliation: 'test_history_bounded_by_max_turns passes...' lacks file reference or test command
+- Task 'b.6' acceptance_criteria[4] may produce unsatisfied reconciliation: 'test_history_injected_into_context passes...' lacks file reference or test command
+- Task 'b.6' acceptance_criteria[5] may produce unsatisfied reconciliation: 'test_extraction_produces_memories passes...' lacks file reference or test command
+- Task 'b.6' acceptance_criteria[6] may produce unsatisfied reconciliation: 'test_empty_turn_returns_empty passes...' lacks file reference or test command
+- Task 'b.6' acceptance_criteria[7] may produce unsatisfied reconciliation: 'test_extraction_in_pipeline passes...' lacks file reference or test command
+- Task 'b.6' acceptance_criteria[8] may produce unsatisfied reconciliation: 'test_full_pipeline_with_persona_and_memory passes...' lacks file reference or test command
+- Task 'b.6' acceptance_criteria[9] may produce unsatisfied reconciliation: 'test_step_results_recorded passes...' lacks file reference or test command
+- Task 'b.6' acceptance_criteria[10] may produce unsatisfied reconciliation: 'All tests use mocks/stubs — no real provider calls or databa...' lacks file reference or test command
+- Task 'b.6' acceptance_criteria[12] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.1_bot_mood_affect_model.json] allowed_write_paths entry 'chatbot/soul/mood.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.1_bot_mood_affect_model.json] acceptance_criteria list length > 5
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.1_bot_mood_affect_model.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.1_bot_mood_affect_model.json] description contains broad word: all
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.1_bot_mood_affect_model.json] description contains broad word: every
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.2_user_state_inference_module.json] allowed_write_paths entry 'chatbot/soul/user_state.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.2_user_state_inference_module.json] acceptance_criteria list length > 5
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.2_user_state_inference_module.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.3_conversation_modes_module.json] allowed_write_paths entry 'chatbot/soul/modes.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.3_conversation_modes_module.json] acceptance_criteria list length > 5
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.3_conversation_modes_module.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.4_add_mood_state_and_user_state_to_db_models.py.json] acceptance_criteria list length > 5
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.4_add_mood_state_and_user_state_to_db_models.py.json] acceptance_criteria item length > 120 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.4_add_mood_state_and_user_state_to_db_models.py.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.4_add_mood_state_and_user_state_to_db_models.py.json] acceptance_criteria[3] contains broad word: all
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.5_alembic_0002_reversible_migration_for_emotional_state_tables.json] allowed_write_paths entry 'migrations/versions/0002_emotional_state.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.5_alembic_0002_reversible_migration_for_emotional_state_tables.json] acceptance_criteria list length > 5
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.5_alembic_0002_reversible_migration_for_emotional_state_tables.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.5_alembic_0002_reversible_migration_for_emotional_state_tables.json] description contains broad word: all
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.6_extend_persona_prompt.py_to_consume_mood_and_mode.json] acceptance_criteria list length > 5
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.6_extend_persona_prompt.py_to_consume_mood_and_mode.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.7_wire_emotional_intelligence_steps_into_turn_pipeline.json] acceptance_criteria list length > 5
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.7_wire_emotional_intelligence_steps_into_turn_pipeline.json] acceptance_criteria item length > 120 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.7_wire_emotional_intelligence_steps_into_turn_pipeline.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.7_wire_emotional_intelligence_steps_into_turn_pipeline.json] description contains broad word: all
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.8_emotional_coherence_test_suite.json] allowed_write_paths entry 'tests/test_emotional.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.8_emotional_coherence_test_suite.json] acceptance_criteria list length > 5
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.8_emotional_coherence_test_suite.json] acceptance_criteria item length > 120 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.8_emotional_coherence_test_suite.json] acceptance_criteria references pytest or test without a test allowed_write_path
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.8_emotional_coherence_test_suite.json] description field length > 300 characters
+- Task 'k.5' depends on 'k.4' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'k.6' depends on 'k.1' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'k.6' depends on 'k.3' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'k.7' depends on 'k.1' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'k.7' depends on 'k.2' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'k.7' depends on 'k.3' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'k.7' depends on 'k.6' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'k.8' depends on 'k.1' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'k.8' depends on 'k.2' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'k.8' depends on 'k.3' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'k.8' depends on 'k.4' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'k.8' depends on 'k.5' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'k.8' depends on 'k.6' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'k.8' depends on 'k.7' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'k.1' acceptance_criteria[2] may produce unsatisfied reconciliation: 'MoodState has mood, energy, closeness, last_updated, recent_...' lacks file reference or test command
+- Task 'k.1' acceptance_criteria[5] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'k.2' acceptance_criteria[5] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'k.3' acceptance_criteria[2] may produce unsatisfied reconciliation: 'ConversationMode has exactly 7 members (NORMAL, DEEP_TALK, P...' lacks file reference or test command
+- Task 'k.3' acceptance_criteria[6] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'k.4' acceptance_criteria[3] may produce unsatisfied reconciliation: 'All existing models (User, Session, Message, Episode, Semant...' lacks file reference or test command
+- Task 'k.4' acceptance_criteria[5] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'k.5' acceptance_criteria[1] may produce unsatisfied reconciliation: 'upgrade() adds mood_state, user_state, conversation_mode col...' lacks file reference or test command
+- Task 'k.5' acceptance_criteria[2] may produce unsatisfied reconciliation: 'upgrade() creates bot_mood_log and user_state_log tables...' lacks file reference or test command
+- Task 'k.5' acceptance_criteria[3] may produce unsatisfied reconciliation: 'downgrade() drops the new columns and tables...' lacks file reference or test command
+- Task 'k.5' acceptance_criteria[5] may produce unsatisfied reconciliation: 'Migration is reversible (upgrade then downgrade runs without...' lacks file reference or test command
+- Task 'k.5' acceptance_criteria[6] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'k.6' acceptance_criteria[2] may produce unsatisfied reconciliation: 'Mood hints are injected subtly (not as a leading announcemen...' lacks file reference or test command
+- Task 'k.6' acceptance_criteria[3] may produce unsatisfied reconciliation: 'Mode hints and response parameter adjustments are injected w...' lacks file reference or test command
+- Task 'k.6' acceptance_criteria[4] may produce unsatisfied reconciliation: 'Backward compatible: calls without mood/mode produce the sam...' lacks file reference or test command
+- Task 'k.6' acceptance_criteria[5] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'k.7' acceptance_criteria[2] may produce unsatisfied reconciliation: 'New pipeline steps are bypassable (no-op when mood/mode modu...' lacks file reference or test command
+- Task 'k.7' acceptance_criteria[6] may produce unsatisfied reconciliation: 'Session record is updated with mood_state, user_state, and c...' lacks file reference or test command
+- Task 'k.7' acceptance_criteria[7] may produce unsatisfied reconciliation: 'BotMoodLog and UserStateLog records are appended each turn...' lacks file reference or test command
+- Task 'k.7' acceptance_criteria[8] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'k.8' acceptance_criteria[2] may produce unsatisfied reconciliation: 'Tests cover mood engine defaults, delta bounds, and prompt h...' lacks file reference or test command
+- Task 'k.8' acceptance_criteria[3] may produce unsatisfied reconciliation: 'Tests cover user state confidence cap, empty input, and stab...' lacks file reference or test command
+- Task 'k.8' acceptance_criteria[4] may produce unsatisfied reconciliation: 'Tests cover mode selector defaults, triggers (tired/BEDTIME,...' lacks file reference or test command
+- Task 'k.8' acceptance_criteria[5] may produce unsatisfied reconciliation: 'Tests cover persona prompt backward compatibility, mood inje...' lacks file reference or test command
+- Task 'k.8' acceptance_criteria[6] may produce unsatisfied reconciliation: 'Tests cover model emotional columns and log tables...' lacks file reference or test command
+- Task 'k.8' acceptance_criteria[7] may produce unsatisfied reconciliation: 'Tests cover migration 0002 reversibility...' lacks file reference or test command
+- Task 'k.8' acceptance_criteria[8] may produce unsatisfied reconciliation: 'No live Postgres instance is required for any test...' lacks file reference or test command
+- Task 'k.8' acceptance_criteria[9] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+
+## Lint Results
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.1_scaffold_react_ui_project_with_vite_typescript_tailwind.json: 0 errors, 11 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.2_create_typescript_types_for_chat_api_and_ui_state.json: 0 errors, 5 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.3_create_api_client_for_chat_endpoints.json: 0 errors, 3 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.4_create_chatmessage_and_messagelist_components.json: 0 errors, 4 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.5_create_chatinput_and_sessionsidebar_components.json: 0 errors, 4 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.6_create_app.tsx_wiring_client_and_components_together.json: 0 errors, 5 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/a/task_a.7_create_production_dockerfile_nginx.conf_and_wire_docker_compose.yml.json: 0 errors, 5 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/b/task_b.1_implement_deterministic_persona_prompt_assembly_in_chatbot_soul_persona_prompt.py.json: 0 errors, 2 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/b/task_b.2_implement_memory_extraction_in_chatbot_memory_extraction.py.json: 0 errors, 4 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/b/task_b.3_implement_working_memory_history_loader_in_chatbot_memory_working_memory.py.json: 0 errors, 2 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/b/task_b.4_wire_persona_working_memory_and_memory_extraction_into_the_turn_pipeline.json: 0 errors, 5 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/b/task_b.5_wire_session_history_and_persona_context_into_chat_api_endpoint.json: 0 errors, 2 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/b/task_b.6_write_pipeline_integration_test_in_tests_test_pipeline_integration.py.json: 0 errors, 7 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.1_bot_mood_affect_model.json: 0 errors, 5 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.2_user_state_inference_module.json: 0 errors, 3 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.3_conversation_modes_module.json: 0 errors, 3 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.4_add_mood_state_and_user_state_to_db_models.py.json: 0 errors, 4 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.5_alembic_0002_reversible_migration_for_emotional_state_tables.json: 0 errors, 4 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.6_extend_persona_prompt.py_to_consume_mood_and_mode.json: 0 errors, 2 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.7_wire_emotional_intelligence_steps_into_turn_pipeline.json: 0 errors, 4 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHATBOT_G1/c/task_k.8_emotional_coherence_test_suite.json: 0 errors, 5 warnings
+
+## Summary
+- Total errors: 0
+- Total warnings: 212
+- Linted files: 21

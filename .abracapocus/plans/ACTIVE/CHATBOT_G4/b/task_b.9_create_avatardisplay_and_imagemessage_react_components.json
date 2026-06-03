@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "task_id": "b.9",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Create AvatarDisplay and ImageMessage React components",
+  "description": "Create react_ui/src/components/AvatarDisplay.tsx and react_ui/src/components/ImageMessage.tsx implementing the UI for character avatar display with appearance continuity and image message rendering in chat.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- react_ui/src/api/client.ts (updated by task b.7 \u2014 understand the available visual API functions and TypeScript types)\n- Existing react_ui/src/components/ files (understand React patterns, component structure, Tailwind usage, and dark-theme styling conventions)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY react_ui/src/components/AvatarDisplay.tsx and react_ui/src/components/ImageMessage.tsx. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n--- react_ui/src/components/AvatarDisplay.tsx ---\n\n1. A React functional component `AvatarDisplay` with Tailwind dark-theme styling:\n   - Props: `companionId` (string).\n   - On mount, calls getAppearance(companionId) to fetch the appearance profile.\n   - States: loading (boolean), error (string | null), appearance (AppearanceProfile | null).\n   - States: editingSeed (boolean), editingDescription (boolean), editingTraits (boolean).\n   - Renders an avatar image area:\n     * If there is a generated avatar image URL (from the most recent generation for this companion), display it as a rounded image (w-32 h-32 rounded-full ring-2).\n     * If no image exists, show a placeholder with the first letter of the companion name or a generic avatar icon.\n   - Below the avatar, renders the character seed as a small badge (e.g. 'Seed: 42') with an edit button that toggles a seed input. On submit, calls lockCharacterSeed.\n   - Renders the character_description in an editable text area below. Save button calls updateAppearance.\n   - Renders the visual_traits as removable pill tags. An add-pill input allows adding new traits. Save calls updateAppearance.\n   - Renders the art_style as a dropdown select or editable text. Save calls updateAppearance.\n   - Renders the color_palette as color swatches (colored circles). An add-color input allows adding hex colors.\n   - Handles loading with a spinner/skeleton, error with a red error message, and empty/initial state gracefully.\n   - Uses Tailwind dark-theme styling consistent with existing components.\n\n--- react_ui/src/components/ImageMessage.tsx ---\n\n2. A React functional component `ImageMessage` with Tailwind dark-theme styling:\n   - Props: `imageId` (string), `isUser` (boolean \u2014 whether the image is from the user or from the companion), `onImageClick` (optional callback, (imageId: string) => void).\n   - On mount, calls getImage(imageId) to fetch the image data.\n   - States: loading (boolean), error (string | null), image (ImageView | null), expanded (boolean).\n   - Renders the image in a message-bubble style:\n     * If isUser: aligned right, different bubble color.\n     * If companion: aligned left, companion-themed bubble color.\n   - The image is displayed with a constrained max-width (max-w-xs or max-w-sm), rounded corners, and click-to-expand behavior (sets expanded=true, shows in a larger modal/overlay).\n   - Below the image, shows a small caption:\n     * For generated images: shows the prompt_used truncated to one line.\n     * For understood images: shows the description truncated to one line.\n   - Loading state: shows a pulsing placeholder rectangle.\n   - Error state: shows a broken-image icon with error text.\n   - Empty state (image is null): renders nothing (returns null).\n   - When expanded, renders the image in a fixed overlay modal with a close button and full caption text. Clicking outside or pressing Escape closes the modal.\n   - Uses Tailwind dark-theme styling consistent with existing components.",
+  "acceptance_criteria": [
+    "react_ui/src/components/AvatarDisplay.tsx exists and exports AvatarDisplay component",
+    "AvatarDisplay fetches and displays appearance profile on mount",
+    "AvatarDisplay shows avatar image or placeholder, character seed badge, and editable appearance fields",
+    "AvatarDisplay handles loading, error, and empty states",
+    "react_ui/src/components/ImageMessage.tsx exists and exports ImageMessage component",
+    "ImageMessage fetches image data on mount and displays it in a message bubble",
+    "ImageMessage supports isUser prop for left/right alignment and styling",
+    "ImageMessage has click-to-expand with modal overlay and close-on-Escape behavior",
+    "ImageMessage shows prompt/description caption below the image",
+    "ImageMessage handles loading, error, and null-image states",
+    "Both components use Tailwind dark-theme styling",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/components/AvatarDisplay.tsx",
+    "react_ui/src/components/ImageMessage.tsx"
+  ],
+  "forbidden_changes": [
+    "modify any file outside react_ui/src/components/AvatarDisplay.tsx and react_ui/src/components/ImageMessage.tsx",
+    "modify react_ui/src/api/client.ts",
+    "modify react_ui/src/main.tsx or any routing configuration",
+    "add new third-party dependencies",
+    "add React Router or routing configuration",
+    "introduce state management libraries (Redux, Zustand, etc.)",
+    "use CSS modules or styled-components (Tailwind only)",
+    "hard-code image URLs (use client API functions)",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "AvatarDisplay",
+    "ImageMessage"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use React functional components with useState and useEffect hooks",
+      "use Tailwind CSS for dark-theme styling",
+      "import API functions from react_ui/src/api/client",
+      "implement keyboard event listeners for Escape-to-close",
+      "implement loading, error, and empty state handling"
+    ],
+    "forbidden": [
+      "introduce React Router, Redux, or any state management library",
+      "add UI component libraries (Material UI, Ant Design, etc.)",
+      "use CSS modules or styled-components (Tailwind only)",
+      "hard-code API URLs or image URLs"
+    ]
+  },
+  "dependencies": [
+    "b.7"
+  ],
+  "task_timeout_seconds": 1200
+}

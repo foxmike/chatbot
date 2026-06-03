@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "task_id": "d.5",
+  "phase": "D",
+  "phase_id": "d",
+  "title": "Split chatbot/core/turn.py fast response path from deferred background steps",
+  "description": "Modify chatbot/core/turn.py to split the turn pipeline into a fast response path and deferred background steps. The fast path runs receive \u2192 retrieve \u2192 compile_context (with persona cache) \u2192 call_provider \u2192 respond and returns a reply without waiting for memory extraction or consolidation. Deferred steps (memory extraction, consolidation, sentiment) are enqueued onto the BackgroundQueue after the response is returned.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- chatbot/core/turn.py for the current TurnPipeline implementation, step ordering, and TurnContext structure\n- chatbot/core/steps.py for TurnStep ABC and TurnContext dataclass\n- chatbot/perf/cache.py (created by task d.1) for PersonaCache API\n- chatbot/perf/background.py (created by task d.2) for BackgroundQueue and BackgroundTask\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.\n\nSINGLE-OWNER FILE: chatbot/core/turn.py is owned exclusively by this task in this phase. No other task may modify it.\n\nImplementation details:\n\n1. Inspect chatbot/core/turn.py to understand the current TurnPipeline class, its step list, and how build_default_pipeline() constructs the pipeline.\n\n2. Introduce a split pipeline concept:\n   - Define a `FAST_PATH_STEPS` list constant: ['receive', 'retrieve', 'compile_context', 'call_provider', 'respond']. These are the steps that must complete before the reply is sent.\n   - Define a `DEFERRED_STEPS` list constant: ['extract_memory', 'consolidate']. These steps are enqueued for background processing after the reply is sent.\n   - The split must guarantee correctness: a reply must never depend on work that was deferred. The deferred steps must not modify any field that the respond step reads.\n\n3. Modify TurnPipeline:\n   - Add an optional `persona_cache: PersonaCache | None = None` parameter to `__init__`. When provided, the compile_context step uses the cache before computing a fresh persona context.\n   - Add an optional `background_queue: BackgroundQueue | None = None` parameter to `__init__`. When provided, deferred steps are enqueued instead of run inline.\n   - Add a `async def run_fast(self, ctx: TurnContext) -> TurnContext` method that runs only FAST_PATH_STEPS and returns. The compile_context step should call `PersonaCache.get()` first; on cache miss, computes the context, calls `PersonaCache.set()`, and proceeds.\n   - Add a `async def enqueue_deferred(self, ctx: TurnContext) -> None` method that, when background_queue is set, creates BackgroundTask entries for extract_memory and consolidate and enqueues them. The deferred tasks carry the relevant TurnContext fields (user_message, session_id, provider_response) needed to complete their work.\n   - Keep the existing `async def run(self, ctx: TurnContext) -> TurnContext` for backward compatibility \u2014 when neither cache nor background_queue is configured, the pipeline behaves as before (all steps run inline).\n   - When background_queue is configured, `run()` calls `run_fast()` then `enqueue_deferred()`, returning after the fast path completes.\n\n4. Update `build_default_pipeline()` to accept optional `persona_cache` and `background_queue` parameters and pass them through. The default (no args) behavior remains unchanged.\n\n5. Update chatbot/core/__init__.py to export FAST_PATH_STEPS, DEFERRED_STEPS, and any new symbols.\n\n6. Ensure python -m py_compile chatbot/core/turn.py and chatbot/core/__init__.py pass.",
+  "acceptance_criteria": [
+    "chatbot/core/turn.py defines FAST_PATH_STEPS and DEFERRED_STEPS constants",
+    "TurnPipeline accepts optional persona_cache and background_queue in __init__",
+    "TurnPipeline.run_fast() runs only the fast-path steps (receive through respond) and returns",
+    "TurnPipeline.enqueue_deferred() creates BackgroundTask entries for extract_memory and consolidate when background_queue is configured",
+    "compile_context step uses PersonaCache.get()/set() when cache is available",
+    "TurnPipeline.run() calls run_fast() then enqueue_deferred() when background_queue is configured",
+    "The existing behavior is preserved when no cache or queue is configured (all steps inline)",
+    "python -m py_compile chatbot/core/turn.py passes",
+    "python -m py_compile chatbot/core/__init__.py passes",
+    "A reply never depends on work that was deferred (deferred steps read ctx but do not change respond inputs)",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/core/turn.py",
+    "chatbot/core/__init__.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/core/turn.py and chatbot/core/__init__.py",
+    "modify chatbot/core/steps.py",
+    "add new third-party dependencies",
+    "introduce LangGraph, LangChain, Letta, Zep, or any orchestration framework",
+    "change the Abracapocus runtime, orchestrator, or backends",
+    "allow the respond step to depend on deferred work results"
+  ],
+  "allowed_symbols": [
+    "FAST_PATH_STEPS",
+    "DEFERRED_STEPS"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "split step list into FAST_PATH_STEPS and DEFERRED_STEPS",
+      "add optional PersonaCache and BackgroundQueue parameters",
+      "implement run_fast() and enqueue_deferred() methods",
+      "wrap compile_context with cache get/set"
+    ],
+    "forbidden": [
+      "change TurnStep ABC or TurnContext dataclass",
+      "remove any existing pipeline step",
+      "introduce branching, conditional steps, or dynamic reordering",
+      "allow respond step to depend on deferred step outputs"
+    ]
+  },
+  "dependencies": [
+    "d.1",
+    "d.2"
+  ],
+  "task_timeout_seconds": 1200
+}

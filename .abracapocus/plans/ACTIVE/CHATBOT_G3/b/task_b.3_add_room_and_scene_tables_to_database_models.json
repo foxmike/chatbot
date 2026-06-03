@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "task_id": "b.3",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Add room and scene tables to database models",
+  "description": "Modify chatbot/db/models.py to add Room and Scene SQLAlchemy model classes with columns supporting typed rooms, room memory policy, scene state tracking, and the relationship between rooms and scenes.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/db/models.py (existing model conventions \u2014 inspect base class, column types, naming style, relationship patterns)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/db/models.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Locate the existing model classes in chatbot/db/models.py. Understand the base class, column conventions, relationship patterns, and import style.\n\n2. Add a `Room` model class with:\n   - room_id: String(64), primary_key, default=uuid4\n   - user_id: String(64), nullable=False, index\n   - companion_id: String(64), nullable=True\n   - room_type: String(20), nullable=False \u2014 stores RoomType values\n   - display_name: String(255), nullable=False\n   - memory_persist_to_durable: Boolean, default=True\n   - memory_scope: String(20), default='room' \u2014 'room', 'companion', or 'global'\n   - memory_max_context_turns: Integer, default=50\n   - memory_include_embeddings: Boolean, default=True\n   - scene_id: String(64), nullable=True \u2014 foreign key to scenes table\n   - created_at: DateTime, default=func.now()\n   - metadata: JSON, nullable=True \u2014 freeform room metadata\n\n3. Add a `Scene` model class with:\n   - scene_id: String(64), primary_key, default=uuid4\n   - room_id: String(64), ForeignKey('rooms.room_id'), nullable=False, index\n   - location: String(255), default=''\n   - activity: String(255), default=''\n   - tone: String(20), default='neutral'\n   - intensity: Integer, default=5\n   - is_paused: Boolean, default=False\n   - started_at: DateTime, default=func.now()\n   - paused_at: DateTime, nullable=True\n   - resumed_at: DateTime, nullable=True\n   - ended_at: DateTime, nullable=True\n   - participants: JSON, nullable=True \u2014 list of participant identifiers\n   - scene_context: Text, nullable=True \u2014 freeform narrative context\n   - metadata: JSON, nullable=True\n\n4. Add a relationship from Room to Scene (room.scene -> Scene).\n\n5. Do not modify any existing model classes, columns, or relationships.",
+  "acceptance_criteria": [
+    "chatbot/db/models.py has a Room model class with all specified columns",
+    "chatbot/db/models.py has a Scene model class with all specified columns",
+    "Room has room_id PK, user_id index, room_type, companion_id, display_name",
+    "Room has memory_policy columns: persist_to_durable, scope, max_context_turns, include_embeddings",
+    "Scene has scene_id PK, room_id FK + index, location, activity, tone, intensity",
+    "Scene has is_paused, started_at, paused_at, resumed_at, ended_at temporal columns",
+    "Scene has participants (JSON) and scene_context (Text)",
+    "Relationship from Room.scene -> Scene exists",
+    "Existing model classes and columns are unchanged",
+    "python -m py_compile chatbot/db/models.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/db/models.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/db/models.py",
+    "modify existing model classes, columns, or relationships",
+    "remove or rename any existing model or table",
+    "add new third-party dependencies",
+    "change SQLAlchemy base class or import style",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "Room",
+    "Scene"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add new SQLAlchemy model classes following existing conventions",
+      "use existing column types (String, Boolean, Integer, DateTime, JSON, Text)",
+      "use ForeignKey and relationship for Room-Scene association",
+      "use uuid4 defaults and func.now() for timestamps following existing patterns"
+    ],
+    "forbidden": [
+      "modify or remove any existing model class",
+      "add database indexes beyond what the columns naturally define",
+      "change the SQLAlchemy declarative base or metadata"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

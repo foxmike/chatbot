@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "task_id": "a.6",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Create App.tsx wiring client and components together",
+  "description": "Create react_ui/src/App.tsx as the main application component.\n\nWire together the API client, chat components, and session sidebar into a functional chat application.\n\nState management with React useState:\n- sessions: Session[] \u2014 list of user sessions, starts empty\n- activeSessionId: string | null \u2014 currently selected session, starts null\n- messages: Message[] \u2014 messages in the active session, starts empty\n- isLoading: boolean \u2014 true while waiting for API response, starts false\n\nOn mount (useEffect []):\n- Call createSession() from api/client to create a default session\n- Set activeSessionId and add the session to sessions list\n- Handle errors gracefully: show a console.error and set a top-level error state\n\nonSend(message: string):\n- If message is empty or trimmed to empty, do nothing\n- Append a user Message to messages\n- Set isLoading to true\n- Call sendMessage(message, activeSessionId) from api/client\n- On success, append the assistant Message from ChatResponse.response to messages\n- On error, append an assistant Message with the error detail\n- Set isLoading to false\n\nonNewSession():\n- Call createSession() from api/client\n- On success, add the new session to sessions, set activeSessionId, clear messages\n\nonSelectSession(sessionId: string):\n- Set activeSessionId to sessionId\n- Clear messages (future phases will load history; for now clear and start fresh)\n\nLayout:\n- Full viewport height flex container with dark background (bg-gray-900)\n- Left: SessionSidebar with sessions, activeSessionId, onSelect, onNewSession\n- Right: flex-col with MessageList on top (flex-1) and ChatInput pinned to bottom\n- MessageList receives messages and isLoading\n- ChatInput receives onSend and disabled={isLoading || !activeSessionId}\n- Apply dark theme consistently\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- react_ui/src/types.ts\n- react_ui/src/api/client.ts\n- react_ui/src/components/ChatMessage.tsx\n- react_ui/src/components/MessageList.tsx\n- react_ui/src/components/ChatInput.tsx\n- react_ui/src/components/SessionSidebar.tsx\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "react_ui/src/App.tsx exists",
+    "Imports and uses createSession, sendMessage from api/client",
+    "Imports and uses ChatInput, MessageList, SessionSidebar, ChatMessage components",
+    "On mount, creates a session via createSession() and sets activeSessionId",
+    "Sending a message calls sendMessage and appends user + assistant messages",
+    "SessionSidebar, MessageList, and ChatInput are wired with correct props",
+    "App renders a full-height dark-themed layout with sidebar and chat area",
+    "Empty message input does not trigger send",
+    "Loading state disables ChatInput",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/App.tsx"
+  ],
+  "forbidden_changes": [
+    "modify react_ui/src/types.ts",
+    "modify react_ui/src/api/client.ts",
+    "modify react_ui/src/components/*.tsx",
+    "modify any file outside react_ui/src/App.tsx"
+  ],
+  "dependencies": [
+    "a.3",
+    "a.4",
+    "a.5"
+  ],
+  "task_timeout_seconds": 600
+}

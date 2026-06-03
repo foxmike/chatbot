@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "task_id": "b.3",
+  "phase": "J",
+  "phase_id": "b",
+  "title": "Implement working-memory history loader in chatbot/memory/working_memory.py",
+  "description": "Create chatbot/memory/working_memory.py implementing a working-memory module that loads and bounds prior-turn conversation history so real context flows into the provider call. The module reads session history from the memory store, applies a configurable bound (max turns or max token estimate), and returns the bounded history list for injection into TurnContext.history.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/core/steps.py (TurnContext.history field, signal type)\n- chatbot/core/turn.py (Retrieve placeholder step \u2014 currently populates empty history)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/memory/working_memory.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create chatbot/memory/working_memory.py with:\n   - Module docstring: 'Working-memory history loader for the chatbot engine.'\n   - A `WorkingMemoryLoader` class that:\n     * Accepts a database session/connection or store adapter at construction (dependency injection).\n     * Exposes `async def load(self, session_id: str, max_turns: int = 20, max_tokens_estimate: int = 4000) -> list[dict]` that returns prior-turn history as a list of dicts, each containing at minimum `role` (str: 'user' | 'assistant') and `content` (str).\n     * Applies bounds: stops loading when either max_turns is reached or the cumulative token estimate exceeds max_tokens_estimate. Token estimation may use a simple character/4 heuristic.\n     * Returns the most recent turns first (newest-to-oldest in the raw query), then reverses before returning so the list is in chronological order (oldest first).\n     * Handles the empty/new session case by returning an empty list.\n   - A module-level convenience function `load_working_memory(session_id: str, store, max_turns: int = 20) -> list[dict]` that creates a default WorkingMemoryLoader and calls load().\n\n2. If the database/store is unavailable or session_id has no prior turns, load() must return an empty list without error.\n\n3. The returned history format must be compatible with the provider call's expected message format (list of {role, content} dicts), so the Retrieve step in turn.py can assign it directly to ctx.history.\n\n4. Ensure python -m py_compile chatbot/memory/working_memory.py passes.",
+  "acceptance_criteria": [
+    "chatbot/memory/working_memory.py exists and defines WorkingMemoryLoader",
+    "WorkingMemoryLoader.load() accepts session_id, max_turns, max_tokens_estimate",
+    "load() returns list[dict] with role and content keys in chronological order",
+    "load() enforces max_turns bound",
+    "load() enforces max_tokens_estimate bound using a token heuristic",
+    "Empty/new session returns empty list without error",
+    "python -m py_compile chatbot/memory/working_memory.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/memory/working_memory.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/memory/working_memory.py",
+    "modify chatbot/core/ or chatbot/soul/ files",
+    "add new third-party dependencies",
+    "introduce LangGraph, LangChain, Letta, Zep, or any orchestration framework",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "WorkingMemoryLoader",
+    "load_working_memory"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use dependency injection for the store adapter",
+      "use char/4 heuristic for token estimation",
+      "use a simple SQL or dict-based query for loading turns"
+    ],
+    "forbidden": [
+      "hardcode database credentials or connection strings",
+      "load unbounded history without limits"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

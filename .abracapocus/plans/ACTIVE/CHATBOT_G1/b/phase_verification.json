@@ -1,0 +1,89 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "compile_soul_init",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/soul/__init__.py"
+        ]
+      },
+      {
+        "name": "compile_persona_prompt",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/soul/persona_prompt.py"
+        ]
+      },
+      {
+        "name": "compile_extraction",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/memory/extraction.py"
+        ]
+      },
+      {
+        "name": "compile_working_memory",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/memory/working_memory.py"
+        ]
+      },
+      {
+        "name": "compile_turn",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/core/turn.py"
+        ]
+      },
+      {
+        "name": "compile_core_init",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/core/__init__.py"
+        ]
+      },
+      {
+        "name": "compile_chat_api",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/api/chat.py"
+        ]
+      },
+      {
+        "name": "compile_integration_test",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "tests/test_pipeline_integration.py"
+        ]
+      },
+      {
+        "name": "pytest_integration",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "tests/test_pipeline_integration.py",
+          "-x",
+          "-v"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "task_id": "l.9",
+  "phase": "L",
+  "phase_id": "l",
+  "title": "Create CharacterCreator and RelationshipSettings React components",
+  "description": "Create two React components for the companion identity configuration UI.\n\nComponent 1 \u2014 react_ui/src/components/CharacterCreator.tsx:\n- A form panel for creating or editing the companion's CharacterProfile\n- Fields: name (text input), backstory (textarea, 3-5 lines), personality sliders (range inputs for each personality dimension: openness, conscientiousness, extraversion, agreeableness, neuroticism, curiosity, creativity \u2014 each 0.0\u20131.0 with step 0.05), humor_style (select dropdown), communication_style (select dropdown), favorite_topics (tag-list input: text field + add button, rendered as removable chips)\n- Accepts a sessionId prop\n- On mount, fetches current CharacterProfile via getCharacterProfile(sessionId) and populates the form\n- On submit, calls updateCharacterProfile(sessionId, formData)\n- Shows loading state during fetch, error state on API failure\n- Uses Tailwind CSS for styling (dark theme compatible: bg-gray-800, text-gray-100, etc.)\n- Follows existing React component patterns: functional component, interface for props, named export\n\nComponent 2 \u2014 react_ui/src/components/RelationshipSettings.tsx:\n- A settings panel for configuring the relationship\n- Fields: type (select: friend/mentor/peer/partner/custom), tone (select: warm/neutral/formal/playful/sarcastic), directness (range slider 0.0\u20131.0), warmth (range slider 0.0\u20131.0), initiative_level (range slider 0.0\u20131.0), content_level (select: light/moderate/deep/intellectual)\n- Accepts a sessionId prop\n- On mount, fetches current RelationshipConfig via getRelationshipConfig(sessionId)\n- On submit, calls updateRelationshipConfig(sessionId, formData)\n- Shows loading/error states matching CharacterCreator pattern\n- Uses Tailwind CSS for styling (consistent dark theme)\n\nBoth components import API methods from react_ui/src/api/client.ts. Do not duplicate the API logic.\n\nExpected files: react_ui/src/components/CharacterCreator.tsx (created), react_ui/src/components/RelationshipSettings.tsx (created)\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- react_ui/src/api/client.ts (import available API methods and types)\n- react_ui/src/types.ts (existing type patterns)\n- react_ui/src/components/ (existing component patterns, styling conventions, Tailwind usage)\n- react_ui/src/App.tsx (how components are composed)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. Do NOT wire these components into App.tsx or any parent view \u2014 that is an integration step for a separate task. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "react_ui/src/components/CharacterCreator.tsx exists as a functional React component",
+    "CharacterCreator accepts a sessionId prop and fetches/updates CharacterProfile",
+    "CharacterCreator renders: name input, backstory textarea, 7 personality sliders, humor and communication selects, favorite topics tag input",
+    "react_ui/src/components/RelationshipSettings.tsx exists as a functional React component",
+    "RelationshipSettings accepts a sessionId prop and fetches/updates RelationshipConfig",
+    "RelationshipSettings renders: type/tone/content selects, directness/warmth/initiative sliders",
+    "Both components show loading state during API calls and error state on failure",
+    "Both components use Tailwind CSS classes only (no custom CSS files or inline styles)",
+    "Both components import API methods from react_ui/src/api/client.ts (no duplicated fetch logic)",
+    "cd react_ui && npx tsc --noEmit passes for both component files",
+    "No file outside react_ui/src/components/CharacterCreator.tsx and react_ui/src/components/RelationshipSettings.tsx is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/components/CharacterCreator.tsx",
+    "react_ui/src/components/RelationshipSettings.tsx"
+  ],
+  "forbidden_changes": [
+    "modify any file outside the two listed component paths",
+    "modify react_ui/src/App.tsx or any view/routing file",
+    "add new third-party npm dependencies to package.json",
+    "create custom CSS files or inline style blocks",
+    "modify react_ui/src/api/client.ts",
+    "create or modify documentation files"
+  ],
+  "allowed_symbols": [
+    "CharacterCreator",
+    "RelationshipSettings"
+  ],
+  "dependencies": [
+    "l.8"
+  ],
+  "task_timeout_seconds": 900
+}

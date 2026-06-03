@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_id": "b.4",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Implement roleplay engine with memory isolation",
+  "description": "Create chatbot/rooms/roleplay.py implementing a roleplay engine with scene-aware persona control and memory isolation. Scene roleplay content must not pollute durable factual memory unless explicitly marked for persistence.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/rooms/__init__.py (created by task b.1)\n- chatbot/rooms/room.py (created by task b.1 \u2014 Room, RoomType, RoomMemoryPolicy, DEFAULT_ROOM_POLICIES)\n- chatbot/rooms/scene.py (created by task b.2 \u2014 SceneState, scene lifecycle functions)\n- chatbot/db/models.py (updated by task b.3 \u2014 Room and Scene model classes)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/rooms/roleplay.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create chatbot/rooms/roleplay.py with:\n   - Module docstring: 'Roleplay engine with scene-aware persona and memory isolation. Scene content is isolated from durable memory unless explicitly marked for persistence.'\n\n2. A `RoleplayPersona` dataclass with: name (str), description (str), traits (list[str]), voice_style (str, e.g. 'formal', 'casual', 'playful'), backstory (str), scene_goals (list[str], default empty), constraints (list[str], default empty).\n\n3. A `RoleplayEngine` class with:\n   - `__init__(self, scene: SceneState, persona: RoleplayPersona)`: stores scene reference and persona. Loads the room's memory_policy from DEFAULT_ROOM_POLICIES unless overridden.\n   - `build_scene_prompt(self) -> str`: constructs a system prompt combining persona description, scene context (location, activity, tone, intensity), backstory, and constraints. Includes instruction to stay in character.\n   - `classify_memory_importance(self, content: str) -> Literal['scene_only', 'durable', 'both']`: template-based classifier (no LLM) that checks for explicit markers like '[remember this]' or '[important]' to promote scene content to durable memory. Also checks for proper-noun facts and relationship declarations. Otherwise returns 'scene_only'.\n   - `generate_scene_context(self) -> str`: returns a compact context string combining scene summary, persona traits, and any scene goals.\n   - `is_durable_candidate(self, turn_text: str) -> bool`: returns True if the turn text contains explicit persist markers or classified as 'durable'. Used by the turn pipeline and memory retrieval to decide whether scene content should be written to durable memory.\n   - `get_scene_memory_scope(self) -> str`: returns the room's memory_scope value for retrieval filtering.\n\n4. All classification and decision logic is deterministic template-based \u2014 no LLM calls.",
+  "acceptance_criteria": [
+    "chatbot/rooms/roleplay.py exists and defines RoleplayPersona, RoleplayEngine",
+    "RoleplayPersona has name, description, traits, voice_style, backstory, scene_goals, constraints",
+    "RoleplayEngine.build_scene_prompt() returns a system prompt with persona and scene context",
+    "RoleplayEngine.classify_memory_importance() returns 'scene_only' for unmarked content",
+    "RoleplayEngine.classify_memory_importance() returns 'durable' when content contains '[remember this]' or '[important]'",
+    "RoleplayEngine.is_durable_candidate() returns False by default, True for explicitly marked content",
+    "RoleplayEngine.generate_scene_context() returns compact context string",
+    "No LLM provider calls anywhere in the module",
+    "python -m py_compile chatbot/rooms/roleplay.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/rooms/roleplay.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/rooms/roleplay.py",
+    "modify chatbot/rooms/__init__.py, chatbot/rooms/room.py, or chatbot/rooms/scene.py",
+    "modify chatbot/db/models.py",
+    "add new third-party dependencies",
+    "call LLM providers for classification or generation",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "RoleplayPersona",
+    "RoleplayEngine"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use Literal for classification return type",
+      "use regex or keyword matching for explicit persist markers",
+      "access SceneState and RoomMemoryPolicy from sibling room modules",
+      "construct system prompts from persona and scene fields via string templates"
+    ],
+    "forbidden": [
+      "call LLM providers (the classify function must be deterministic)",
+      "modify the database directly from this module",
+      "introduce LangChain, LangGraph, or any agent framework",
+      "hard-code specific persona profiles or characters"
+    ]
+  },
+  "dependencies": [
+    "b.2"
+  ],
+  "task_timeout_seconds": 900
+}

@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "task_id": "k.3",
+  "phase": "K",
+  "phase_id": "k",
+  "title": "Conversation modes module",
+  "description": "Create chatbot/soul/modes.py defining conversation modes that reshape persona prompt assembly.\n\nImplement a ConversationMode enum with these values:\n- NORMAL \u2014 default, balanced tone and length\n- DEEP_TALK \u2014 introspective, longer responses, more follow-up questions, lower initiative\n- PLAYFUL \u2014 humor, wordplay, shorter witty replies, higher energy\n- ROLEPLAY \u2014 narrative framing, in-character consistency, creative\n- PLANNING \u2014 structured, list-oriented, goal-directed, clarifying questions\n- VENTING \u2014 validating, non-solutioning unless asked, reflective listening\n- BEDTIME \u2014 low energy, soothing, short responses, no new topics\n\nImplement a ModeSelector class with:\n- select(messages: list[dict], user_state: Optional[UserState], mood_state: MoodState) -> ConversationMode\n- Default is NORMAL. Triggers: user_state primary=frustrated/angry -> VENTING; user_state primary=tired or mood energy < 0.3 -> BEDTIME; user_state primary=playful -> PLAYFUL; rapid deep personal sharing -> DEEP_TALK; explicit goal/plan language -> PLANNING; roleplay framing detected -> ROLEPLAY\n- to_prompt_hints(mode: ConversationMode) -> str \u2014 return a string modifying persona prompt (e.g. \"Conversation mode: playful. Keep replies witty and short.\")\n- get_response_params(mode: ConversationMode) -> dict \u2014 return hints for response generation: max_tokens_ratio, temperature_modifier, initiative_level, should_suggest_topics\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- This task document (task k.3)\n- chatbot/soul/mood.py (if it exists, produced by task k.1)\n- chatbot/soul/user_state.py (if it exists, produced by task k.2)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/soul/modes.py exists and defines ConversationMode enum and ModeSelector class",
+    "python -m py_compile chatbot/soul/modes.py passes",
+    "ConversationMode has exactly 7 members (NORMAL, DEEP_TALK, PLAYFUL, ROLEPLAY, PLANNING, VENTING, BEDTIME)",
+    "ModeSelector.select() returns a ConversationMode",
+    "ModeSelector.to_prompt_hints() returns a non-empty string",
+    "ModeSelector.get_response_params() returns a dict with expected keys",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/soul/modes.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/soul/modes.py",
+    "add new third-party dependencies",
+    "call external APIs or LLMs from mode selection logic"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

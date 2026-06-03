@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "task_id": "l.10",
+  "phase": "L",
+  "phase_id": "l",
+  "title": "Create identity configuration integration tests",
+  "description": "Create tests/test_identity_config.py with pytest tests covering the identity configuration module stack created in tasks l.1 through l.9.\n\nTest categories:\n\n1. RelationshipConfig tests:\n- defaults() returns valid config with correct types\n- to_prompt_fragment() returns non-empty string\n- Field clamping rejects invalid literals (e.g., type='invalid' raises)\n- Serialization/deserialization round-trip\n\n2. CharacterProfile tests:\n- defaults() returns valid profile with correct types\n- to_prompt_fragment() returns non-empty string containing the name\n- personality_sliders clamping (values outside 0.0\u20131.0 rejected)\n- humor_style/communication_style validation\n\n3. Evolution tests:\n- IdentityState.defaults() returns valid state with fixed, slow, mood populated\n- bounded_drift modifies slow fields but stays within 20% of baseline\n- bounded_drift never modifies fixed fields\n- mood_decay regresses mood values toward reset_target over steps\n- apply_evolution updates mood from context signals (positive sentiment, negative sentiment)\n- apply_evolution never modifies fixed fields\n- to_prompt_fragment() returns text containing all three tiers\n\n4. Integration tests:\n- Persona prompt assembly includes relationship/character/identity fragments when provided\n- Persona prompt assembly produces identical output unchanged when none provided\n- API endpoints (GET/PUT relationship, GET/PUT character, GET identity, POST evolve, POST reset-mood) return correct shapes and status codes\n\nUse pytest.fixture for test models. Follow existing test conventions: file naming, assertion style, imports. Do not create new test infrastructure.\n\nExpected file path: tests/test_identity_config.py (created)\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- pytest.ini (existing pytest configuration)\n- chatbot/soul/relationship.py\n- chatbot/soul/character.py\n- chatbot/soul/evolution.py\n- chatbot/soul/persona_prompt.py\n- chatbot/api/config.py\n- tests/ (existing test file conventions, fixture patterns, import style)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "tests/test_identity_config.py exists with pytest tests",
+    "RelationshipConfig tests: defaults, to_prompt_fragment, validation, serialization",
+    "CharacterProfile tests: defaults, to_prompt_fragment, slider validation, style validation",
+    "Evolution tests: defaults, bounded_drift within-bounds, drift never touches fixed, mood_decay convergence, apply_evolution context response",
+    "Integration tests: persona prompt includes identity fragments, prompt unchanged without args",
+    "python -m pytest tests/test_identity_config.py -v passes with all tests green",
+    "No file outside tests/test_identity_config.py is created or modified",
+    "No existing test files are modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "tests/test_identity_config.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside tests/test_identity_config.py",
+    "modify existing test files",
+    "modify chatbot/ source files",
+    "add new third-party test dependencies",
+    "create or modify documentation files"
+  ],
+  "allowed_symbols": [
+    "test_relationship_config_defaults",
+    "test_character_profile_defaults",
+    "test_bounded_drift",
+    "test_mood_decay",
+    "test_apply_evolution",
+    "test_persona_prompt_with_identity"
+  ],
+  "dependencies": [
+    "l.5",
+    "l.6",
+    "l.7",
+    "l.8",
+    "l.9"
+  ],
+  "task_timeout_seconds": 900
+}

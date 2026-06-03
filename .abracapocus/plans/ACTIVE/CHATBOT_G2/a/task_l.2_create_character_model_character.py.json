@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "task_id": "l.2",
+  "phase": "L",
+  "phase_id": "l",
+  "title": "Create character model (character.py)",
+  "description": "Create chatbot/soul/character.py with a CharacterProfile model that captures companion identity and feeds into the soul core.\n\nDefine a CharacterProfile dataclass or Pydantic model with these fields:\n- name: str \u2014 the companion's display name\n- backstory: str \u2014 a short (1\u20133 paragraph) narrative backstory\n- personality_sliders: dict[str, float] \u2014 personality dimensions as named sliders each clamped 0.0\u20131.0. Suggested defaults: openness (0.7), conscientiousness (0.6), extraversion (0.5), agreeableness (0.8), neuroticism (0.3), curiosity (0.7), creativity (0.6)\n- humor_style: Literal['dry', 'witty', 'silly', 'dark', 'none']\n- communication_style: Literal['verbose', 'concise', 'storyteller', 'question_driven', 'aphoristic']\n- favorite_topics: list[str] \u2014 topics the companion gravitates toward\n\nAdd a classmethod defaults() returning a CharacterProfile with name \"Companion\", an empty but plausible backstory, default slider values, humor 'witty', communication 'concise', and empty favorite_topics.\n\nAdd a to_prompt_fragment() method that serializes the character profile into a structured text block for persona prompt injection, suitable for the soul core. Include the name, a condensed version of the backstory, a personality summary from the sliders, and listed favorite topics.\n\nExpected file path: chatbot/soul/character.py\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/soul/persona_prompt.py\n- chatbot/soul/relationship.py (if it already exists from task l.1)\n- Any existing chatbot/soul/__init__.py\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/soul/character.py exists",
+    "CharacterProfile model is defined with fields: name, backstory, personality_sliders, humor_style, communication_style, favorite_topics",
+    "CharacterProfile.defaults() classmethod returns a valid default profile",
+    "CharacterProfile.to_prompt_fragment() returns a non-empty string",
+    "personality_sliders keys cover at least 5 personality dimensions",
+    "python -m py_compile chatbot/soul/character.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/soul/character.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/soul/character.py",
+    "add new third-party dependencies to pyproject.toml or requirements.txt",
+    "create or modify documentation files",
+    "modify chatbot/soul/relationship.py"
+  ],
+  "allowed_symbols": [
+    "CharacterProfile",
+    "HumorStyle",
+    "CommunicationStyle"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

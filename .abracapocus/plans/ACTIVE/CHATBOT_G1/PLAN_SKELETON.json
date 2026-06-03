@@ -1,0 +1,74 @@
+{
+  "plan_name": "CHATBOT",
+  "purpose": "Group 1 of the companion buildout on top of the completed chatbot engine (phases a-h: infrastructure, providers, schema, memory core, soul/state, consolidation, turn spine, integration). This group delivers a usable, emotionally coherent companion. Phase I adds a self-contained React chat UI so the product is testable in a browser. Phase J completes the turn pipeline so the engine stops behaving as a stateless LLM passthrough: the soul/persona is injected into prompt assembly, working-memory conversation history flows into the provider call, and real memory extraction replaces the current stub. Phase K adds emotional intelligence: a dynamic bot mood/affect model distinct from fixed personality, slow low-overconfidence inference of user state, and conversation modes that reshape persona prompt assembly. The existing FastAPI + Postgres/pgvector + Redis stack is unchanged; the UI attaches over the existing API surface and all new logic lands inside the existing chatbot package. Content behavior is governed by configurable runtime settings, not hardcoded blocks.",
+  "async_strategy": "Phases are dependency-ordered synchronous boundaries; a phase advances only when all its tasks are accepted. Phase I is frontend-only and fully isolated under react_ui/, so it does not contend with any Python work. Phase J depends on the engine that phases b/d/e/g already produced and must land before Phase K, because Phase K extends the same persona-prompt and turn-pipeline seams that Phase J finalizes. Within each phase, new-module tasks form wave 1 on disjoint allowed_write_paths, files that consume them run in wave 2, and the single shared fan-in files (turn.py, persona_prompt.py, chat.py, docker-compose.yml) are each owned by exactly one task in a later wave to prevent write-path collisions.",
+  "cost_estimate": "balanced, default model openrouter/deepseek/deepseek-v4-pro via opencode_cli. Frontend scaffolding and component tasks (phase I) are bounded mechanical work and route to deepseek v4 pro with narrow allowed_write_paths. The differentiators that drive product quality are persona injection and emotional logic: chatbot/soul/persona_prompt.py, chatbot/soul/mood.py, chatbot/soul/user_state.py, and the turn.py step wiring may route to a stronger profile if review warrants it. Documentation tasks should be edited to openrouter/google/gemma-4-31b-it and any test/verification-only tasks to openrouter/moonshotai/kimi-k2.5 after materialization.",
+  "operator_questions": [
+    "React UI for v1: consume the existing /chat/stream SSE endpoint for streaming token display, or simple request/response against /chat/ first and add streaming later?",
+    "Bot mood/affect persistence horizon: per-session only, or per-user-relationship so affect carries across sessions for continuity?",
+    "Conversation mode selection: explicit user toggle in the UI, inferred from message content, or both with inference as default and manual override?",
+    "Memory extraction model: reuse the default chat model (deepseek/gemma) for fact/episode extraction, or pin a dedicated cheaper extraction model on the extract step?",
+    "User-state inference: store inferred user emotional state as durable memory, or keep it as ephemeral per-turn context that never becomes a permanent fact?"
+  ],
+  "phases": [
+    {
+      "phase_id": "phase_i",
+      "goal": "Self-contained React chat UI in react_ui/, built with Vite + TypeScript + Tailwind, clean minimal dark theme. Connects to the existing FastAPI endpoints (POST /sessions/, POST /chat/, /chat/stream) with no backend changes. Component structure is designed to absorb later features (voice, avatars, mood indicators, memory controls, room switching) without rework. Vite dev server for local development; a production nginx Docker image wired into docker-compose.yml so VPS deployment is `docker compose up` with no Node runtime in production.",
+      "expected_changed_files": [
+        "react_ui/package.json",
+        "react_ui/vite.config.ts",
+        "react_ui/tsconfig.json",
+        "react_ui/tailwind.config.js",
+        "react_ui/postcss.config.js",
+        "react_ui/index.html",
+        "react_ui/src/main.tsx",
+        "react_ui/src/index.css",
+        "react_ui/src/types.ts",
+        "react_ui/src/api/client.ts",
+        "react_ui/src/components/ChatMessage.tsx",
+        "react_ui/src/components/MessageList.tsx",
+        "react_ui/src/components/ChatInput.tsx",
+        "react_ui/src/components/SessionSidebar.tsx",
+        "react_ui/src/App.tsx",
+        "react_ui/Dockerfile",
+        "react_ui/nginx.conf",
+        "docker-compose.yml"
+      ],
+      "async_notes": "Wave 1: the project scaffold (package.json, vite.config.ts, tsconfig.json, tailwind.config.js, postcss.config.js, index.html, src/main.tsx, src/index.css) as one task, and src/types.ts as a second disjoint task. Wave 2 runs three parallel tasks on disjoint files, each depending only on types.ts: the API client (src/api/client.ts), the message display components (src/components/ChatMessage.tsx + src/components/MessageList.tsx), and the input plus session sidebar (src/components/ChatInput.tsx + src/components/SessionSidebar.tsx). Wave 3 has two parallel tasks: App.tsx (fan-in wiring the client and components), and the production packaging (react_ui/Dockerfile + react_ui/nginx.conf + docker-compose.yml ui service). docker-compose.yml is owned only by the packaging task so no other task contends for it.",
+      "risk_notes": "Frontend-only; no Python or FastAPI changes. Keep react_ui fully self-contained. The only cross-cutting file is docker-compose.yml; isolate it to the single packaging task to avoid write conflicts with the running stack. The UI adapts to the existing API response shapes (session_id, response, step_results); do not alter endpoints.",
+      "estimated_task_count": 7
+    },
+    {
+      "phase_id": "phase_j",
+      "goal": "Complete the turn pipeline so the engine is a coherent companion rather than a stateless passthrough. Inject the existing soul/persona layer into prompt assembly so configured personality drives every response; load and bound working-memory conversation history so prior turns reach the provider call; and implement real memory extraction to replace the current no-op extract step so user facts and episodes persist to the existing schema. Reuses the provider router, context compiler, episodic store, and persona machinery already built in phases b, d, and e.",
+      "expected_changed_files": [
+        "chatbot/soul/persona_prompt.py",
+        "chatbot/memory/extraction.py",
+        "chatbot/memory/working_memory.py",
+        "chatbot/core/turn.py",
+        "chatbot/api/chat.py",
+        "tests/test_pipeline_integration.py"
+      ],
+      "async_notes": "Wave 1 runs three parallel tasks on disjoint files: persona_prompt.py (finalize deterministic persona assembly consumable by the pipeline), extraction.py (new module implementing fact/episode extraction from a turn), and working_memory.py (load and bound prior-turn history for context). Wave 2 is a single task owning chatbot/core/turn.py that rewrites the CallProvider/Retrieve/ExtractMemory step bodies to consume persona, history, and extraction; it depends on all three wave-1 tasks. Wave 3 is chatbot/api/chat.py wiring (pass session history and persona context into TurnContext.metadata), depending on the turn.py task. The integration test is the final fan-in task depending on the chat.py task.",
+      "risk_notes": "turn.py and chat.py already exist and are live; tasks must complete/wire them, not recreate them, and must preserve the existing step interface and StepResult contract. turn.py is owned by exactly one task to avoid write collisions. Persona injection must stay deterministic so behavior is reproducible across models. Memory extraction writes to the same tables retrieval reads; keep writes transactional.",
+      "estimated_task_count": 6
+    },
+    {
+      "phase_id": "phase_k",
+      "goal": "Add emotional coherence. A dynamic bot mood/affect model (current mood, energy, closeness/trust, recent emotional context) that is distinct from fixed personality and shapes wording, length, and initiative. A user-state inference module that estimates likely user state (stressed, playful, lonely, excited, frustrated, tired, focused, grieving, angry) slowly and without overstating certainty. Conversation modes (normal, deep talk, playful, roleplay, planning, venting, bedtime/low-energy) that reshape persona prompt assembly. Mood and user-state persist to the schema for continuity and feed the existing soul and context-compiler layers.",
+      "expected_changed_files": [
+        "chatbot/soul/mood.py",
+        "chatbot/soul/user_state.py",
+        "chatbot/soul/modes.py",
+        "chatbot/db/models.py",
+        "migrations/versions/0002_emotional_state.py",
+        "chatbot/soul/persona_prompt.py",
+        "chatbot/core/turn.py",
+        "tests/test_emotional.py"
+      ],
+      "async_notes": "Wave 1 runs four parallel tasks on disjoint files: mood.py (bot affect model), user_state.py (user inference), modes.py (conversation modes), and db/models.py (add mood_state and user_state persistence fields/tables). Wave 2 has two parallel tasks: the 0002 migration (depends on db/models.py) and persona_prompt.py extension to consume mood and mode (depends on mood.py and modes.py). Wave 3 is a single task owning chatbot/core/turn.py that adds the affect-update and user-state-inference steps and threads mode through the pipeline; it depends on mood.py, user_state.py, modes.py, and the persona_prompt.py task. The test is the final fan-in.",
+      "risk_notes": "persona_prompt.py and turn.py are extended again here after phase J finalized them; each is owned by exactly one task in this phase and phase J must be fully accepted first so the seams are stable. The 0002 migration must be reversible and its embedding/column choices must not conflict with the 0001 core schema. Mood and user-state inference must update slowly and avoid overconfident assertions that would pollute durable memory; respect the operator answer on persistence horizon and on whether inferred user state becomes a permanent fact.",
+      "estimated_task_count": 8
+    }
+  ]
+}

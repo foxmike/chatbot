@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "task_id": "k.7",
+  "phase": "K",
+  "phase_id": "k",
+  "title": "Wire emotional intelligence steps into turn pipeline",
+  "description": "Extend chatbot/core/turn.py to add affect-update, user-state-inference, and conversation-mode steps into the turn pipeline.\n\nAdd the following steps, each as a discrete function or pipeline stage, ordered as listed:\n1. After the user message is received but before persona prompt assembly: run UserStateEngine.infer() on recent messages to update inferred user state\n2. Run ModeSelector.select() using the updated user state and current mood to pick the conversation mode for this turn\n3. Pass the mood state and selected mode into the persona prompt assembly (which now accepts them per k.6)\n4. After the provider response is generated but before returning to the user: run MoodEngine.update() to compute the new mood state based on the turn outcome\n5. Persist the updated mood state, user state, and conversation mode to the Session record (session.mood_state, session.user_state, session.conversation_mode)\n6. Log mood transitions and user state changes to BotMoodLog and UserStateLog tables (append, don't overwrite)\n\nImports required:\n- from chatbot.soul.mood import MoodEngine, MoodState\n- from chatbot.soul.user_state import UserStateEngine, UserState\n- from chatbot.soul.modes import ModeSelector, ConversationMode\n- Existing chatbot/db/models imports (Session, BotMoodLog, UserStateLog)\n\nAll new logic must be bypassable: if mood engine or mode selector is not configured (e.g. an env flag or a None check), the turn pipeline behaves as before this extension.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- This task document (task k.7)\n- chatbot/core/turn.py (the existing turn pipeline)\n- chatbot/soul/mood.py (produced by task k.1)\n- chatbot/soul/user_state.py (produced by task k.2)\n- chatbot/soul/modes.py (produced by task k.3)\n- chatbot/soul/persona_prompt.py (updated by task k.6)\n- chatbot/db/models.py (updated by task k.4)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/core/turn.py has user-state inference, mode-selection, mood-update, and persistence steps integrated into the turn pipeline",
+    "python -m py_compile chatbot/core/turn.py passes",
+    "New pipeline steps are bypassable (no-op when mood/mode modules are not configured)",
+    "MoodEngine.update() is called after provider response and before return",
+    "UserStateEngine.infer() is called before persona prompt assembly",
+    "ModeSelector.select() is called between user-state inference and prompt assembly",
+    "Session record is updated with mood_state, user_state, and conversation_mode",
+    "BotMoodLog and UserStateLog records are appended each turn",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/core/turn.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/core/turn.py",
+    "modify chatbot/soul/mood.py, chatbot/soul/user_state.py, chatbot/soul/modes.py, or chatbot/soul/persona_prompt.py",
+    "remove or rename existing turn pipeline functions",
+    "add new third-party dependencies",
+    "hardcode bypass conditions \u2014 use configurable flags"
+  ],
+  "dependencies": [
+    "k.1",
+    "k.2",
+    "k.3",
+    "k.6"
+  ],
+  "task_timeout_seconds": 1200
+}

@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "task_id": "b.2",
+  "phase": "J",
+  "phase_id": "b",
+  "title": "Implement memory extraction in chatbot/memory/extraction.py",
+  "description": "Create chatbot/memory/extraction.py implementing real fact and episode extraction from a completed turn, replacing the current no-op ExtractMemory step. Extraction inspects the turn's provider_response (and optionally the user_message) and persists extracted facts and episodes to the existing memory schema tables.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/core/steps.py (TurnContext, extracted_memories field, StepResult)\n- chatbot/core/turn.py (ExtractMemory placeholder step, TurnPipeline step ordering)\n- chatbot/memory/working_memory.py (created by task b.3 \u2014 the retrieval side that reads the same tables)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/memory/extraction.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create chatbot/memory/extraction.py with:\n   - Module docstring: 'Fact and episode extraction from chat turns for the chatbot engine.'\n   - A `MemoryExtractor` class that:\n     * Accepts a database session/connection or engine at construction (dependency injection for the persistence layer, not a hardcoded global).\n     * Exposes `async def extract(self, session_id: str, user_message: str, provider_response: str) -> list[dict]` that returns extracted memory dicts (each with keys like type, content, metadata).\n     * Extracts facts (explicit statements about the user, declarative knowledge) and episodes (summaries of what happened in the conversation) from the combined turn text.\n     * Writes extracted facts and episodes to the memory schema tables using transactional writes (wraps insert operations in a transaction so partial writes do not corrupt the store).\n   - A fallback/safe path: if the database session is None or unavailable, extract() returns an empty list without crashing.\n   - The extraction logic may use simple heuristic/rule-based approaches initially (e.g., sentence splitting, named-entity patterns, or a local classifier) since the full LLM-based extraction pipeline belongs to a later refinement task. The goal is real persistence, not no-op.\n\n2. The module must integrate with whatever memory schema was built in the prior schema phase. If the schema tables are not importable (because they were defined in a task that has not run yet), define a minimal internal representation of facts and episodes as dataclasses and write through a pluggable storage adapter interface so the wiring task (b.4 in turn.py) can inject the real adapter.\n\n3. Ensure python -m py_compile chatbot/memory/extraction.py passes.",
+  "acceptance_criteria": [
+    "chatbot/memory/extraction.py exists and defines MemoryExtractor",
+    "MemoryExtractor.extract() accepts session_id, user_message, provider_response",
+    "MemoryExtractor.extract() returns list[dict] of extracted memory entries",
+    "Extract path gracefully handles missing/unavailable database with empty return",
+    "Writes use transactional semantics (begin/commit/rollback pattern)",
+    "python -m py_compile chatbot/memory/extraction.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/memory/extraction.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/memory/extraction.py",
+    "modify chatbot/core/ or chatbot/soul/ files",
+    "add new third-party dependencies",
+    "introduce LangGraph, LangChain, Letta, Zep, or any orchestration framework",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "MemoryExtractor"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use dataclasses for internal memory fact/episode representations",
+      "use dependency injection for the database session",
+      "implement heuristic extraction (sentence-splitting, pattern matching)",
+      "wrap writes in SQLAlchemy or raw SQL transactions"
+    ],
+    "forbidden": [
+      "hardcode database credentials or connection strings",
+      "start a background thread or process for extraction",
+      "call LLM providers for extraction logic (keep heuristic)"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

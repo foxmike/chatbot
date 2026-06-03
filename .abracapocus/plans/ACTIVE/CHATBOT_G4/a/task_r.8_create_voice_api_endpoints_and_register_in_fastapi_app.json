@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "task_id": "r.8",
+  "phase": "R",
+  "phase_id": "r",
+  "title": "Create voice API endpoints and register in FastAPI app",
+  "description": "Create chatbot/api/voice.py exposing a FastAPI router with voice synthesis and transcription endpoints, and register it in chatbot/api/app.py.\n\nThe API router must define:\n- A `voice_router` FastAPI APIRouter with prefix '/api/voice' and tag 'voice'.\n- Pydantic models: SynthesizeRequest (text, mood=None, mode=None), SynthesizeResponse (audio_base64, content_type, duration_ms), TranscribeRequest (audio_base64, format='webm', language=None), TranscribeResponse (text, confidence, language_detected), VoicePreferencesResponse (tts_provider_id, tts_model_id, stt_provider_id, stt_model_id, voice_speed, voice_pitch, voice_enabled), VoicePreferencesUpdate (optional fields for all preference keys).\n- POST /synthesize handler: (1) accepts SynthesizeRequest, (2) constructs a VoiceSynthesisRequest, (3) instantiates a TTSAdapter with defaults (or user preferences), (4) calls adapter.synthesize(), (5) base64-encodes the audio data, (6) returns SynthesizeResponse.\n- POST /transcribe handler: (1) accepts TranscribeRequest, (2) base64-decodes audio, (3) instantiates an STTAdapter with defaults, (4) calls adapter.transcribe(), (5) returns TranscribeResponse.\n- GET /preferences handler: returns the user's stored voice preferences from DB (or defaults if none). Requires auth dependency.\n- PUT /preferences handler: updates the user's voice preferences in DB. Validates provider/model IDs via TTSAdapter/STTAdapter.validate_identifier(). Returns updated preferences. Requires auth dependency.\n\nAfter creating the router, modify chatbot/api/app.py to:\n- Import voice_router from chatbot.api.voice.\n- Register it via app.include_router(voice_router) following the existing pattern.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- chatbot/voice/__init__.py and base.py (created by task r.1) for type definitions\n- chatbot/voice/cadence.py (created by task r.2) for CadenceMapper\n- chatbot/voice/tts.py (created by task r.4) for TTSAdapter\n- chatbot/voice/stt.py (created by task r.5) for STTAdapter\n- chatbot/db/models.py (updated by task r.3) for VoicePreferences model\n- chatbot/api/app.py for router registration pattern and auth dependency\n- chatbot/api/ for existing endpoint conventions\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.\n\nSINGLE-OWNER FILE: chatbot/api/voice.py is created by this task. chatbot/api/app.py is owned exclusively by this task in this phase.",
+  "acceptance_criteria": [
+    "chatbot/api/voice.py exists with voice_router and all Pydantic schemas",
+    "voice_router has POST /synthesize, POST /transcribe, GET /preferences, PUT /preferences endpoints",
+    "Synthesize endpoint wires TTSAdapter with cadence from mood/mode params",
+    "Transcribe endpoint base64-decodes audio and wires STTAdapter",
+    "Preferences endpoints apply auth dependency and validate provider/model IDs",
+    "chatbot/api/app.py imports and registers voice_router via app.include_router()",
+    "Existing router registrations in app.py are unchanged",
+    "python -m py_compile chatbot/api/voice.py passes",
+    "python -m py_compile chatbot/api/app.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/voice.py",
+    "chatbot/api/app.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/api/voice.py and chatbot/api/app.py",
+    "modify existing router registrations in app.py (only add the new one)",
+    "modify chatbot/voice/ source files",
+    "add new third-party dependencies",
+    "implement business logic in endpoint handlers (delegate to chatbot/voice/ modules)",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use FastAPI APIRouter with prefix and tag",
+      "use Pydantic for request/response models",
+      "call TTSAdapter and STTAdapter",
+      "use base64 for audio encoding",
+      "use existing auth dependency"
+    ],
+    "forbidden": [
+      "introduce new framework",
+      "modify existing non-voice API routes",
+      "change auth dependency implementation",
+      "add CORS, middleware, or new configuration"
+    ]
+  },
+  "dependencies": [
+    "r.1",
+    "r.2",
+    "r.4",
+    "r.5"
+  ],
+  "task_timeout_seconds": 1200
+}

@@ -1,0 +1,115 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "compile_voice_init",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/voice/__init__.py"
+        ]
+      },
+      {
+        "name": "compile_voice_base",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/voice/base.py"
+        ]
+      },
+      {
+        "name": "compile_cadence",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/voice/cadence.py"
+        ]
+      },
+      {
+        "name": "compile_tts",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/voice/tts.py"
+        ]
+      },
+      {
+        "name": "compile_stt",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/voice/stt.py"
+        ]
+      },
+      {
+        "name": "compile_db_models",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/db/models.py"
+        ]
+      },
+      {
+        "name": "compile_migration",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "migrations/versions/0009_voice_prefs.py"
+        ]
+      },
+      {
+        "name": "compile_voice_api",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/api/voice.py"
+        ]
+      },
+      {
+        "name": "compile_api_app",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/api/app.py"
+        ]
+      },
+      {
+        "name": "compile_voice_test",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "tests/test_voice.py"
+        ]
+      },
+      {
+        "name": "pytest_voice",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "tests/test_voice.py",
+          "-x",
+          "-v"
+        ]
+      },
+      {
+        "name": "tsc_typecheck",
+        "command": [
+          "sh",
+          "-c",
+          "cd react_ui && npx tsc --noEmit"
+        ]
+      }
+    ]
+  }
+}

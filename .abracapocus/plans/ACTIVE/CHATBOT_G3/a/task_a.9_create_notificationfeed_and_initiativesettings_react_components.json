@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "task_id": "a.9",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Create NotificationFeed and InitiativeSettings React components",
+  "description": "Create react_ui/src/components/NotificationFeed.tsx and react_ui/src/components/InitiativeSettings.tsx implementing the UI for a pollable notification feed and per-user initiative level controls with quiet hours configuration.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- react_ui/src/api/client.ts (updated by task a.8 \u2014 understand agency API functions, TypeScript types, and call patterns)\n- Existing react_ui/src/components/ files (understand React patterns, component structure, and Tailwind usage)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY react_ui/src/components/NotificationFeed.tsx and react_ui/src/components/InitiativeSettings.tsx. Do NOT modify any other file under any circumstance.\n\nImplementation:\n\n--- NotificationFeed.tsx ---\n- React functional component NotificationFeed accepting userId prop (string).\n- On mount, fetches notifications via fetchNotifications(userId).\n- Renders badge/count indicator showing pending_count.\n- Scrollable list of notification cards showing: type icon text badge (reminder=clock, emotional_checkin=heart, continuation_prompt=arrow, milestone=star, event_callback=bell), title, body, relative timestamp, unread indicator.\n- Each card: click marks as read via markNotificationRead(), dismiss button calls dismissNotification().\n- Polls for new notifications every 30 seconds with setInterval, proper cleanup on unmount.\n- Handles loading, empty (no notifications message), and error states.\n- Dark-theme Tailwind styling matching existing components.\n- Text/emoji icons only; no icon library.\n\n--- InitiativeSettings.tsx ---\n- React functional component InitiativeSettings accepting userId prop (string).\n- On mount, fetches current settings via fetchInitiative(userId).\n- Labeled dropdown with five initiative levels: Never Proactive, Reminders Only, Gentle Check-ins, Frequent, High-Energy.\n- Quiet hours section with enable toggle checkbox, start time input (HH:MM), end time input (HH:MM).\n- Save button calls updateInitiative(userId, payload), shows success/error feedback.\n- Handles loading and error states.\n- Dark-theme Tailwind styling matching existing components.",
+  "acceptance_criteria": [
+    "react_ui/src/components/NotificationFeed.tsx exists and exports NotificationFeed component",
+    "NotificationFeed displays notification cards with type badge, title, body, and unread indicator",
+    "NotificationFeed has dismiss button per card and marks notifications read on click",
+    "NotificationFeed polls for new notifications every 30 seconds with proper cleanup",
+    "react_ui/src/components/InitiativeSettings.tsx exists and exports InitiativeSettings component",
+    "InitiativeSettings has a labeled dropdown with all five initiative levels",
+    "InitiativeSettings has quiet hours start/end time inputs with enable toggle",
+    "InitiativeSettings has a Save button that persists settings and shows success feedback",
+    "Both components handle loading, empty, and error states",
+    "No icon library, component library, or routing dependency",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/components/NotificationFeed.tsx",
+    "react_ui/src/components/InitiativeSettings.tsx"
+  ],
+  "forbidden_changes": [
+    "modify any file outside react_ui/src/components/NotificationFeed.tsx and react_ui/src/components/InitiativeSettings.tsx",
+    "modify react_ui/src/api/client.ts",
+    "modify react_ui/src/main.tsx",
+    "add new third-party dependencies",
+    "add React Router or routing configuration",
+    "add icon libraries (FontAwesome, Heroicons, etc.)",
+    "add UI component libraries (Material UI, Ant Design, etc.)",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "NotificationFeed",
+    "InitiativeSettings"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use React functional components with hooks",
+      "use Tailwind CSS for dark-theme styling",
+      "import API functions from react_ui/src/api/client",
+      "use setInterval/setTimeout for polling and auto-dismiss",
+      "use text/emoji placeholders for notification type icons"
+    ],
+    "forbidden": [
+      "introduce React Router, Redux, or any state management library",
+      "add icon libraries, UI component libraries, or CSS modules",
+      "hard-code API URLs (use the client functions)",
+      "add WebSocket or SSE connections"
+    ]
+  },
+  "dependencies": [
+    "a.8"
+  ],
+  "task_timeout_seconds": 1200
+}

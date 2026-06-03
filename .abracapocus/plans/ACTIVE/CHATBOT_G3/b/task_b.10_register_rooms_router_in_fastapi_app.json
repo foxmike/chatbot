@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "task_id": "b.10",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Register rooms router in FastAPI app",
+  "description": "Modify chatbot/api/app.py to register the rooms_router from chatbot/api/rooms.py on the FastAPI application instance.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/api/app.py (existing FastAPI app with router registrations \u2014 understand import and include_router conventions)\n- chatbot/api/rooms.py (created by task b.7 \u2014 provides rooms_router)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/api/app.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Open chatbot/api/app.py and locate the existing app.include_router(...) calls. Understand: the variable name used for the FastAPI instance, how routers are imported, and the include_router call pattern (prefix, tags, etc.).\n\n2. Import rooms_router from chatbot.api.rooms.\n\n3. Add a new `app.include_router(rooms_router)` call following the existing convention. Do not change how other routers are registered.\n\n4. Do NOT create a new FastAPI instance, change the app variable name, add CORS middleware, or modify any other router registrations.\n\n5. Ensure python -m py_compile chatbot/api/app.py passes.",
+  "acceptance_criteria": [
+    "chatbot/api/app.py imports rooms_router from chatbot.api.rooms",
+    "chatbot/api/app.py registers rooms_router via app.include_router()",
+    "Existing router registrations in app.py are unchanged",
+    "python -m py_compile chatbot/api/app.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/app.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/api/app.py",
+    "modify existing router registrations",
+    "create a new FastAPI instance",
+    "add CORS, middleware, auth, or any new configuration",
+    "modify chatbot/api/rooms.py",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [],
+  "decision_budget": {
+    "allowed": [
+      "add an import statement for rooms_router",
+      "add a single app.include_router() call",
+      "follow existing import and registration conventions"
+    ],
+    "forbidden": [
+      "refactor existing router registrations",
+      "add any new features or endpoints directly in app.py"
+    ]
+  },
+  "dependencies": [
+    "b.7"
+  ],
+  "task_timeout_seconds": 300
+}

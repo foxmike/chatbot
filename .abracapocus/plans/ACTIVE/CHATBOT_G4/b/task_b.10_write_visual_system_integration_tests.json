@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "task_id": "b.10",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Write visual system integration tests",
+  "description": "Create tests/test_visual.py with pytest-based tests covering the visual provider interface, appearance management, image generation service, image understanding service, and the image API endpoints. Use starlette TestClient against a FastAPI app that includes the images_router.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/visual/base.py (created by task b.1 \u2014 VisualProvider, ImageGenerationProvider, ImageUnderstandingProvider ABCs, result dataclasses, registry)\n- chatbot/visual/appearance.py (created by task b.2 \u2014 AppearanceProfile, AppearanceManager, OutfitManager)\n- chatbot/visual/generation.py (created by task b.4 \u2014 ImageGenerationService, GenerationOptions)\n- chatbot/visual/understanding.py (created by task b.5 \u2014 ImageUnderstandingService, UnderstandingOptions)\n- chatbot/db/models.py (updated by task b.3 \u2014 ImageMemory, Appearance, OutfitRecord models)\n- chatbot/api/images.py (created by task b.8 \u2014 images_router, endpoint signatures, Pydantic models)\n- chatbot/api/app.py (updated by task b.8 \u2014 FastAPI app construction pattern)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY tests/test_visual.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create tests/test_visual.py with:\n   - Module docstring: 'Integration tests for the visual system \u2014 provider interface, appearance management, image generation, image understanding, and API endpoints.'\n\n2. Test fixtures:\n   - `test_app`: constructs a FastAPI app instance, includes images_router, and yields a starlette TestClient. Inspect chatbot/api/app.py to determine the correct app construction pattern.\n   - `appearance_manager`: creates an AppearanceManager with default profile and default outfit manager.\n   - `sample_appearance`: creates an AppearanceProfile with character_seed=123, character_description='A helpful AI companion', visual_traits=['blue_eyes', 'warm_smile'], art_style='digital illustration'.\n\n3. Test classes:\n   - `TestVisualProviderInterface`: tests the ABC hierarchy.\n     * Test that instantiating a VisualProvider subclass without implementing abstract methods raises TypeError.\n     * Test that a minimal concrete ImageGenerationProvider can be registered via register_visual_provider and appears in VISUAL_PROVIDER_REGISTRY.\n     * Test that validate_model_identifier('valid/model') returns VisualModelIdentifier(provider='valid', model='model').\n     * Test that validate_model_identifier raises ValueError on 'invalid' (no slash), 'invalid/' (empty model), '/invalid' (empty provider), '' (empty string).\n\n   - `TestAppearanceManager`: tests appearance and outfit management.\n     * Test that default AppearanceManager creates a profile with seed 42 and an OutfitManager with one default outfit.\n     * Test that update_character_description updates the description and sets updated_at.\n     * Test that update_visual_traits replaces the traits list and touches profile.\n     * Test that build_generation_prompt returns a prompt string containing the scene description, character description, and art style.\n     * Test that build_generation_prompt returns a negative prompt from anti-traits when none provided.\n     * Test that lock_seed changes and returns the new seed.\n     * Test that OutfitManager.add_outfit creates a non-active outfit.\n     * Test that OutfitManager.activate_outfit makes only one outfit active.\n     * Test that OutfitManager.remove_outfit raises ValueError when trying to remove the only outfit.\n\n   - `TestImageGenerationService`: tests the generation service with mocked providers.\n     * Test that generate_and_persist calls provider.generate with the correct prompt built by AppearanceManager.\n     * Test that generate_and_persist passes the character_seed from the appearance profile when GenerationOptions.seed is None.\n     * Test that GenerationOptions.seed overrides the character_seed.\n     * Test that generate_and_persist creates an ImageMemory record in the database.\n     * Test that generate_only does not create a database record.\n\n   - `TestImageUnderstandingService`: tests the understanding service with mocked providers.\n     * Test that understand_and_persist calls provider.understand with correct image_data, mime_type, and composite question.\n     * Test that UnderstandingOptions.question='What is this?' passes that directly to the provider.\n     * Test that understand_and_persist creates an ImageMemory record with source_type='understood'.\n     * Test that understand_only does not create a database record.\n\n   - `TestImageAPI`: tests the FastAPI endpoints.\n     * Test POST /generate with valid request returns 200 with ImageGenerateResponse shape.\n     * Test POST /generate with empty scene_description returns 422.\n     * Test POST /understand with a file upload returns 200 with ImageUnderstandResponse shape.\n     * Test GET /{image_id} with valid id returns 200 with ImageView shape.\n     * Test GET /{image_id} with nonexistent id returns 404.\n     * Test GET / returns 200 with ImageListResponse shape.\n     * Test GET /appearance/{companion_id} returns 200 with AppearanceResponse shape.\n     * Test PATCH /appearance/{companion_id} with partial fields returns 200.\n     * Test PUT /appearance/{companion_id}/seed returns 200 with updated seed.\n     * Test GET /outfits/{appearance_id} returns 200 with OutfitListResponse shape.\n     * Test POST /outfits/{appearance_id} returns 200 with OutfitResponse shape.\n     * Test PUT /outfits/{appearance_id}/{outfit_id}/activate returns 200.",
+  "acceptance_criteria": [
+    "tests/test_visual.py exists with five test classes",
+    "TestVisualProviderInterface covers ABC instantiation error, provider registration, and model identifier validation",
+    "TestAppearanceManager covers all update methods, build_generation_prompt, lock_seed, and OutfitManager operations",
+    "TestImageGenerationService covers generate_and_persist database write, seed override, and generate_only no-write",
+    "TestImageUnderstandingService covers understand_and_persist database write, question passthrough, and understand_only no-write",
+    "TestImageAPI covers generate, understand, get-image, list-images, appearance CRUD, and outfit endpoints including error cases",
+    "python -m py_compile tests/test_visual.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "tests/test_visual.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside tests/test_visual.py",
+    "modify any chatbot/ source file",
+    "modify any react_ui/ source file",
+    "add new third-party dependencies",
+    "require a running Postgres, Redis, or external service for test execution",
+    "call real image generation or vision APIs",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "TestVisualProviderInterface",
+    "TestAppearanceManager",
+    "TestImageGenerationService",
+    "TestImageUnderstandingService",
+    "TestImageAPI"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use starlette TestClient for API tests",
+      "use pytest fixtures for app, appearance_manager, and sample_appearance",
+      "use unittest.mock or pytest-mock for provider mocking",
+      "use io.BytesIO for mock image file uploads",
+      "assert on response JSON shape, status codes, and service side effects"
+    ],
+    "forbidden": [
+      "call real LLM providers, embedding services, or image generation/vision APIs",
+      "require a running database server for tests to pass",
+      "add integration tests that require network access"
+    ]
+  },
+  "dependencies": [
+    "b.1",
+    "b.2",
+    "b.3",
+    "b.4",
+    "b.5",
+    "b.6",
+    "b.7",
+    "b.8"
+  ],
+  "task_timeout_seconds": 1200
+}

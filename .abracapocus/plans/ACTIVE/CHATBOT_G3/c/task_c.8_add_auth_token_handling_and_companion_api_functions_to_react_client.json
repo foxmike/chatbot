@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "task_id": "c.8",
+  "phase": "Q",
+  "phase_id": "c",
+  "title": "Add auth token handling and companion API functions to React client",
+  "description": "Modify react_ui/src/api/client.ts to add authentication API functions (signup, login, logout, fetchMe) with automatic Bearer token attachment, token storage management, and companion CRUD API functions.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md\n- react_ui/src/api/client.ts (existing API client \u2014 understand the fetch wrapper pattern, base URL configuration, TypeScript conventions, and existing function signatures)\n- chatbot/api/auth.py (created by task c.7 \u2014 endpoint paths, request bodies, response shapes)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY react_ui/src/api/client.ts. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Open react_ui/src/api/client.ts and inspect:\n   - The fetch wrapper or base fetch function used by all existing API calls.\n   - How the base URL is configured (empty string, env var, or constant).\n   - TypeScript naming conventions for interfaces vs types.\n   - Error handling patterns (ApiError class, try/catch, etc.).\n   - Existing function export patterns.\n\n2. Add TypeScript interfaces/types:\n   - `User`: user_id (string), username (string), email (string).\n   - `AuthTokens`: access_token (string), token_type (string), user (User).\n   - `Companion`: companion_id (string), user_id (string), name (string), persona (string | null), description (string | null), avatar_url (string | null).\n   - `CompanionCreate`: name (string), persona (string | null), description (string | null), avatar_url (string | null).\n\n3. Add token management:\n   - An internal module-scoped variable `let accessToken: string | null = null`.\n   - `setAccessToken(token: string): void` \u2014 stores token in the module variable and in localStorage under key 'auth_token'.\n   - `getAccessToken(): string | null` \u2014 returns the module variable, initializing from localStorage on first call.\n   - `clearAccessToken(): void` \u2014 clears the module variable and removes 'auth_token' from localStorage.\n   - On module load, initialize `accessToken` from localStorage.getItem('auth_token').\n\n4. Extend the fetch wrapper to automatically attach the Bearer token:\n   - If accessToken is set, add `Authorization: Bearer ${accessToken}` header to all requests.\n   - This should work without changing existing function signatures \u2014 modify the underlying fetch wrapper function (e.g., `fetchApi`) to include the header conditionally.\n\n5. Add auth API functions:\n   - `async signup(username: string, email: string, password: string): Promise<AuthTokens>`:\n     * POST /auth/signup with JSON body { username, email, password }.\n     * On success, call setAccessToken(response.access_token) and return the AuthTokens.\n   - `async login(email: string, password: string): Promise<AuthTokens>`:\n     * POST /auth/login with JSON body { email, password }.\n     * On success, call setAccessToken(response.access_token) and return the AuthTokens.\n   - `async logout(): Promise<void>`:\n     * POST /auth/logout.\n     * Call clearAccessToken().\n   - `async fetchMe(): Promise<User>`:\n     * GET /auth/me.\n     * Returns User.\n\n6. Add companion API functions:\n   - `async createCompanion(data: CompanionCreate): Promise<Companion>`: POST /companions.\n   - `async listCompanions(): Promise<Companion[]>`: GET /companions.\n   - `async getCompanion(companionId: string): Promise<Companion>`: GET /companions/{companionId}.\n   - `async updateCompanion(companionId: string, data: Partial<CompanionCreate>): Promise<Companion>`: PATCH /companions/{companionId}.\n   - `async deleteCompanion(companionId: string): Promise<void>`: DELETE /companions/{companionId}.\n\n7. DO NOT remove, rename, or change the signature of any existing exported function in client.ts.",
+  "acceptance_criteria": [
+    "react_ui/src/api/client.ts exports signup, login, logout, fetchMe functions",
+    "react_ui/src/api/client.ts exports User, AuthTokens, Companion, CompanionCreate types",
+    "react_ui/src/api/client.ts exports setAccessToken, getAccessToken, clearAccessToken",
+    "react_ui/src/api/client.ts exports createCompanion, listCompanions, getCompanion, updateCompanion, deleteCompanion",
+    "Access token is automatically attached to all authenticated API calls via fetchApi",
+    "Existing API functions in client.ts are unchanged in name and signature",
+    "Token is persisted to localStorage and restored on module load",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/api/client.ts"
+  ],
+  "forbidden_changes": [
+    "modify any file outside react_ui/src/api/client.ts",
+    "remove, rename, or change the signature of any existing exported function",
+    "add new third-party npm dependencies",
+    "introduce axios, react-query, or any new HTTP library",
+    "change the base URL configuration or fetch wrapper pattern for existing calls",
+    "store passwords or plaintext credentials in localStorage",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "signup",
+    "login",
+    "logout",
+    "fetchMe",
+    "setAccessToken",
+    "getAccessToken",
+    "clearAccessToken",
+    "fetchApi",
+    "User",
+    "AuthTokens",
+    "Companion",
+    "CompanionCreate",
+    "createCompanion",
+    "listCompanions",
+    "getCompanion",
+    "updateCompanion",
+    "deleteCompanion"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add TypeScript interfaces matching API response shapes",
+      "implement localStorage-based token persistence",
+      "extend the fetch wrapper with automatic Authorization header",
+      "add new API call functions alongside existing ones"
+    ],
+    "forbidden": [
+      "introduce new HTTP client or data-fetching library",
+      "change existing function signatures or exports",
+      "implement token refresh or session keep-alive",
+      "add routing or navigation logic"
+    ]
+  },
+  "dependencies": [
+    "c.7"
+  ],
+  "task_timeout_seconds": 1200
+}

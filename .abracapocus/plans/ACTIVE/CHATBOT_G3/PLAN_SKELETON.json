@@ -1,0 +1,85 @@
+{
+  "plan_name": "CHATBOT",
+  "purpose": "Group 3 of the companion buildout, run after Group 2 (phases l, m, n) is accepted. This group gives the companion agency, scene-based interaction, and multi-user readiness. Phase O adds proactivity: a scheduler that decides when to initiate using rituals, timeline, and per-user initiative settings; proactive check-in generation grounded in recent context; a notifications model and pollable delivery queue (reminders, emotional check-ins, continuation prompts, milestone and event callbacks); and initiative controls (never proactive, reminders only, gentle check-ins, frequent, high-energy). Phase P adds a roleplay and room model: a scene state engine (location, activity, tone, intensity, pause/resume), roleplay memory isolation so scene content does not pollute durable factual memory unless explicitly marked, and typed rooms (one-on-one chat, roleplay scene, project room, emotional support room, memory review room) with per-room memory policy. Phase Q makes the system deployable to real users: authentication, per-user data isolation formalizing the user_id partition that was deferred at schema time, and multiple companions per user with private per-companion memory and optional shared room memory. All work lands inside the existing chatbot package and react_ui frontend; the stack is unchanged. Background scheduling reuses the consolidation-worker pattern from phase f.",
+  "async_strategy": "Phases are dependency-ordered synchronous boundaries. Phase Q runs last in this group because retrofitting auth and user_id scoping touches many existing endpoints and must not race feature work. Within each phase, new domain modules and database model edits form wave 1 on disjoint allowed_write_paths; migrations are wave 2 depending on models; routers and modules consuming the new code are wave 2; existing shared files that must be extended (chatbot/core/turn.py, chatbot/memory/retrieval.py, chatbot/api/app.py, chatbot/api/sessions.py, chatbot/api/chat.py, react_ui/src/api/client.ts) are each owned by exactly one task in a later wave to avoid collisions. React components run after the client extension lands.",
+  "cost_estimate": "balanced, default model openrouter/deepseek/deepseek-v4-pro via opencode_cli. Domain modules and endpoint wiring route to deepseek v4 pro. Higher-judgment logic — chatbot/agency/checkins.py, chatbot/rooms/roleplay.py, and the chatbot/auth/security.py and user_id scoping work in phase Q — may route to a stronger profile if review warrants. After materialization, edit documentation tasks to openrouter/google/gemma-4-31b-it and test-only tasks to openrouter/moonshotai/kimi-k2.5.",
+  "operator_questions": [
+    "Notification delivery for v1: a pollable in-app feed only, or also real push (web push / mobile / email), which adds delivery infrastructure beyond this group's scope?",
+    "Proactive initiation trigger: time-based scheduler (e.g. cron-like windows), event-based (milestone/promise due), or both, and what is the default initiative level for a new relationship?",
+    "Roleplay memory isolation default: should scene content be excluded from durable memory by default and only promoted when the user marks it, or included unless marked private?",
+    "Auth model for v1: email+password with local sessions/JWT, or also third-party OAuth, and single-tenant-per-deployment vs full multi-tenant with hard user_id partitioning everywhere now?",
+    "Multiple companions: is shared cross-companion room memory in scope for v1, or should each companion be fully memory-isolated until a later phase?"
+  ],
+  "phases": [
+    {
+      "phase_id": "phase_o",
+      "goal": "Agency and proactivity. A scheduler that decides when to initiate from rituals, timeline, and initiative settings. Proactive check-in generation grounded in recent context. A notifications model with a pollable delivery queue (reminders, emotional check-ins, continuation prompts, milestone/event callbacks). Per-user initiative controls from never-proactive to high-energy. Reuses the background-worker pattern from phase f for scheduling.",
+      "expected_changed_files": [
+        "chatbot/agency/__init__.py",
+        "chatbot/agency/scheduler.py",
+        "chatbot/agency/checkins.py",
+        "chatbot/agency/notifications.py",
+        "chatbot/agency/initiative.py",
+        "chatbot/db/models.py",
+        "migrations/versions/0006_agency.py",
+        "chatbot/api/agency.py",
+        "chatbot/api/app.py",
+        "react_ui/src/api/client.ts",
+        "react_ui/src/components/NotificationFeed.tsx",
+        "react_ui/src/components/InitiativeSettings.tsx",
+        "tests/test_agency.py"
+      ],
+      "async_notes": "Wave 1 (disjoint): agency/__init__.py + scheduler.py as one package task, checkins.py, notifications.py, initiative.py, and db/models.py agency tables. Wave 2: the 0006 migration (depends on models.py), api/agency.py endpoints (depends on checkins/notifications/initiative), and client.ts extension. Wave 3: api/app.py registering the agency router (depends on agency.py), and the NotificationFeed and InitiativeSettings React components in parallel (depend on client.ts). Test fan-in last.",
+      "risk_notes": "For v1, notifications are a pollable in-app feed unless the operator opts into push infrastructure, which is out of this group's scope. db/models.py and api/app.py single-owner. The 0006 migration must be reversible with its real head revision verified at materialize time. Proactive generation must not spam; respect the initiative-level default from the operator answer.",
+      "estimated_task_count": 10
+    },
+    {
+      "phase_id": "phase_p",
+      "goal": "Roleplay and room model. A scene state engine (location, activity, tone, intensity, pause/resume across sessions). A roleplay engine with scene-aware persona and memory isolation so scene content does not pollute durable factual memory unless marked. Typed rooms (one-on-one chat, roleplay scene, project room, emotional support room, memory review room) with per-room memory policy and room-scoped retrieval. UI for room switching and scene control.",
+      "expected_changed_files": [
+        "chatbot/rooms/__init__.py",
+        "chatbot/rooms/room.py",
+        "chatbot/rooms/scene.py",
+        "chatbot/rooms/roleplay.py",
+        "chatbot/db/models.py",
+        "migrations/versions/0007_rooms_scenes.py",
+        "chatbot/memory/retrieval.py",
+        "chatbot/core/turn.py",
+        "chatbot/api/rooms.py",
+        "chatbot/api/app.py",
+        "react_ui/src/api/client.ts",
+        "react_ui/src/components/RoomSwitcher.tsx",
+        "react_ui/src/components/SceneControls.tsx",
+        "tests/test_rooms_roleplay.py"
+      ],
+      "async_notes": "Wave 1 (disjoint): rooms/__init__.py + room.py as one package task, scene.py, and db/models.py room/scene tables. Wave 2: roleplay.py (depends on scene.py), the 0007 migration (depends on models.py), retrieval.py room-scoped filtering (depends on room.py), api/rooms.py endpoints (depends on room.py and scene.py), and client.ts extension. Wave 3: chatbot/core/turn.py room/scene-aware branching (depends on room.py, scene.py, roleplay.py, and the retrieval task), api/app.py registering the rooms router (depends on rooms.py), and the RoomSwitcher and SceneControls React components (depend on client.ts). Test fan-in last.",
+      "risk_notes": "retrieval.py and turn.py are core differentiators; each is owned by one task and the changes must be additive and room-gated so default one-on-one behavior is unchanged. db/models.py and api/app.py single-owner. The 0007 migration must be reversible with its real head revision verified at materialize time. Honor the roleplay memory-isolation default from the operator answer.",
+      "estimated_task_count": 11
+    },
+    {
+      "phase_id": "phase_q",
+      "goal": "Authentication, per-user data isolation, and multiple companions. User accounts with credential storage and token issue/verify, a FastAPI current-user dependency, and consistent user_id scoping across sessions and chat. Multiple companions per user with private per-companion memory and optional shared room memory. Formalizes the user_id partitioning deferred at schema time. UI for auth and companion selection.",
+      "expected_changed_files": [
+        "chatbot/auth/__init__.py",
+        "chatbot/auth/models.py",
+        "chatbot/auth/security.py",
+        "chatbot/auth/dependencies.py",
+        "chatbot/companions/__init__.py",
+        "chatbot/companions/companion.py",
+        "chatbot/db/models.py",
+        "migrations/versions/0008_auth_companions.py",
+        "chatbot/api/auth.py",
+        "chatbot/api/app.py",
+        "chatbot/api/sessions.py",
+        "chatbot/api/chat.py",
+        "react_ui/src/api/client.ts",
+        "react_ui/src/components/AuthScreen.tsx",
+        "react_ui/src/components/CompanionSelector.tsx",
+        "tests/test_auth_companions.py"
+      ],
+      "async_notes": "Wave 1 (disjoint): auth/__init__.py + models.py as one package task, security.py, companions/__init__.py + companion.py as one package task, and db/models.py auth/companion tables plus user_id foreign keys. Wave 2: auth/dependencies.py current-user (depends on auth models + security), the 0008 migration (depends on models.py), api/auth.py signup/login/logout (depends on auth models + security), and client.ts auth token handling. Wave 3: api/app.py registering the auth router and applying the auth dependency (depends on dependencies.py and auth.py), api/sessions.py scoping to current user and companion (depends on dependencies.py and companion.py), api/chat.py scoping to current user and companion (depends on dependencies.py and companion.py) — these three are disjoint files — and the AuthScreen and CompanionSelector React components (depend on client.ts). Test fan-in last.",
+      "risk_notes": "Highest-risk phase in the group: retrofitting auth and user_id scoping onto a schema that began single-tenant. user_id partitioning must be applied consistently across every query path or data leaks across users. sessions.py, chat.py, app.py, and db/models.py are each single-owner. The 0008 migration must be reversible with its real head revision verified at materialize time and must backfill or default user_id for existing rows safely. Validate the auth model choice from the operator answer before running the phase.",
+      "estimated_task_count": 12
+    }
+  ]
+}

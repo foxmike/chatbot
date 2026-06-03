@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "task_id": "c.6",
+  "phase": "Q",
+  "phase_id": "c",
+  "title": "Create Alembic migration 0008 for auth and companion tables",
+  "description": "Create migrations/versions/0008_auth_companions.py implementing an Alembic migration that creates the users, user_sessions, and companions tables and adds user_id/companion_id foreign key columns to existing session and chat_message tables. The migration must be reversible and must handle backfill of existing rows safely.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md\n- chatbot/db/models.py (updated by task c.4 \u2014 exact table names, column names, and types for User, UserSession, Companion, and the new FK columns on Session and ChatMessage)\n- migrations/versions/ (all existing migration files \u2014 determine the current head revision number, the naming convention, and the migration file structure)\n- migrations/env.py (Alembic environment configuration)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY migrations/versions/0008_auth_companions.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nIMPORTANT \u2014 Verify the real head revision number before writing. The filename 0008_auth_companions.py is a placeholder. Inspect the existing migrations/versions/ directory to determine the correct next revision sequence number and naming convention. If the highest existing revision is 0007_something.py, use 0008. If it uses a different numbering scheme, follow that convention instead.\n\nImplementation details:\n\n1. Inspect migrations/versions/ to find the current head revision ID and understand:\n   - The revision ID format (hex string, sequential number, etc.).\n   - The import conventions for Alembic ops and SQLAlchemy types.\n   - The naming convention for migration files.\n   - Whether migrations use `op.` operations or raw SQL.\n\n2. Create the migration file with:\n   - `revision`: a new unique revision ID.\n   - `down_revision`: the current head revision ID from step 1.\n   - `branch_labels` and `depends_on`: None unless conventions require otherwise.\n\n3. `upgrade()` must:\n   a. Create the `users` table with all columns from task c.4 (user_id, username unique, email unique, password_hash, created_at, updated_at).\n   b. Create the `user_sessions` table with all columns from task c.4 (session_id, user_id FK, token_hash, expires_at, created_at, revoked).\n   c. Create the `companions` table with all columns from task c.4 (companion_id, user_id FK, name, persona, description, avatar_url, created_at, updated_at).\n   d. Add column `user_id` (String(36), nullable=True) to the sessions table with a ForeignKey to users.user_id and an index.\n   e. Add column `companion_id` (String(36), nullable=True) to the sessions table with a ForeignKey to companions.companion_id and an index.\n   f. Add column `user_id` (String(36), nullable=True) to the chat_message/turn table with a ForeignKey to users.user_id and an index.\n   g. Add column `companion_id` (String(36), nullable=True) to the chat_message/turn table with a ForeignKey to companions.companion_id and an index.\n\n4. `downgrade()` must:\n   a. Drop the companion_id and user_id columns from the chat_message/turn table.\n   b. Drop the companion_id and user_id columns from the sessions table.\n   c. Drop the companions table.\n   d. Drop the user_sessions table.\n   e. Drop the users table.\n\n5. DO NOT add INSERT, UPDATE, or DELETE data manipulation to the migration \u2014 only DDL. Existing rows will have NULL user_id and companion_id, which is acceptable (nullable columns).\n\n6. Use the exact table names from chatbot/db/models.py \u2014 do not guess or fabricate table names.",
+  "acceptance_criteria": [
+    "migrations/versions/0008_auth_companions.py exists with correct revision chain",
+    "upgrade() creates users, user_sessions, and companions tables with all specified columns",
+    "upgrade() adds user_id and companion_id nullable FK columns to the sessions table",
+    "upgrade() adds user_id and companion_id nullable FK columns to the chat_message/turn table",
+    "downgrade() drops all new columns and tables in reverse order restoring original schema",
+    "The migration uses the exact table names from chatbot/db/models.py",
+    "python -m py_compile migrations/versions/0008_auth_companions.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "migrations/versions/0008_auth_companions.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside migrations/versions/0008_auth_companions.py",
+    "modify existing migration files",
+    "add INSERT, UPDATE, or DELETE data manipulation to the migration",
+    "alter any existing column on existing tables",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [],
+  "decision_budget": {
+    "allowed": [
+      "use op.create_table, op.drop_table, op.add_column, op.drop_column",
+      "use sa.Column, sa.ForeignKey, sa.String, sa.DateTime, sa.Boolean, sa.Text, sa.UniqueConstraint",
+      "use server_default and onupdate for DateTime columns",
+      "create indexes on FK columns",
+      "follow existing migration file import and structure conventions"
+    ],
+    "forbidden": [
+      "add data migration or backfill logic",
+      "alter or recreate existing tables",
+      "change column types of existing columns",
+      "add constraints or indexes beyond column definitions"
+    ]
+  },
+  "dependencies": [
+    "c.4"
+  ],
+  "task_timeout_seconds": 900
+}

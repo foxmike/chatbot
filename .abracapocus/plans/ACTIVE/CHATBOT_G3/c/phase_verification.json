@@ -1,0 +1,134 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "compile_auth_init",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/auth/__init__.py"
+        ]
+      },
+      {
+        "name": "compile_auth_models",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/auth/models.py"
+        ]
+      },
+      {
+        "name": "compile_auth_security",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/auth/security.py"
+        ]
+      },
+      {
+        "name": "compile_auth_dependencies",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/auth/dependencies.py"
+        ]
+      },
+      {
+        "name": "compile_companions_init",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/companions/__init__.py"
+        ]
+      },
+      {
+        "name": "compile_companions",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/companions/companion.py"
+        ]
+      },
+      {
+        "name": "compile_db_models",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/db/models.py"
+        ]
+      },
+      {
+        "name": "compile_migration",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "migrations/versions/0008_auth_companions.py"
+        ]
+      },
+      {
+        "name": "compile_auth_api",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/api/auth.py"
+        ]
+      },
+      {
+        "name": "compile_app",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/api/app.py"
+        ]
+      },
+      {
+        "name": "compile_sessions",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/api/sessions.py"
+        ]
+      },
+      {
+        "name": "compile_chat",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/api/chat.py"
+        ]
+      },
+      {
+        "name": "compile_test_auth_companions",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "tests/test_auth_companions.py"
+        ]
+      },
+      {
+        "name": "pytest_auth_companions",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "tests/test_auth_companions.py",
+          "-x",
+          "-v"
+        ]
+      }
+    ]
+  }
+}

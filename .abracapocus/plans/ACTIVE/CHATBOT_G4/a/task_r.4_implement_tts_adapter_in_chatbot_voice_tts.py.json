@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "task_id": "r.4",
+  "phase": "R",
+  "phase_id": "r",
+  "title": "Implement TTS adapter in chatbot/voice/tts.py",
+  "description": "Create chatbot/voice/tts.py implementing a concrete TTS adapter that subclasses TTSProvider from base.py and integrates the emotional cadence mapper from cadence.py.\n\nThe module must define:\n- A `TTSAdapter` class that extends `TTSProvider` (from tasks r.1) and implements `synthesize()`. The adapter accepts a provider_id and model_id at construction, validates them via the inherited `validate_identifier()` classmethod, and stores them.\n- The `synthesize()` method must: (1) parse mood/mode from the request's voice_params dict (keys: 'mood', 'mode'), (2) compute a CadenceProfile via CadenceMapper.map(), (3) merge user voice preferences (voice_speed, voice_pitch from DB) on top of cadence parameters, (4) construct an API call to the configured TTS provider/model, (5) return a VoiceSynthesisResult.\n- The adapter must handle the 'voice_enabled' preference: if voice_params or DB indicates voice is disabled, raise a ValueError or return a result with None audio_data.\n- A `validate_identifier()` implementation that checks the provider_id/model_id pair against a hardcoded list of known valid TTS providers (initially: openai/tts-1, openai/tts-1-hd, elevenlabs/monolingual-v1).\n- The actual API call body may be a placeholder (raise NotImplementedError with a descriptive message) \u2014 the adapter must be structurally complete and importable but does not need to make real HTTP calls. The synthesis method's signature, type flow, and cadence integration must be correct.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- chatbot/voice/__init__.py and base.py (created by task r.1) for TTSProvider ABC and type definitions\n- chatbot/voice/cadence.py (created by task r.2) for CadenceMapper and CadenceProfile\n- chatbot/db/models.py (updated by task r.3) for VoicePreferences columns\n- chatbot/providers/ (any existing provider implementations) for adapter patterns\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/voice/tts.py exists and defines TTSAdapter extending TTSProvider",
+    "TTSAdapter implements synthesize() with cadence mapping and self.params merging",
+    "TTSAdapter raises ValueError when voice is disabled",
+    "TTSAdapter.validate_identifier() returns True for known provider/model pairs and False for unknown",
+    "Python imports of TTSAdapter resolve correctly",
+    "python -m py_compile chatbot/voice/tts.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/voice/tts.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/voice/tts.py",
+    "add new third-party dependencies (httpx/aiohttp for API calls is acceptable if needed, but placeholder is fine too)",
+    "modify chatbot/voice/base.py or cadence.py",
+    "change the Abracapocus runtime, orchestrator, or backends",
+    "make real API calls that require credentials"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "extend TTSProvider ABC",
+      "call CadenceMapper.map()",
+      "merge user preferences into voice_params",
+      "use placeholder API call"
+    ],
+    "forbidden": [
+      "introduce new framework",
+      "modify cadence.py or base.py",
+      "make real HTTP calls"
+    ]
+  },
+  "dependencies": [
+    "r.1",
+    "r.2"
+  ],
+  "task_timeout_seconds": 900
+}

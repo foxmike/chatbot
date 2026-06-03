@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "task_id": "r.3",
+  "phase": "R",
+  "phase_id": "r",
+  "title": "Add voice preference fields to chatbot/db/models.py",
+  "description": "Extend the chatbot/db/models.py models with voice preference columns for TTS and STT continuity.\n\nAdd a `VoicePreferences` SQLAlchemy model (or extend the existing user/companion model, whichever the file currently uses for per-user settings) with:\n- user_id: Column matching the project's FK convention (unique, indexed)\n- tts_provider_id: Column(String(64), nullable=True, server_default=None) \u2014 preferred TTS provider\n- tts_model_id: Column(String(128), nullable=True, server_default=None) \u2014 preferred TTS model\n- stt_provider_id: Column(String(64), nullable=True, server_default=None) \u2014 preferred STT provider\n- stt_model_id: Column(String(128), nullable=True, server_default=None) \u2014 preferred STT model\n- voice_speed: Column(Float, nullable=True, server_default=None) \u2014 user-preferred speed multiplier\n- voice_pitch: Column(Float, nullable=True, server_default=None) \u2014 user-preferred pitch multiplier\n- voice_enabled: Column(Boolean, nullable=False, server_default='true') \u2014 voice synthesis toggle\n- created_at: Column(DateTime, nullable=False, server_default=func.now())\n- updated_at: Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())\n\nIf the existing models file already has a per-user preferences table, add these columns to that table instead of creating a new table. Follow the exact base class, column naming, and import conventions of the existing models.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- chatbot/db/models.py to understand the current model classes, base class, primary key convention, and column style\n- chatbot/voice/base.py (created by task r.1) for provider_id and model_id naming conventions\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.\n\nSINGLE-OWNER FILE: chatbot/db/models.py is owned exclusively by this task in this phase. No other task may modify it.",
+  "acceptance_criteria": [
+    "chatbot/db/models.py has a VoicePreferences model (or equivalent existing model extended with voice preference columns)",
+    "Voice preference columns include tts_provider_id, tts_model_id, stt_provider_id, stt_model_id, voice_speed, voice_pitch, voice_enabled",
+    "All new columns have safe defaults (None or 'true' where appropriate)",
+    "Existing model classes and columns in models.py are unchanged",
+    "python -m py_compile chatbot/db/models.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/db/models.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/db/models.py",
+    "remove or rename existing columns",
+    "break the pgvector column or embedding functionality",
+    "change non-voice-related models",
+    "add new third-party dependencies"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add SQLAlchemy Column definitions",
+      "set server_default values",
+      "add nullable columns",
+      "create a new table or extend existing table"
+    ],
+    "forbidden": [
+      "alter pgvector column",
+      "drop existing columns",
+      "change table names of existing models"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

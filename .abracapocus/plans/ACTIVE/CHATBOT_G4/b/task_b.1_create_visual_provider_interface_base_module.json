@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "task_id": "b.1",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Create visual provider interface base module",
+  "description": "Create chatbot/visual/__init__.py and chatbot/visual/base.py defining the visual provider interface hierarchy for image generation and image understanding. Mirror the existing LLM Provider pattern with the same exact-identifier validation discipline.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/providers/ (existing LLM provider base classes and provider model validation patterns)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/visual/__init__.py and chatbot/visual/base.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create chatbot/visual/__init__.py with:\n   - Module docstring: 'Visual modality package \u2014 image generation, image understanding, appearance management, and visual identity.'\n   - Re-export the public symbols from base.py so callers can do `from chatbot.visual import VisualProvider, ImageGenerationProvider, ImageUnderstandingProvider, VisualProviderModel, VisualModelIdentifier`.\n\n2. Create chatbot/visual/base.py with:\n   - Module docstring: 'Visual provider interface hierarchy. Defines abstract base classes for image-generation and image-understanding providers, plus provider model validation that mirrors the LLM Provider pattern.'\n   - A `VisualModelIdentifier` Pydantic BaseModel with: provider (str, min_length=1), model (str, min_length=1). Add a __str__ method returning f'{provider}/{model}'.\n   - A `validate_model_identifier(identifier: str) -> VisualModelIdentifier` function that:\n     * Parses a provider/model string in 'provider/model' format.\n     * Raises ValueError with message 'Invalid visual model identifier: expected provider/model format' if the string does not contain exactly one '/' with non-empty provider and model parts.\n     * Returns a VisualModelIdentifier.\n   - An abstract base class `VisualProvider` (ABC):\n     * `__init__(self, identifier: VisualModelIdentifier)`: stores the identifier.\n     * Abstract property `provider_name: str` that returns a human-readable provider label.\n     * Property `identifier: VisualModelIdentifier`.\n     * Property `provider_model_string: str` that returns str(self.identifier).\n   - An abstract base class `ImageGenerationProvider(VisualProvider)`:\n     * Abstract async method `generate(prompt: str, negative_prompt: str | None = None, width: int = 512, height: int = 512, seed: int | None = None) -> ImageGenerationResult`.\n     * The method must accept an optional appearance profile parameter in a future task \u2014 declare an `appearance_profile: dict | None = None` parameter on generate that defaults to None and is passed through but not yet consumed.\n   - An abstract base class `ImageUnderstandingProvider(VisualProvider)`:\n     * Abstract async method `understand(image_data: bytes, mime_type: str, question: str | None = None) -> ImageUnderstandingResult`.\n   - `ImageGenerationResult` dataclass with: image_data (bytes), mime_type (str), seed_used (int | None), prompt_used (str), model_used (str), width (int), height (int), generation_time_ms (float).\n   - `ImageUnderstandingResult` dataclass with: description (str), detected_objects (list[str]), detected_text (str | None), scene_category (str | None), confidence (float), model_used (str), processing_time_ms (float).\n   - A `VISUAL_PROVIDER_REGISTRY: dict[str, type[VisualProvider]]` dict that maps provider name strings to provider subclasses, following the same registry pattern as the LLM providers.\n   - A function `register_visual_provider(provider_cls: type[VisualProvider]) -> type[VisualProvider]` that acts as a class decorator: registers the class in VISUAL_PROVIDER_REGISTRY under provider_cls.provider_name and returns the class unchanged.",
+  "acceptance_criteria": [
+    "chatbot/visual/__init__.py exists and re-exports public symbols from base.py",
+    "chatbot/visual/base.py defines VisualModelIdentifier with provider and model fields plus str method",
+    "chatbot/visual/base.py defines validate_model_identifier that raises on invalid provider/model format",
+    "chatbot/visual/base.py defines VisualProvider, ImageGenerationProvider, ImageUnderstandingProvider ABCs",
+    "chatbot/visual/base.py defines ImageGenerationResult and ImageUnderstandingResult dataclasses",
+    "chatbot/visual/base.py defines VISUAL_PROVIDER_REGISTRY and register_visual_provider decorator",
+    "ImageGenerationProvider.generate accepts appearance_profile parameter defaulting to None",
+    "python -m py_compile chatbot/visual/__init__.py passes",
+    "python -m py_compile chatbot/visual/base.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/visual/__init__.py",
+    "chatbot/visual/base.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/visual/__init__.py and chatbot/visual/base.py",
+    "modify chatbot/providers/ files",
+    "add new third-party dependencies",
+    "create concrete provider implementations (only abstract base classes)",
+    "call any image generation or understanding API",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "VisualModelIdentifier",
+    "validate_model_identifier",
+    "VisualProvider",
+    "ImageGenerationProvider",
+    "ImageUnderstandingProvider",
+    "ImageGenerationResult",
+    "ImageUnderstandingResult",
+    "VISUAL_PROVIDER_REGISTRY",
+    "register_visual_provider"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use abc.ABC and abc.abstractmethod for abstract base classes",
+      "use Pydantic BaseModel for VisualModelIdentifier",
+      "use dataclasses for result types",
+      "mirror the existing LLM provider registry pattern",
+      "use Literal type hints where appropriate"
+    ],
+    "forbidden": [
+      "introduce concrete provider implementations",
+      "add HTTP clients or API call logic",
+      "change or extend the LLM provider interface",
+      "invent new validation patterns beyond what LLM providers use"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

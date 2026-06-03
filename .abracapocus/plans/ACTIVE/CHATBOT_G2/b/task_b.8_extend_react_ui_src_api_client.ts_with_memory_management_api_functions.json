@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "task_id": "b.8",
+  "phase": "M",
+  "phase_id": "b",
+  "title": "Extend react_ui/src/api/client.ts with memory management API functions",
+  "description": "Extend react_ui/src/api/client.ts with typed API functions for the memory management endpoints defined in chatbot/api/memory.py (task b.7).\n\nAdd TypeScript functions that call the following endpoints using the existing fetchApi wrapper pattern from the client:\n- getMemories(companionId, pagination, privacyFilter)\n- toggleMemoryPin(memoryId, pinned)\n- deleteMemory(memoryId)\n- updateMemory(memoryId, data)\n- setMemoryPrivacy(memoryId, privacyLevel)\n- doNotRemember(memoryId)\n- rememberForever(memoryId)\n- correctMemory(memoryId, correction)\n- searchMemories(query, filters)\n- exportMemories(filters, format)\n- getMemoryProvenance(memoryId)\n\nDefine TypeScript interfaces/types for request bodies and response shapes. Match the API contract from the FastAPI router.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- react_ui/src/api/client.ts for the existing fetchApi pattern, type imports, and function conventions\n- react_ui/src/types/ for existing type definitions\n- chatbot/api/memory.py for the exact endpoint paths, methods, and request/response shapes\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.\n\nSINGLE-OWNER FILE: react_ui/src/api/client.ts is owned exclusively by this task in this phase. No other task may modify it.",
+  "acceptance_criteria": [
+    "react_ui/src/api/client.ts includes memory API functions matching the endpoint list",
+    "All functions use the existing fetchApi wrapper pattern",
+    "TypeScript interfaces/types are defined for memory API request/response shapes",
+    "npx tsc --noEmit (run from react_ui/) passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/api/client.ts"
+  ],
+  "forbidden_changes": [
+    "modify any file outside react_ui/src/api/client.ts",
+    "add new npm dependencies",
+    "change existing non-memory API functions",
+    "modify the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add TypeScript functions",
+      "add TypeScript interfaces/types",
+      "use native fetch"
+    ],
+    "forbidden": [
+      "introduce new HTTP client library",
+      "change auth token handling pattern"
+    ]
+  },
+  "dependencies": [
+    "b.7"
+  ],
+  "task_timeout_seconds": 900
+}

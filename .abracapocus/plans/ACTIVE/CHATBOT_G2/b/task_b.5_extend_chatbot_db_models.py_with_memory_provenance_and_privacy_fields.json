@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "task_id": "b.5",
+  "phase": "M",
+  "phase_id": "b",
+  "title": "Extend chatbot/db/models.py with memory provenance and privacy fields",
+  "description": "Extend the memory-related models in chatbot/db/models.py with provenance and privacy columns.\n\nAdd fields for provenance tracking: source type (explicit vs inferred), source turn ID, confidence score, created_at (if not already present). Add privacy level column (private, temporary, permanent) and a pinned boolean. All new columns must default to safe values (e.g., source_type defaults to 'inferred', confidence defaults to 0.0, privacy defaults to 'temporary') so existing rows with null values are handled.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- chatbot/db/models.py to understand the current memory model, table structure, and ORM patterns already in use\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.\n\nSINGLE-OWNER FILE: chatbot/db/models.py is owned exclusively by this task in this phase. No other task may modify it.",
+  "acceptance_criteria": [
+    "chatbot/db/models.py memory table model includes provenance columns (source_type, source_turn_id, confidence)",
+    "chatbot/db/models.py memory table model includes privacy_level and pinned columns",
+    "All new columns have safe defaults for existing rows",
+    "python -m py_compile chatbot/db/models.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/db/models.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/db/models.py",
+    "remove or rename existing columns",
+    "break the pgvector column or embedding functionality",
+    "change non-memory models",
+    "add new third-party dependencies"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add SQLAlchemy Column definitions",
+      "set server_default values",
+      "add nullable columns"
+    ],
+    "forbidden": [
+      "alter pgvector column",
+      "change table names",
+      "drop existing columns"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

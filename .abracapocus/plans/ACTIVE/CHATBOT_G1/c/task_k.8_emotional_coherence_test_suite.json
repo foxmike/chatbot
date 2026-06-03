@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "task_id": "k.8",
+  "phase": "K",
+  "phase_id": "k",
+  "title": "Emotional coherence test suite",
+  "description": "Create tests/test_emotional.py with pytest tests covering the emotional intelligence modules from tasks k.1\u2013k.7.\n\nTests to include:\n- test_mood_engine_default: default_state() returns warm/neutral baseline\n- test_mood_engine_update_delta_bounds: energy change per turn <= 0.05, closeness <= 0.03\n- test_mood_engine_prompt_hints: to_prompt_hints() returns non-empty string with mood/energy context\n- test_user_state_infer_confidence_cap: confidence never exceeds 0.6\n- test_user_state_infer_empty_input: returns UserState with low confidence when given no messages\n- test_user_state_is_stable: is_stable() returns True after 5+ inferences with stable confidence\n- test_mode_selector_default: returns NORMAL for empty/neutral input\n- test_mode_selector_triggers: verify specific user states trigger correct modes (tired->BEDTIME, frustrated->VENTING, playful->PLAYFUL)\n- test_mode_selector_prompt_hints: to_prompt_hints() returns non-empty mode-specific string\n- test_mode_selector_response_params: get_response_params() returns expected dict keys for each mode\n- test_persona_prompt_backward_compat: calling persona prompt builder without mood/mode produces same output as before\n- test_persona_prompt_mood_injection: mood hints appear in prompt when mood is provided\n- test_persona_prompt_mode_injection: mode hints appear in prompt when mode is provided\n- test_models_emotional_columns: verify chatbot.db.models.Session has mood_state, user_state, conversation_mode columns\n- test_models_log_tables: verify BotMoodLog and UserStateLog are importable and have expected columns\n- test_migration_0002_reversible: parse 0002_emotional_state.py and confirm upgrade() and downgrade() exist\n\nDo not require a running Postgres instance. Tests should use in-memory constructs where possible. Skip live-DB tests with pytest.mark.skipif.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- This task document (task k.8)\n- chatbot/soul/mood.py (produced by task k.1)\n- chatbot/soul/user_state.py (produced by task k.2)\n- chatbot/soul/modes.py (produced by task k.3)\n- chatbot/db/models.py (updated by task k.4)\n- migrations/versions/0002_emotional_state.py (produced by task k.5)\n- chatbot/soul/persona_prompt.py (updated by task k.6)\n- chatbot/core/turn.py (updated by task k.7)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "tests/test_emotional.py exists",
+    "python -m py_compile tests/test_emotional.py passes",
+    "Tests cover mood engine defaults, delta bounds, and prompt hints",
+    "Tests cover user state confidence cap, empty input, and stability",
+    "Tests cover mode selector defaults, triggers (tired/BEDTIME, frustrated/VENTING, playful/PLAYFUL), prompt hints, and response params",
+    "Tests cover persona prompt backward compatibility, mood injection, and mode injection",
+    "Tests cover model emotional columns and log tables",
+    "Tests cover migration 0002 reversibility",
+    "No live Postgres instance is required for any test",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "tests/test_emotional.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside tests/test_emotional.py",
+    "modify any source file under chatbot/ or migrations/",
+    "add new third-party dependencies",
+    "write tests that require a running Postgres instance"
+  ],
+  "dependencies": [
+    "k.1",
+    "k.2",
+    "k.3",
+    "k.4",
+    "k.5",
+    "k.6",
+    "k.7"
+  ],
+  "task_timeout_seconds": 1200,
+  "model": "openrouter/moonshotai/kimi-k2.6"
+}

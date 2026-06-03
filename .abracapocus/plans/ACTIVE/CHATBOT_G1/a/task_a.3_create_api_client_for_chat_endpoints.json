@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "task_id": "a.3",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Create API client for chat endpoints",
+  "description": "Create react_ui/src/api/client.ts as the API client module for chat endpoints.\n\nExport these functions:\n- createSession(): POST to /api/sessions/, returns Promise<CreateSessionResponse>\n- sendMessage(message: string, sessionId: string): POST to /api/chat/, body { message, session_id }, returns Promise<ChatResponse>\n- sendMessageStream(message: string, sessionId: string, onEvent: (event: StreamEvent) => void): fetch /api/chat/stream with ReadableStream, parse SSE events, call onEvent for each, return Promise<void>\n\nUse fetch API. Base URL defaults to '' (empty string, relying on Vite proxy in dev and nginx in production). Parse JSON responses. Throw typed errors when response is not ok: read the JSON error body and construct ApiError.\n\nImport types from '../types': CreateSessionResponse, ChatResponse, StreamEvent, ApiError.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- react_ui/src/types.ts\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "react_ui/src/api/client.ts exists",
+    "createSession, sendMessage, sendMessageStream functions are exported",
+    "sendMessage sends POST to /api/chat/ with correct JSON body",
+    "sendMessageStream parses SSE from a ReadableStream response",
+    "Error responses are handled with typed ApiError rejection",
+    "Import paths reference ../types correctly",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/api/client.ts"
+  ],
+  "forbidden_changes": [
+    "modify react_ui/src/types.ts",
+    "modify any file outside react_ui/src/api/client.ts",
+    "add third-party dependencies not already in package.json"
+  ],
+  "dependencies": [
+    "a.2"
+  ],
+  "task_timeout_seconds": 300
+}

@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "task_id": "t.11",
+  "phase": "T",
+  "phase_id": "c",
+  "title": "Write observability integration tests in tests/test_observability.py",
+  "description": "Create tests/test_observability.py with pytest-based tests covering the tracing, metrics, logs, admin API endpoints, and task-class routing extension.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md\n- tests/ for existing test patterns, conftest.py fixtures, and import conventions\n- chatbot/observability/__init__.py (created/updated by tasks t.1, t.2)\n- chatbot/observability/tracing.py (created by task t.1)\n- chatbot/observability/metrics.py (created by task t.2)\n- chatbot/observability/logs.py (created by task t.2)\n- chatbot/providers/router.py (updated by task t.3)\n- chatbot/db/models.py (updated by task t.4)\n- chatbot/api/admin.py (created by task t.6)\n- chatbot/api/app.py (updated by task t.9)\n- chatbot/core/turn.py (updated by task t.7)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY tests/test_observability.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create tests/test_observability.py with:\n   - Module docstring: 'Integration tests for observability \u2014 tracing, metrics, logs, admin API, and task-class routing.'\n\n2. Test classes:\n\n   a) `TestTraceCollector`:\n      - Verify start_trace creates a trace with unique trace_id.\n      - Verify record_step stores step name and duration.\n      - Verify complete_trace finalizes all fields.\n      - Verify get_trace returns None for unknown trace_id.\n      - Verify list_traces with pagination (limit/offset).\n      - Verify context-manager TraceStep measures duration.\n\n   b) `TestMetricsCollector`:\n      - Verify record_trace updates session metrics.\n      - Verify record_trace updates per-model metrics with token/cost aggregation.\n      - Verify get_model_metrics returns latency percentiles (manually insert sorted latencies to verify).\n      - Verify get_global_summary returns correct aggregates.\n      - Verify get_session_metrics returns None for unknown session.\n      - Verify reset() clears all data.\n\n   c) `TestStructuredLogger`:\n      - Verify log_memory_write creates a memory_write event.\n      - Verify log_contradiction creates a contradiction event with conflict fields.\n      - Verify log_failed_retrieval creates a failed_retrieval event.\n      - Verify query_events with type filter returns only matching events.\n      - Verify query_events with session_id filter.\n      - Verify query_events pagination (limit/offset).\n      - Verify get_event returns None for unknown event_id.\n\n   d) `TestTaskClassRouting`:\n      - Verify TaskClassRoutingConfig defaults to enabled=False.\n      - Verify select_model_for_task returns default when routing disabled.\n      - Verify select_model_for_task returns mapped model when routing enabled and class in map.\n      - Verify select_model_for_task falls back to default when class unknown.\n      - Verify validate_identifier rejects invalid provider/model pairs.\n\n   e) `TestAdminAPI`:\n      - Use starlette TestClient against a FastAPI app with admin_router included.\n      - Test GET /admin/traces returns trace list with pagination.\n      - Test GET /admin/traces/{trace_id} with known and unknown IDs.\n      - Test GET /admin/metrics/global returns correct summary.\n      - Test GET /admin/metrics/models returns per-model data.\n      - Test GET /admin/logs with and without filters.\n      - Test GET /admin/usage returns usage report.\n      - Test GET /admin/health returns status.\n\n3. All tests must use mocks for database access. No test requires a running Postgres, Redis, or external service.",
+  "acceptance_criteria": [
+    "tests/test_observability.py exists with five test classes: TestTraceCollector, TestMetricsCollector, TestStructuredLogger, TestTaskClassRouting, TestAdminAPI",
+    "TestTraceCollector covers start, record, complete, get, list traces",
+    "TestMetricsCollector covers session/model aggregation, percentiles, global summary, reset",
+    "TestStructuredLogger covers memory_write, contradiction, failed_retrieval, filtered queries, pagination",
+    "TestTaskClassRouting covers enable/disable routing, class mapping, fallback, validation",
+    "TestAdminAPI covers all seven admin endpoints with TestClient including 404 for missing resources",
+    "All tests use mocks for database calls and external dependencies",
+    "No test requires a running Postgres, Redis, or external service",
+    "python -m py_compile tests/test_observability.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "tests/test_observability.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside tests/test_observability.py",
+    "modify any chatbot/ source file",
+    "modify any react_ui/ source file",
+    "add new third-party dependencies",
+    "require a running Postgres, Redis, or external service for test execution",
+    "call real LLM providers or embedding services",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "TestTraceCollector",
+    "TestMetricsCollector",
+    "TestStructuredLogger",
+    "TestTaskClassRouting",
+    "TestAdminAPI"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use starlette TestClient for admin API tests",
+      "use pytest fixtures for trace_collector, metrics_collector, and structured_logger instances",
+      "use unittest.mock.patch for database and external service mocking",
+      "assert on response JSON shape, status codes, and method return values",
+      "pre-populate collectors with test data before API calls"
+    ],
+    "forbidden": [
+      "call real LLM providers or embedding services",
+      "require a running database server for tests to pass",
+      "add integration tests that require network access",
+      "use pytest-asyncio decorators that require an event loop plugin beyond standard pytest"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 1200
+}

@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "task_id": "k.4",
+  "phase": "K",
+  "phase_id": "k",
+  "title": "Add mood_state and user_state to db/models.py",
+  "description": "Extend chatbot/db/models.py with persistence fields and tables for mood and user state.\n\nAdd these columns to the existing Session model:\n- mood_state: JSON (nullable) \u2014 serialized MoodState snapshot from chatbot.soul.mood\n- user_state: JSON (nullable) \u2014 serialized UserState snapshot from chatbot.soul.user_state\n- conversation_mode: str (nullable) \u2014 current ConversationMode label\n\nAdd a new table BotMoodLog:\n- id: UUID pk, server_default gen_random_uuid()\n- session_id: FK -> Session.id, indexed\n- mood: str\n- energy: float\n- closeness: float\n- created_at: UTC datetime, server_default now()\n\nAdd a new table UserStateLog:\n- id: UUID pk, server_default gen_random_uuid()\n- session_id: FK -> Session.id, indexed\n- primary_state: str (nullable)\n- confidence: float\n- evidence_summary: text (nullable)\n- created_at: UTC datetime, server_default now()\n\nUse the same SQLAlchemy 2.0 Mapped[] style as the existing models. Import and follow patterns from the existing chatbot/db/models.py. Do NOT redefine Base, User, Session, Message, Episode, SemanticFact, or Entity \u2014 extend the existing model classes in place.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- This task document (task k.4)\n- chatbot/db/models.py (the existing file with User, Session, Message, Episode, SemanticFact, Entity)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/db/models.py has Session.mood_state, Session.user_state, Session.conversation_mode columns (JSON/str, nullable)",
+    "chatbot/db/models.py defines BotMoodLog and UserStateLog tables",
+    "python -m py_compile chatbot/db/models.py passes",
+    "All existing models (User, Session, Message, Episode, SemanticFact, Entity) are preserved unchanged in structure beyond the new columns and tables",
+    "BotMoodLog and UserStateLog have session_id FK to Session.id",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/db/models.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/db/models.py",
+    "remove or rename existing models (User, Session, Message, Episode, SemanticFact, Entity)",
+    "change existing column types or constraints",
+    "add new third-party dependencies",
+    "create new __init__.py or session files"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

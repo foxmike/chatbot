@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "task_id": "k.6",
+  "phase": "K",
+  "phase_id": "k",
+  "title": "Extend persona_prompt.py to consume mood and mode",
+  "description": "Extend chatbot/soul/persona_prompt.py to consume mood state and conversation mode during prompt assembly.\n\nAdd these capabilities to the existing persona prompt builder:\n- Accept an optional MoodState parameter in the prompt assembly function(s)\n- Accept an optional ConversationMode parameter in the prompt assembly function(s)\n- When mood is provided, inject MoodEngine.to_prompt_hints() output into the system prompt as a subtle tone directive (not a leading announcement)\n- When mode is provided, inject ModeSelector.to_prompt_hints() output and adjust response parameters (length, initiative, temperature hints) accordingly\n- The persona prompt must still respect the fixed personality configuration \u2014 mood and mode are modifiers, not replacements\n- Backward compatible: calls without mood/mode arguments produce the same prompt as before this extension\n\nImport MoodEngine from chatbot.soul.mood and ModeSelector from chatbot.soul.modes (do NOT import from user_state.py \u2014 user state is injected at the turn level, not the prompt level).\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- This task document (task k.6)\n- chatbot/soul/persona_prompt.py (the existing file)\n- chatbot/soul/mood.py (produced by task k.1)\n- chatbot/soul/modes.py (produced by task k.3)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/soul/persona_prompt.py accepts optional mood and mode parameters in its prompt assembly function(s)",
+    "python -m py_compile chatbot/soul/persona_prompt.py passes",
+    "Mood hints are injected subtly (not as a leading announcement) when mood is provided",
+    "Mode hints and response parameter adjustments are injected when mode is provided",
+    "Backward compatible: calls without mood/mode produce the same output as before",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/soul/persona_prompt.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/soul/persona_prompt.py",
+    "import from chatbot/soul/user_state.py",
+    "remove or rename existing prompt assembly functions",
+    "add new third-party dependencies",
+    "hardcode persona configuration \u2014 must be driven by existing settings"
+  ],
+  "dependencies": [
+    "k.1",
+    "k.3"
+  ],
+  "task_timeout_seconds": 900
+}

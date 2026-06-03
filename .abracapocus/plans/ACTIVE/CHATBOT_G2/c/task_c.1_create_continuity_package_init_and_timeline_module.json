@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "task_id": "c.1",
+  "phase": "C",
+  "phase_id": "c",
+  "title": "Create continuity package init and timeline module",
+  "description": "Create chatbot/continuity/__init__.py and chatbot/continuity/timeline.py implementing the relationship timeline: milestones, emotional events, promises, and running projects.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/db/models.py (memory and conversation model schemas from prior phases \u2014 understand the existing turn/session/reference pattern)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/continuity/__init__.py and chatbot/continuity/timeline.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create chatbot/continuity/__init__.py exporting TimelineEvent, RelationshipTimeline, timeline event types, and the functions listed below.\n\n2. Create chatbot/continuity/timeline.py with:\n   - Module docstring: 'Relationship timeline tracking milestones, emotional events, promises, and running projects for conversational continuity.'\n   - A `TimelineEntry` dataclass with: entry_id (str), session_id (str), entry_type (Literal['milestone', 'emotional_event', 'promise', 'running_project']), title (str), description (str), content (str, the full turn text that produced the entry), turn_id (str), created_at (str, isoformat), updated_at (str, isoformat), status (Literal['active', 'resolved', 'broken', 'completed', 'abandoned'], default 'active'), tags (list[str], default_factory=list), metadata (dict[str, Any], default_factory=dict).\n   - A `TimelineFilter` dataclass with: session_id (str | None = None), entry_types (list[str] | None = None), statuses (list[str] | None = None), tags (list[str] | None = None), date_from (str | None = None), date_to (str | None = None).\n   - `async def add_timeline_entry(session_id: str, entry_type: str, title: str, description: str, content: str, turn_id: str, tags: list[str] | None = None, metadata: dict | None = None) -> TimelineEntry`: creates and persists a new timeline entry. Generates a uuid4 entry_id. Sets created_at and updated_at to now isoformat.\n   - `async def update_timeline_entry(entry_id: str, **kwargs) -> TimelineEntry`: updates fields of an existing entry and bumps updated_at. Raises ValueError if entry_id not found.\n   - `async def get_timeline(session_id: str, filter: TimelineFilter | None = None) -> list[TimelineEntry]`: retrieves timeline entries for a session with optional filtering. Returns entries in descending created_at order.\n   - `async def get_active_projects(session_id: str) -> list[TimelineEntry]`: returns entries with entry_type 'running_project' and status 'active'.\n   - `async def get_pending_promises(session_id: str) -> list[TimelineEntry]`: returns entries with entry_type 'promise' and status 'active'.\n   - `async def resolve_entry(entry_id: str, resolution: str | None = None) -> TimelineEntry`: marks a promise milestone or project as resolved/completed. Sets status accordingly and stores resolution text in metadata.\n   - `async def get_recent_milestones(session_id: str, limit: int = 10) -> list[TimelineEntry]`: returns last N milestones for context injection.\n\n3. Ensure all database operations use async SQLAlchemy sessions obtained via dependency injection or factory pattern matching the existing chatbot/db/models.py conventions.",
+  "acceptance_criteria": [
+    "chatbot/continuity/__init__.py exists and exports TimelineEntry, TimelineFilter, and all timeline functions",
+    "chatbot/continuity/timeline.py defines TimelineEntry with all specified fields and Literal constraints",
+    "chatbot/continuity/timeline.py defines add_timeline_entry, update_timeline_entry, get_timeline with filtering",
+    "chatbot/continuity/timeline.py defines get_active_projects, get_pending_promises, resolve_entry, get_recent_milestones",
+    "python -m py_compile chatbot/continuity/__init__.py passes",
+    "python -m py_compile chatbot/continuity/timeline.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/continuity/__init__.py",
+    "chatbot/continuity/timeline.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/continuity/",
+    "modify chatbot/db/models.py",
+    "add new third-party dependencies",
+    "add new database tables or schemas (operate on existing tables via SQLAlchemy ORM)",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "TimelineEntry",
+    "TimelineFilter",
+    "add_timeline_entry",
+    "update_timeline_entry",
+    "get_timeline",
+    "get_active_projects",
+    "get_pending_promises",
+    "resolve_entry",
+    "get_recent_milestones"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add dataclasses for timeline data",
+      "use async SQLAlchemy sessions for database access",
+      "use Literal for entry_type and status enums",
+      "use uuid4 for entry_id generation"
+    ],
+    "forbidden": [
+      "introduce new database framework or ORM",
+      "create new database tables or schemas directly",
+      "add constraints, indexes, or foreign keys",
+      "modify the existing Memory or Conversation models"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

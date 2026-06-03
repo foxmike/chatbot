@@ -1,0 +1,80 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "py_compile mood.py",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/soul/mood.py"
+        ]
+      },
+      {
+        "name": "py_compile user_state.py",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/soul/user_state.py"
+        ]
+      },
+      {
+        "name": "py_compile modes.py",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/soul/modes.py"
+        ]
+      },
+      {
+        "name": "py_compile models.py",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/db/models.py"
+        ]
+      },
+      {
+        "name": "py_compile 0002_emotional_state.py",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "migrations/versions/0002_emotional_state.py"
+        ]
+      },
+      {
+        "name": "py_compile persona_prompt.py",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/soul/persona_prompt.py"
+        ]
+      },
+      {
+        "name": "py_compile turn.py",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/core/turn.py"
+        ]
+      },
+      {
+        "name": "pytest test_emotional.py",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "tests/test_emotional.py",
+          "-x",
+          "-q"
+        ]
+      }
+    ]
+  }
+}

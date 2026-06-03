@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "task_id": "b.11",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Create RoomSwitcher and SceneControls React components",
+  "description": "Create react_ui/src/components/RoomSwitcher.tsx and react_ui/src/components/SceneControls.tsx implementing the UI for room switching (create room, list rooms, switch active room, delete room) and scene controls (start/end scene, pause/resume, update location/activity/tone/intensity, manage persona).\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- react_ui/src/api/client.ts (updated by task b.8 \u2014 understand available API functions, TypesScript types, and call patterns)\n- Existing react_ui/src/components/ files (understand React patterns, component structure, hook usage, and Tailwind styling conventions)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY react_ui/src/components/RoomSwitcher.tsx and react_ui/src/components/SceneControls.tsx. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n--- react_ui/src/components/RoomSwitcher.tsx ---\n\n1. A React functional component `RoomSwitcher` with Tailwind dark-theme styling:\n   - Props: userId (string), activeRoomId (string | null), onRoomChange (callback: (roomId: string, roomType: RoomType) => void).\n   - On mount, fetches rooms for the userId using listRooms API.\n   - Displays a horizontal tab bar or vertical list of rooms, each showing display_name and a room type icon/badge (chat bubble for one_on_one_chat, theater mask for roleplay_scene, folder for project, heart for emotional_support, brain for memory_review).\n   - Active room tab is highlighted with a distinct border/accent color.\n   - Each room tab shows a small '\u00d7' button for delete (with confirmation dialog).\n   - A '+' button at the end opens a create-room modal with:\n     * room_type dropdown selector with labels for each type.\n     * display_name text input.\n     * companion_id optional text input.\n     * Create and Cancel buttons.\n   - Handles loading, empty (no rooms), and error states.\n\n--- react_ui/src/components/SceneControls.tsx ---\n\n1. A React functional component `SceneControls` with Tailwind dark-theme styling:\n   - Props: roomId (string | null), roomType (RoomType | null).\n   - When roomType is not 'roleplay_scene', renders nothing (return null).\n   - On mount, fetches the active scene via getActiveScene API.\n   - If no active scene exists, shows a 'Start Scene' button that opens a scene-creation modal:\n     * location and activity text inputs (required).\n     * Start Scene button.\n   - If an active scene exists, displays a scene control panel:\n     * Scene summary bar (location, activity, tone badge, intensity meter 1-10).\n     * Pause/Resume toggle button.\n     * End Scene button with confirmation dialog.\n     * Edit button that expands inline editors for location, activity, tone (dropdown), intensity (slider), and scene_context (textarea).\n     * Persona section:\n       - 'Set Persona' button opens a modal with fields: name, description, traits (comma-separated input), voice_style, backstory, scene_goals (one per line), constraints (one per line).\n       - On save, calls setScenePersona and displays the generated system prompt preview in a collapsible section.\n     * Memory classification test: a small text input and 'Classify' button that calls classifySceneMemory and shows the result (scene_only / durable / both) as a color-coded badge.\n   - Handles loading, empty, and error states.",
+  "acceptance_criteria": [
+    "react_ui/src/components/RoomSwitcher.tsx exists and exports RoomSwitcher component",
+    "RoomSwitcher displays room list with type badges for all five room types",
+    "RoomSwitcher supports room creation via modal and room deletion with confirmation",
+    "RoomSwitcher calls onRoomChange when a different room tab is selected",
+    "react_ui/src/components/SceneControls.tsx exists and exports SceneControls component",
+    "SceneControls renders nothing when roomType is not 'roleplay_scene'",
+    "SceneControls shows 'Start Scene' page when no active scene exists",
+    "SceneControls shows full control panel with pause/resume/end when scene is active",
+    "SceneControls has inline editors for location, activity, tone, intensity, scene_context",
+    "SceneControls has persona set modal and system prompt preview",
+    "SceneControls has memory classification test with result badge",
+    "Both components handle loading, empty, and error states",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/components/RoomSwitcher.tsx",
+    "react_ui/src/components/SceneControls.tsx"
+  ],
+  "forbidden_changes": [
+    "modify any file outside react_ui/src/components/RoomSwitcher.tsx and react_ui/src/components/SceneControls.tsx",
+    "modify react_ui/src/api/client.ts",
+    "modify react_ui/src/main.tsx or any existing component",
+    "add new third-party dependencies",
+    "add React Router or routing configuration",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "RoomSwitcher",
+    "SceneControls"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use React functional components with hooks (useState, useEffect)",
+      "use Tailwind CSS for dark-theme styling",
+      "import API functions from react_ui/src/api/client",
+      "implement confirmation dialogs for destructive actions (delete, end scene)",
+      "use CSS transitions for panel expand/collapse",
+      "use modal overlays for create-room, start-scene, and set-persona forms"
+    ],
+    "forbidden": [
+      "introduce React Router, Redux, Zustand, or any state management library",
+      "add UI component libraries (Material UI, Ant Design, Radix, shadcn, etc.)",
+      "use CSS modules, styled-components, or emotion (Tailwind only)",
+      "hard-code API URLs (use the client functions)",
+      "modify the App component or main.tsx entry point"
+    ]
+  },
+  "dependencies": [
+    "b.8"
+  ],
+  "task_timeout_seconds": 1200
+}

@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_id": "c.8",
+  "phase": "C",
+  "phase_id": "c",
+  "title": "Add timeline-update step to turn pipeline",
+  "description": "Modify chatbot/core/turn.py to add a timeline-update step to the turn pipeline that automatically detects milestones, emotional events, promises, and new projects from the completed turn and persists them via the continuity/timeline module.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/core/turn.py (existing pipeline \u2014 understand TurnPipeline, TurnContext, step ordering, and how StepResult is recorded)\n- chatbot/core/steps.py (TurnStep base class and TurnContext dataclass)\n- chatbot/continuity/timeline.py (created by task c.1 \u2014 understand add_timeline_entry and entry types)\n- chatbot/continuity/rituals.py (created by task c.3 \u2014 understand get_due_rituals and trigger_ritual)\n- chatbot/memory/context_compiler.py (updated by task c.6 \u2014 understand the compiled_context field on TurnContext after the context-compilation step)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/core/turn.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Open chatbot/core/turn.py and understand the existing pipeline structure: the build_default_pipeline() function, the list of TurnStep instances, and their ordering.\n\n2. Add a new `TimelineUpdateStep(TurnStep)` class that:\n   - `async def run(self, ctx: TurnContext) -> TurnContext`:\n     a. Reads ctx.session_id, ctx.user_message, and ctx.final_response from the context.\n     b. Calls get_due_rituals from chatbot.continuity.rituals to check for rituals that should fire at this turn. For each due ritual, calls trigger_ritual and appends the trigger_prompt to ctx.metadata['ritual_prompts'] as a list of strings. This allows later steps (or the frontend) to incorporate ritual prompts.\n     c. Inspects ctx.user_message and ctx.final_response for milestone indicators: significant events, emotional content, explicit promises (\"I'll do that\", \"let me help you with\"), and project mentions. Uses simple keyword/heuristic detection rather than LLM calls \u2014 identify patterns like future-tense commitments, emotional language, and project-like nouns.\n     d. When a milestone/promise/project is detected, calls add_timeline_entry from chatbot.continuity.timeline with the appropriate entry_type, a short title derived from the message content, a description extracted from the relevant text, the full turn content, the current turn_id (from ctx.metadata), and any inferred tags.\n     e. Stores the new timeline entry_ids in ctx.metadata['new_timeline_entries'] as a list.\n   - Returns the modified ctx.\n\n3. Insert `TimelineUpdateStep` into the default pipeline in build_default_pipeline() AFTER the provider-response step and the memory-extraction step, but BEFORE the final respond step. This ensures the timeline is updated with the completed turn's data before the response is returned.\n\n4. Do NOT change the TurnPipeline class itself, the run() method, or any existing TurnStep subclass. Do NOT reorder existing steps beyond inserting the new one. Do NOT modify chatbot/core/steps.py.",
+  "acceptance_criteria": [
+    "chatbot/core/turn.py defines a TimelineUpdateStep(TurnStep) class",
+    "TimelineUpdateStep.run checks for due rituals and appends ritual prompts to ctx.metadata",
+    "TimelineUpdateStep.run detects milestones, promises, and projects via heuristic analysis",
+    "TimelineUpdateStep.run calls add_timeline_entry for detected events",
+    "build_default_pipeline includes TimelineUpdateStep in the correct position",
+    "Existing pipeline steps and TurnPipeline class are unmodified",
+    "python -m py_compile chatbot/core/turn.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/core/turn.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/core/turn.py",
+    "modify chatbot/core/steps.py",
+    "modify chatbot/continuity/ source files",
+    "remove, reorder, or alter existing TurnStep subclasses",
+    "change the TurnPipeline class run() method or StepResult recording",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "TimelineUpdateStep"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add a new TurnStep subclass following the existing step pattern",
+      "import from chatbot.continuity.timeline and chatbot.continuity.rituals",
+      "use simple keyword/heuristic detection for milestones (no LLM calls)",
+      "insert the new step into build_default_pipeline at the correct position"
+    ],
+    "forbidden": [
+      "call LLM providers from this step",
+      "change the TurnPipeline orchestration logic",
+      "modify existing step ordering or existing step implementations",
+      "add branching, tool-calling, or dynamic step insertion"
+    ]
+  },
+  "dependencies": [
+    "c.1",
+    "c.3",
+    "c.6"
+  ],
+  "task_timeout_seconds": 900
+}

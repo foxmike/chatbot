@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_id": "c.3",
+  "phase": "Q",
+  "phase_id": "c",
+  "title": "Create companion package init and companion model in chatbot/companions/",
+  "description": "Create chatbot/companions/__init__.py and chatbot/companions/companion.py defining the Companion model and per-user companion management logic.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/companions/__init__.py and chatbot/companions/companion.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create chatbot/companions/__init__.py with docstring: 'Companion management \u2014 multiple companions per user with per-companion memory.'\n\n2. Create chatbot/companions/companion.py with:\n   - Module docstring: 'Companion model and per-user companion management logic.'\n   - Pydantic request/response models:\n     * `CompanionCreateRequest`: name (str, min_length=1, max_length=128), persona (str | None = None), description (str | None = None), avatar_url (str | None = None).\n     * `CompanionResponse`: companion_id (str), user_id (str), name (str), persona (str | None), description (str | None), avatar_url (str | None), created_at (str), updated_at (str | None).\n     * `CompanionListResponse`: companions (list[CompanionResponse]).\n   - A dict `COMPANION_MODEL_DEFINITIONS` containing the SQLAlchemy table specification as a plain dict for task c.4:\n     * `companions` table: companion_id (String(36), primary_key, default uuid4), user_id (String(36), ForeignKey users.user_id, nullable False), name (String(128), nullable False), persona (Text, nullable True), description (Text, nullable True), avatar_url (String(512), nullable True), created_at (DateTime, default func.now()), updated_at (DateTime, onupdate func.now()).\n   - A class `CompanionManager` that:\n     * Accepts an async SQLAlchemy session in its constructor.\n     * `async create(user_id: str, data: CompanionCreateRequest) -> CompanionResponse`: creates a new companion owned by user_id.\n     * `async list_by_user(user_id: str) -> CompanionListResponse`: lists all companions owned by user_id.\n     * `async get(user_id: str, companion_id: str) -> CompanionResponse | None`: fetches a companion by ID, returning None if not found or not owned by user_id.\n     * `async update(user_id: str, companion_id: str, data: CompanionCreateRequest) -> CompanionResponse | None`: updates a companion, returning None if not found or not owned by user_id.\n     * `async delete(user_id: str, companion_id: str) -> bool`: deletes a companion, returning True if deleted, False if not found or not owned by user_id.\n\n3. The CompanionManager must enforce per-user ownership: get/update/delete must check user_id and return None/False for companions owned by a different user. Cross-user companion access must never succeed.",
+  "acceptance_criteria": [
+    "chatbot/companions/__init__.py exists with package docstring",
+    "chatbot/companions/companion.py exists with CompanionCreateRequest, CompanionResponse, CompanionListResponse",
+    "chatbot/companions/companion.py defines CompanionManager with create, list_by_user, get, update, delete",
+    "chatbot/companions/companion.py defines COMPANION_MODEL_DEFINITIONS dict with companions table spec",
+    "CompanionManager.get enforces user_id ownership check (returns None for wrong user)",
+    "python -m py_compile chatbot/companions/__init__.py passes",
+    "python -m py_compile chatbot/companions/companion.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/companions/__init__.py",
+    "chatbot/companions/companion.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/companions/__init__.py and chatbot/companions/companion.py",
+    "modify chatbot/db/models.py",
+    "create SQLAlchemy declarative base or engine/session code",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "CompanionCreateRequest",
+    "CompanionResponse",
+    "CompanionListResponse",
+    "CompanionManager",
+    "COMPANION_MODEL_DEFINITIONS"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "define Pydantic schemas for companion CRUD",
+      "structure CompanionManager to accept an async SQLAlchemy session",
+      "enforce user_id ownership on get/update/delete",
+      "use uuid4 for companion_id generation"
+    ],
+    "forbidden": [
+      "create SQLAlchemy declarative table or model class directly",
+      "create database engine or session factory",
+      "implement auth or token logic",
+      "allow cross-user companion access"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

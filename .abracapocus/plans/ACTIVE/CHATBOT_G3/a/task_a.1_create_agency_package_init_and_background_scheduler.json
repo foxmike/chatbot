@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_id": "a.1",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Create agency package init and background scheduler",
+  "description": "Create chatbot/agency/__init__.py and chatbot/agency/scheduler.py. The scheduler implements a background task loop that decides when to initiate proactive interactions from rituals, timeline events, and per-user initiative settings. Reuses the consolidation-worker background-task pattern from earlier phases.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- runtime/ (for existing background-worker/consolidation-task patterns)\n- chatbot/db/models.py (agency-related tables from earlier phases)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/agency/__init__.py and chatbot/agency/scheduler.py. Do NOT modify any other file under any circumstance.\n\nImplementation:\n\n1. chatbot/agency/__init__.py:\n  - Module docstring: 'Agency and proactivity package.'\n  - Export Scheduler and ScheduledEvent from scheduler.py.\n\n2. chatbot/agency/scheduler.py:\n  - ScheduledEvent dataclass: event_id (str), user_id (str), event_type (Literal['ritual','timeline','checkin','reminder','continuation','milestone']), scheduled_at (datetime), action_context (dict).\n  - ProactiveAction dataclass: action_id (str), user_id (str), action_type (str), message (str), priority (int default 0).\n  - Scheduler class:\n    * __init__ stores a list of ScheduledEvents, polling_interval_seconds (default 300), and an asyncio.Event for graceful stop.\n    * should_initiate(user_id) respects quiet hours and initiative level (call agency/initiative.py helpers). Returns False when initiative is 'never'.\n    * get_next_event() returns the next upcoming ritual or timeline event sorted by scheduled_at.\n    * decide_action(user_id) returns a ProactiveAction or None based on should_initiate() and nearest event.\n    * add_event(event) / remove_event(event_id) manage the schedule.\n    * run_loop() is an async loop that periodically checks should_initiate and decides actions. Exits cleanly on stop_event.set().",
+  "acceptance_criteria": [
+    "chatbot/agency/__init__.py exists and exports Scheduler and ScheduledEvent",
+    "chatbot/agency/scheduler.py exists and defines Scheduler, ScheduledEvent, and ProactiveAction",
+    "Scheduler.should_initiate() returns False when initiative level is 'never'",
+    "Scheduler.should_initiate() respects quiet hours",
+    "Scheduler.get_next_event() returns the next upcoming event sorted by scheduled_at",
+    "Scheduler.decide_action() returns None when should_initiate() is False",
+    "Scheduler.run_loop() is an async loop with graceful stop_event shutdown",
+    "python -m py_compile chatbot/agency/__init__.py passes",
+    "python -m py_compile chatbot/agency/scheduler.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/agency/__init__.py",
+    "chatbot/agency/scheduler.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/agency/__init__.py and chatbot/agency/scheduler.py",
+    "modify runtime/ or orchestrator/ files",
+    "add new third-party dependencies",
+    "wire external notification services (push, email, SMS)",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "Scheduler",
+    "ScheduledEvent",
+    "ProactiveAction"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use asyncio.sleep for polling interval",
+      "use asyncio.Event for graceful shutdown",
+      "use datetime for time comparisons",
+      "store rituals and timeline in-memory during v1"
+    ],
+    "forbidden": [
+      "add external scheduler dependencies (APScheduler, Celery, cron)",
+      "call LLM providers directly from the scheduler",
+      "send notifications, email, or push from the scheduler",
+      "introduce threading or multiprocessing"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

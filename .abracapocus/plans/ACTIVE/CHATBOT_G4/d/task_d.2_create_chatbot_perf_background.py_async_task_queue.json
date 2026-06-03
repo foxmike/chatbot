@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "task_id": "d.2",
+  "phase": "D",
+  "phase_id": "d",
+  "title": "Create chatbot/perf/background.py async task queue",
+  "description": "Create chatbot/perf/background.py implementing a lightweight async background task queue for deferred work that should not block the chat response path (memory extraction, consolidation, sentiment analysis, and other post-turn processing).\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- chatbot/consolidation/worker.py for existing consolidation patterns and task shapes\n- chatbot/core/turn.py for the current pipeline steps that will be split\n- runtime/ for any existing background-worker patterns\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create chatbot/perf/background.py with:\n   - Module docstring: 'Lightweight async background task queue for off-path work \u2014 memory extraction, consolidation, and post-turn processing.'\n   - A `BackgroundTask` dataclass with: task_id (str), task_type (Literal['memory_extract', 'consolidate', 'sentiment', 'index', 'custom']), payload (dict[str, Any]), created_at (str, ISO timestamp), priority (int, default 0), max_retries (int, default 3).\n   - A `BackgroundQueue` class that:\n     * Uses an in-process `asyncio.Queue` as the backing store. Two queues internally: high_priority (priority > 0) and normal (priority == 0).\n     * `async def enqueue(self, task: BackgroundTask) -> None` \u2014 pushes a task onto the appropriate queue based on priority.\n     * `async def dequeue(self) -> BackgroundTask | None` \u2014 high_priority queue consumed first; if empty, dequeues from normal. Returns None when both are empty and the worker should sleep. Uses `asyncio.wait_for` with a short timeout to avoid blocking indefinitely.\n     * `async def enqueue_memory_extraction(self, user_id: str, session_id: str, turn_context: dict) -> None` \u2014 convenience method that creates a BackgroundTask with task_type='memory_extract' and enqueues it.\n     * `async def enqueue_consolidation(self, user_id: str) -> None` \u2014 convenience method for task_type='consolidate'.\n     * `async def enqueue_sentiment(self, user_id: str, session_id: str, text: str) -> None` \u2014 convenience method for task_type='sentiment'.\n     * `async def enqueue_index(self, user_id: str, doc_id: str) -> None` \u2014 convenience method for task_type='index'.\n     * `pending_count` property returning the approximate total of tasks in both queues.\n   - A `run_background_worker(queue: BackgroundQueue, stop_event: asyncio.Event, handler: Callable) -> None` async function that:\n     * Loops calling queue.dequeue() with a short timeout.\n     * When a task is dequeued, calls `await handler(task)` in a try/except block. If handler raises, decrements max_retries and re-enqueues if retries remain; otherwise logs and drops.\n     * Respects stop_event for graceful shutdown.\n     * Exits the loop when stop_event is set and the queue is empty.\n   - No dependency on Redis, Celery, or any external queue infrastructure. Pure asyncio.\n\n2. Update chatbot/perf/__init__.py to export BackgroundQueue, BackgroundTask, and run_background_worker.",
+  "acceptance_criteria": [
+    "chatbot/perf/background.py exists and defines BackgroundTask, BackgroundQueue, and run_background_worker",
+    "BackgroundQueue has separate high_priority and normal queues consumed in priority order",
+    "BackgroundQueue.enqueue() routes by priority",
+    "run_background_worker consumes tasks, calls handler, retries on failure, and stops on stop_event",
+    "pending_count property returns approximate total queued tasks",
+    "Convenience methods (enqueue_memory_extraction, enqueue_consolidation, enqueue_sentiment, enqueue_index) create and enqueue tasks",
+    "No Redis, Celery, or external queue dependency",
+    "chatbot/perf/__init__.py exports BackgroundQueue, BackgroundTask, and run_background_worker",
+    "python -m py_compile chatbot/perf/background.py passes",
+    "python -m py_compile chatbot/perf/__init__.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/perf/background.py",
+    "chatbot/perf/__init__.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/perf/background.py and chatbot/perf/__init__.py",
+    "add Redis, Celery, RabbitMQ, or any external queue infrastructure",
+    "add threading or multiprocessing",
+    "modify chatbot/core/turn.py (saved for task d.5)",
+    "modify chatbot/consolidation/worker.py (saved for task d.6)",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "BackgroundTask",
+    "BackgroundQueue",
+    "run_background_worker"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use asyncio.Queue for task storage",
+      "use asyncio.wait_for for non-blocking dequeue",
+      "use asyncio.Event for graceful shutdown",
+      "implement in-process retry with max_retries"
+    ],
+    "forbidden": [
+      "introduce Redis, Celery, or any distributed queue",
+      "add threading or multiprocessing primitives",
+      "add task persistence or durability",
+      "add task scheduling or cron-like triggers"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

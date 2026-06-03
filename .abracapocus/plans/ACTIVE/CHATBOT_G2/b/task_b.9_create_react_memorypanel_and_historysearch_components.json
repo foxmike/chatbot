@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "task_id": "b.9",
+  "phase": "M",
+  "phase_id": "b",
+  "title": "Create React MemoryPanel and HistorySearch components",
+  "description": "Create two React components: MemoryPanel.tsx and HistorySearch.tsx under react_ui/src/components/.\n\nMemoryPanel.tsx \u2014 A memory review and control panel that:\n- Lists a companion's memories with pagination\n- Shows provenance metadata (source type, source turn, confidence) inline or on expand\n- Displays privacy level badges (private/temporary/permanent)\n- Provides inline actions: pin/unpin, edit, delete, set privacy, do-not-remember, remember-forever, correct\n- Uses the memory API functions from client.ts (task b.8)\n\nHistorySearch.tsx \u2014 A searchable conversation history browser that:\n- Provides a search bar with date range picker and topic/tag filter\n- Renders search results with snippet previews and pagination\n- Links results back to conversation context\n- Offers an export button that downloads filtered results as JSON or text\n- Uses the memory API functions from client.ts (task b.8)\n\nFollow the existing React patterns in the project (component structure, state management, Tailwind CSS, API call patterns).\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- react_ui/src/components/ for existing component patterns, imports, and styling conventions\n- react_ui/src/api/client.ts for the memory API function signatures\n- react_ui/src/types/ for existing type definitions\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "react_ui/src/components/MemoryPanel.tsx exists and exports a valid React component",
+    "react_ui/src/components/HistorySearch.tsx exists and exports a valid React component",
+    "MemoryPanel shows provenance metadata, privacy badges, and inline action controls",
+    "HistorySearch provides search bar, date range picker, topic filter, results, and export",
+    "Both components use the memory API functions from client.ts",
+    "TypeScript compilation succeeds: npx tsc --noEmit (run from react_ui/)",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/components/MemoryPanel.tsx",
+    "react_ui/src/components/HistorySearch.tsx"
+  ],
+  "forbidden_changes": [
+    "modify any file outside the two listed component files",
+    "add new npm dependencies",
+    "modify client.ts or any API layer",
+    "modify the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "create React functional components",
+      "use useState/useEffect",
+      "use Tailwind CSS classes",
+      "import from client.ts"
+    ],
+    "forbidden": [
+      "introduce new state management library",
+      "add new npm packages",
+      "modify routing or app shell"
+    ]
+  },
+  "dependencies": [
+    "b.8"
+  ],
+  "task_timeout_seconds": 1200
+}

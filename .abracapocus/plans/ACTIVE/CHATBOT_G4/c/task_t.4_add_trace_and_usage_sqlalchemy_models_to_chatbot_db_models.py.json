@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_id": "t.4",
+  "phase": "T",
+  "phase_id": "c",
+  "title": "Add trace and usage SQLAlchemy models to chatbot/db/models.py",
+  "description": "Extend chatbot/db/models.py with observability-related SQLAlchemy model classes: TraceRecord and UsageRecord. These tables provide optional persistent storage for traces and usage metrics if the operator chooses a database-backed store instead of the default in-memory collector.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md\n- chatbot/db/models.py (existing SQLAlchemy models \u2014 understand base class, column conventions, import style, primary key pattern, and table naming conventions)\n- chatbot/observability/tracing.py (created by task t.1 \u2014 understand TraceRecord field shapes)\n- chatbot/observability/metrics.py (created by task t.2 \u2014 understand ModelMetrics, SessionMetrics, TokenUsage field shapes)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/db/models.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Open chatbot/db/models.py and inspect the existing SQLAlchemy model classes. Understand:\n   - The base class used (e.g. Base = declarative_base())\n   - The import style for SQLAlchemy\n   - The primary key and id column convention\n   - Column naming (snake_case)\n   - How JSON/dict columns are stored (JSON, PickleType, or Text)\n\n2. Add a `TraceRecord` model class with __tablename__ = 'observability_traces':\n   - id: Column matching the project's id convention (primary key)\n   - trace_id: Column(String(36), unique=True, nullable=False, index=True) \u2014 uuid4 string\n   - turn_id: Column(String(36), nullable=False, index=True)\n   - session_id: Column(String(36), nullable=False, index=True)\n   - user_id: Column(String(36), nullable=True, index=True)\n   - model_provider: Column(String(64), nullable=True)\n   - model_id: Column(String(128), nullable=True)\n   - task_class: Column(String(32), nullable=True)\n   - prompt_tokens: Column(Integer, nullable=False, default=0)\n   - completion_tokens: Column(Integer, nullable=False, default=0)\n   - cost_usd_micros: Column(Integer, nullable=False, default=0)\n   - total_latency_ms: Column(Float, nullable=False, default=0)\n   - retrieve_latency_ms: Column(Float, nullable=False, default=0)\n   - prompt: Column(Text, nullable=False, default='')\n   - routing_decision: Column(JSON, nullable=False, default_factory=dict)\n   - retrieval_snippets: Column(JSON, nullable=False, default_factory=list)\n   - steps: Column(JSON, nullable=False, default_factory=list)\n   - created_at: Column(DateTime, nullable=False, server_default=func.now())\n\n3. Add a `UsageRecord` model class with __tablename__ = 'observability_usage':\n   - id: Column matching the project's id convention (primary key)\n   - session_id: Column(String(36), nullable=False, index=True)\n   - model_provider: Column(String(64), nullable=False, index=True)\n   - model_id: Column(String(128), nullable=False, index=True)\n   - turn_count: Column(Integer, nullable=False, default=1)\n   - prompt_tokens: Column(Integer, nullable=False, default=0)\n   - completion_tokens: Column(Integer, nullable=False, default=0)\n   - cost_usd_micros: Column(Integer, nullable=False, default=0)\n   - avg_latency_ms: Column(Float, nullable=False, default=0)\n   - created_at: Column(DateTime, nullable=False, server_default=func.now())\n   - updated_at: Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())\n   - A unique constraint on (session_id, model_provider, model_id).\n\n4. Existing model classes and columns must be completely unchanged.",
+  "acceptance_criteria": [
+    "chatbot/db/models.py has TraceRecord model class with correct __tablename__ and all specified columns",
+    "chatbot/db/models.py has UsageRecord model class with correct __tablename__ and all specified columns",
+    "UsageRecord has a unique constraint on (session_id, model_provider, model_id)",
+    "TraceRecord.trace_id has unique constraint and index",
+    "New model classes follow existing id convention, base class, and column style",
+    "Existing model classes and columns in models.py are unchanged",
+    "python -m py_compile chatbot/db/models.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/db/models.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/db/models.py",
+    "modify existing model classes, columns, or table definitions",
+    "remove or rename existing imports",
+    "break the pgvector column or embedding functionality",
+    "add foreign key constraints to existing tables",
+    "add new database frameworks or ORMs",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "TraceRecord",
+    "UsageRecord"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add new SQLAlchemy model classes following existing conventions",
+      "use Column types already imported in the file or add minimal new imports",
+      "use JSON type for structured trace data",
+      "use UniqueConstraint for composite uniqueness",
+      "set server_default and onupdate on DateTime columns"
+    ],
+    "forbidden": [
+      "change the base class or declarative_base import",
+      "change existing table names or model classes",
+      "create foreign keys between observability tables and user/session tables",
+      "add triggers, sequences, or custom SQL"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

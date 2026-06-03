@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "task_id": "c.2",
+  "phase": "C",
+  "phase_id": "c",
+  "title": "Create narrative threading engine module",
+  "description": "Create chatbot/continuity/narrative.py implementing the narrative threading engine that produces grounded callbacks beyond naive top-k retrieval.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/db/models.py (memory and turn model schemas from prior phases)\n- chatbot/continuity/timeline.py (created by task c.1)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/continuity/narrative.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create chatbot/continuity/narrative.py with:\n   - Module docstring: 'Narrative threading engine producing grounded conversational callbacks using temporal and semantic continuity.'\n\n2. A `NarrativeThread` dataclass with: thread_id (str), session_id (str), label (str, short human-readable name like 'dad health'), turns (list[str], ordered list of turn_ids in the thread), created_at (str, isoformat), last_referenced_at (str, isoformat), relevance_score (float, 0.0-1.0), summary (str, a one-sentence narrative summary).\n\n3. A `ThreadCallback` dataclass with: thread_id (str), label (str), callback_text (str, the actual phrase to inject, e.g. \"last week you were worried about your dad\"), turn_id (str, the indicating turn), confidence (float, 0.0-1.0), thread_summary (str).\n\n4. A `NarrativeReferencePoint` dataclass with: turn_id (str), turn_text (str), thread_label (str | None), narrative_summary (str | None), created_at (str), emotional_significance (float, -1.0 to 1.0).\n\n5. `async def build_narrative_threads(session_id: str) -> list[NarrativeThread]`: analyzes a session's turn history plus timeline entries to identify recurring topics, emotional arcs, and conversational threads. Groups related turns into threads with a label and summary. Uses the existing pgvector embedding infrastructure to find semantically similar turns, then clusters them by topic similarity. Each thread must have at least two turns. Returns threads sorted by recency-weighted relevance.\n\n6. `async def generate_thread_callback(session_id: str, current_message: str, relevance_threshold: float = 0.6) -> list[ThreadCallback]`:\n   - Takes the current user message and finds narrative threads relevant to it.\n   - Uses pgvector semantic similarity between the current message and thread reference points.\n   - Only returns callbacks where the relevance (similarity score * thread recency factor) exceeds relevance_threshold. This prevents forced references \u2014 do NOT return callbacks below the threshold.\n   - Produces a callback_text string that sounds natural: references time (\"last week\", \"the other night\"), the thread label, and the narrative connection.\n   - Sorted by confidence descending. Returns at most 3 callbacks.\n   - Each callback's confidence = similarity_score * recency_factor * emotional_weight_factor (derived from timeline entries' emotional significance when available).\n   - When no threads meet the threshold, returns an empty list \u2014 do NOT fabricate callbacks.\n\n7. `async def get_reference_points(turn_ids: list[str]) -> list[NarrativeReferencePoint]`: retrieves the turn text and associated narrative metadata for given turn ids.\n\n8. `async def mark_thread_referenced(thread_id: str) -> None`: updates last_referenced_at to now so that recently-referenced threads can be deprioritized.\n\n9. All functions use async SQLAlchemy for persistence. Thread storage uses the timeline table (via the existing models) with entry_type='narrative_thread' or a narrative_threads table defined in chatbot/db/models.py. Use the existing database session pattern from chatbot/db/models.py.",
+  "acceptance_criteria": [
+    "chatbot/continuity/narrative.py exists and defines NarrativeThread, ThreadCallback, NarrativeReferencePoint",
+    "build_narrative_threads groups related turns into labeled threads with summaries",
+    "generate_thread_callback respects relevance_threshold and returns empty list when no threads qualify",
+    "generate_thread_callback returns at most 3 callbacks sorted by confidence",
+    "mark_thread_referenced bumps last_referenced_at",
+    "get_reference_points returns turn text and narrative metadata for given turn ids",
+    "python -m py_compile chatbot/continuity/narrative.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/continuity/narrative.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/continuity/narrative.py",
+    "modify chatbot/db/models.py",
+    "modify chatbot/continuity/timeline.py or chatbot/continuity/__init__.py",
+    "add new third-party dependencies",
+    "generate callbacks below the relevance threshold",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "NarrativeThread",
+    "ThreadCallback",
+    "NarrativeReferencePoint",
+    "build_narrative_threads",
+    "generate_thread_callback",
+    "get_reference_points",
+    "mark_thread_referenced"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use pgvector semantic similarity for turn clustering",
+      "use cosine similarity with recency-weighted scores",
+      "reference existing timeline entries for emotional weight",
+      "use async SQLAlchemy for thread persistence"
+    ],
+    "forbidden": [
+      "call external LLM providers for building threads (use pure vector similarity)",
+      "return fabricated or forced callbacks below threshold",
+      "introduce a new topic modeling or clustering library",
+      "modify the database schema directly"
+    ]
+  },
+  "dependencies": [
+    "c.1"
+  ],
+  "task_timeout_seconds": 1200
+}

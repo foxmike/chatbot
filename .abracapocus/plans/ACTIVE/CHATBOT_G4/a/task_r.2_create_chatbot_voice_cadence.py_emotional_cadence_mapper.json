@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "task_id": "r.2",
+  "phase": "R",
+  "phase_id": "r",
+  "title": "Create chatbot/voice/cadence.py emotional cadence mapper",
+  "description": "Create chatbot/voice/cadence.py implementing an emotional cadence engine that maps the phase-K mood and mode state to TTS voice synthesis parameters (pitch, speed, tone, pause patterns, emphasis).\n\nThe module must define:\n- A `CadenceProfile` dataclass with: pitch_factor (float, 1.0 = neutral), speed_factor (float, 1.0 = neutral), volume_factor (float, 1.0 = neutral), pause_ms (int, inter-sentence pause), emphasis_words (list[str], words to emphasize), and tone (str, e.g. 'warm', 'neutral', 'urgent', 'gentle', 'excited').\n- A `CadenceMapper` class with a `map(mood: str, mode: str, text: str) -> CadenceProfile` method that maps mood labels and mode labels from the phase-K soul state into a CadenceProfile. Define mood-to-profile mappings as a class-level dict for common moods (happy, sad, angry, anxious, calm, excited, tired, neutral) and mode-to-profile overrides for known modes (storytelling, reflective, coaching, playful, serious).\n- The mapper must accept mood and mode as strings (not enums) for forward compatibility with evolving mood vocabularies. Unknown moods default to neutral cadence.\n- A `DEFAULT_CADENCE` constant with all factors at 1.0, pause_ms=300, tone='neutral'.\n\nThe cadence profiles produced by this module are consumed by the TTS adapter (task r.4) to set voice synthesis parameters.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/PLANS/ACTIVE/CHATBOT/phase_k/ (if it exists) for mood/mode definitions and vocabulary\n- chatbot/core/ (any existing turn pipeline for where mood/mode is carried in TurnContext)\n- chatbot/voice/__init__.py and base.py (created by task r.1) for the VoiceSynthesisRequest voice_params shape\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/voice/cadence.py exists and defines CadenceProfile, CadenceMapper, and DEFAULT_CADENCE",
+    "CadenceMapper.map() returns a CadenceProfile for known moods",
+    "CadenceMapper.map() returns DEFAULT_CADENCE for unknown moods",
+    "Mode overrides produce distinct profiles from mood-only mapping",
+    "python -m py_compile chatbot/voice/cadence.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/voice/cadence.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/voice/cadence.py",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends",
+    "call external APIs or audio processing libraries"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add dataclasses for cadence profiles",
+      "use class-level dict for mood-to-profile mappings",
+      "treat mood/mode as free-form strings"
+    ],
+    "forbidden": [
+      "introduce new framework",
+      "add audio DSP or signal processing",
+      "require mood/mode enums"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

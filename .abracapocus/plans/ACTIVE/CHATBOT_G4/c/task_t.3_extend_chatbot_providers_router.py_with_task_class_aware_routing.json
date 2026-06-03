@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_id": "t.3",
+  "phase": "T",
+  "phase_id": "c",
+  "title": "Extend chatbot/providers/router.py with task-class-aware routing",
+  "description": "Extend the existing provider policy router in chatbot/providers/router.py with task-class awareness: casual, emotional, summarize, extract, and embed task classes mapped to different model tiers. The extension must default to a single safe model unless the operator enables automatic routing.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md\n- chatbot/providers/router.py (existing provider router \u2014 understand current routing logic, policy model, provider registry, and model selection function signatures)\n- chatbot/providers/ (package init and any existing provider adapters for identifier conventions)\n- backends/openrouter_models.py (validated model identifiers)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/providers/router.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Open chatbot/providers/router.py and understand the existing routing logic. Identify the current function(s) that map a request to a provider/model pair. Do not rename or remove any existing functions.\n\n2. Define a TaskClass enum or literal type with values: CASUAL, EMOTIONAL, SUMMARIZE, EXTRACT, EMBED.\n\n3. Define a `TaskClassRoutingConfig` dataclass with:\n   - `enabled`: bool (default False) \u2014 must default to False so single-model mode is the safe default.\n   - `class_map`: dict[str, tuple[str, str]] \u2014 maps task class value to (provider_id, model_id) tuple. Default entries for each task class:\n     * 'casual' -> ('openrouter', 'openrouter/deepseek/deepseek-v4-pro') \u2014 cheap model\n     * 'emotional' -> ('openrouter', 'openrouter/deepseek/deepseek-v4-pro') \u2014 stronger model\n     * 'summarize' -> ('openrouter', 'openrouter/deepseek/deepseek-v4-pro') \u2014 cheap model\n     * 'extract' -> ('openrouter', 'openrouter/deepseek/deepseek-v4-pro') \u2014 stronger model\n     * 'embed' -> ('openrouter', 'openrouter/deepseek/deepseek-v4-pro') \u2014 embedding model\n   - Use the real model identifiers from backends/openrouter_models.py. All default to the same model for safety; the operator can override each class independently.\n   - `default_provider_id` and `default_model_id`: fallback when routing is disabled or task class is unknown.\n\n4. Add a `select_model_for_task(task_class: str, routing_config: TaskClassRoutingConfig | None = None) -> tuple[str, str]` function that:\n   - If routing_config is None, returns the existing default model/provider (unchanged behavior).\n   - If routing_config.enabled is False, returns (routing_config.default_provider_id, routing_config.default_model_id).\n   - If task_class is unknown or not in class_map, returns the defaults.\n   - Otherwise, returns the mapped (provider_id, model_id) from class_map.\n   - Validates that the returned provider/model pair is in the known registry. If not found, falls back to defaults and emits an error log.\n\n5. Export the new types and functions. Do NOT change existing function signatures \u2014 the extension must be purely additive. Any new model identifiers routed must pass through validate_identifier() exactly like existing LLM provider IDs.",
+  "acceptance_criteria": [
+    "chatbot/providers/router.py defines TaskClass type with CASUAL, EMOTIONAL, SUMMARIZE, EXTRACT, EMBED values",
+    "chatbot/providers/router.py defines TaskClassRoutingConfig with enabled=False by default",
+    "chatbot/providers/router.py defines select_model_for_task() function",
+    "select_model_for_task returns default model when routing is disabled",
+    "select_model_for_task returns mapped model when routing is enabled and task_class known",
+    "select_model_for_task falls back to default when task_class is unknown",
+    "All model identifiers are validated before being returned",
+    "Existing routing functions and signatures are unchanged",
+    "python -m py_compile chatbot/providers/router.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/providers/router.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/providers/router.py",
+    "remove, rename, or change the signature of any existing routing function",
+    "enable task-class routing by default (must default to single-model safe mode)",
+    "add new third-party dependencies",
+    "use unvalidated model identifiers",
+    "change the provider registry or validation logic",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "TaskClass",
+    "TaskClassRoutingConfig",
+    "select_model_for_task"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add a TaskClass enum/Literal and routing config dataclass",
+      "add a function that maps task class to provider/model",
+      "default all classes to the same safe model",
+      "validate returned model identifiers against the provider registry"
+    ],
+    "forbidden": [
+      "change existing routing function signatures or behavior",
+      "enable automatic multi-model routing without operator opt-in",
+      "invent or infer model identifiers that don't exist in the registry",
+      "add auto-scaling or model-pool selection"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "task_id": "c.1",
+  "phase": "Q",
+  "phase_id": "c",
+  "title": "Create auth package init and user models in chatbot/auth/",
+  "description": "Create chatbot/auth/__init__.py and chatbot/auth/models.py defining User and UserSession Pydantic and SQLAlchemy models for authentication.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/auth/__init__.py and chatbot/auth/models.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create chatbot/auth/__init__.py with docstring: 'Authentication package \u2014 user accounts, credential storage, token management.'\n\n2. Create chatbot/auth/models.py with:\n   - Module docstring: 'SQLAlchemy models for user accounts and sessions.'\n   - Pydantic BaseModel classes for request/response schemas (do NOT import SQLAlchemy here \u2014 Pydantic models only):\n     * `UserCreateRequest`: username (str, min_length=3, max_length=64), email (str, EmailStr via pydantic), password (str, min_length=8, max_length=128).\n     * `UserLoginRequest`: email (str), password (str).\n     * `UserResponse`: user_id (str), username (str), email (str), created_at (str).\n     * `TokenResponse`: access_token (str), token_type (str = 'bearer'), user (UserResponse).\n   - A dict `AUTH_MODEL_DEFINITIONS` containing the SQLAlchemy table specifications as plain dicts (column_name -> column_spec) for:\n     * `users` table: user_id (String(36), primary_key, default uuid4), username (String(64), unique, nullable False), email (String(255), unique, nullable False), password_hash (String(128), nullable False), created_at (DateTime, default func.now()), updated_at (DateTime, onupdate func.now()).\n     * `user_sessions` table: session_id (String(36), primary_key, default uuid4), user_id (String(36), ForeignKey users.user_id, nullable False), token_hash (String(128), nullable False), expires_at (DateTime, nullable False), created_at (DateTime, default func.now()), revoked (Boolean, default False).\n   These dicts will be consumed by task c.4 when creating the actual SQLAlchemy declarative models.",
+  "acceptance_criteria": [
+    "chatbot/auth/__init__.py exists with package docstring",
+    "chatbot/auth/models.py exists with UserCreateRequest, UserLoginRequest, UserResponse, TokenResponse Pydantic models",
+    "chatbot/auth/models.py defines AUTH_MODEL_DEFINITIONS dict with users and user_sessions column specs",
+    "UserCreateRequest enforces username min 3, password min 8 via validation",
+    "python -m py_compile chatbot/auth/__init__.py passes",
+    "python -m py_compile chatbot/auth/models.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/auth/__init__.py",
+    "chatbot/auth/models.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/auth/__init__.py and chatbot/auth/models.py",
+    "modify chatbot/db/models.py",
+    "add SQLAlchemy declarative base or create engine/session",
+    "add new third-party dependencies beyond pydantic",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "UserCreateRequest",
+    "UserLoginRequest",
+    "UserResponse",
+    "TokenResponse",
+    "AUTH_MODEL_DEFINITIONS"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "define Pydantic BaseModel schemas with field validators",
+      "use pydantic EmailStr for email validation",
+      "define column spec dicts to be consumed by task c.4"
+    ],
+    "forbidden": [
+      "create SQLAlchemy declarative models or table objects",
+      "create database engine, session, or connection code",
+      "implement password hashing or token logic in this task"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

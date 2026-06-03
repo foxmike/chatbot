@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "task_id": "c.4",
+  "phase": "C",
+  "phase_id": "c",
+  "title": "Add continuity tables to database models",
+  "description": "Modify chatbot/db/models.py to add TimelineEntry and Ritual tables and a narrative_threads table for the continuity package. Do NOT modify any existing tables.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/db/models.py (existing model conventions \u2014 understand the base class, column style, table naming, and import patterns)\n- chatbot/continuity/timeline.py (created by task c.1)\n- chatbot/continuity/rituals.py (created by task c.3)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/db/models.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Locate the existing SQLAlchemy model classes in chatbot/db/models.py. Inspect the declarative base class, column conventions (snake_case, types, nullable, default, server_default patterns), import list, and table naming style.\n\n2. Add a `TimelineEntry` model class with these columns, matching existing conventions:\n   - id: Column(String(64), primary_key=True) \u2014 stores the uuid4 entry_id.\n   - session_id: Column(String(64), nullable=False, index=True).\n   - entry_type: Column(String(20), nullable=False) \u2014 'milestone', 'emotional_event', 'promise', 'running_project'.\n   - title: Column(String(255), nullable=False).\n   - description: Column(Text, nullable=False).\n   - content: Column(Text, nullable=False).\n   - turn_id: Column(String(64), nullable=False).\n   - status: Column(String(20), nullable=False, default='active') \u2014 'active', 'resolved', 'broken', 'completed', 'abandoned'.\n   - tags: Column(JSON, nullable=True) \u2014 list of tag strings.\n   - metadata_: Column(JSON, nullable=True) \u2014 named metadata_ to avoid shadowing SQLAlchemy metadata.\n   - created_at: Column(DateTime, nullable=False, default=utcnow).\n   - updated_at: Column(DateTime, nullable=False, default=utcnow).\n   - __tablename__ = 'timeline_entries'.\n\n3. Add a `NarrativeThread` model class with these columns:\n   - id: Column(String(64), primary_key=True).\n   - session_id: Column(String(64), nullable=False, index=True).\n   - label: Column(String(255), nullable=False).\n   - turns: Column(JSON, nullable=False) \u2014 ordered list of turn_id strings.\n   - summary: Column(Text, nullable=False).\n   - relevance_score: Column(Float, nullable=False, default=0.0).\n   - created_at: Column(DateTime, nullable=False, default=utcnow).\n   - last_referenced_at: Column(DateTime, nullable=False, default=utcnow).\n   - __tablename__ = 'narrative_threads'.\n\n4. Add a `Ritual` model class with these columns:\n   - id: Column(String(64), primary_key=True).\n   - session_id: Column(String(64), nullable=False, index=True).\n   - name: Column(String(255), nullable=False).\n   - ritual_type: Column(String(20), nullable=False).\n   - description: Column(Text, nullable=False).\n   - schedule_description: Column(String(255), nullable=False).\n   - last_triggered_at: Column(DateTime, nullable=True).\n   - next_trigger_at: Column(DateTime, nullable=True).\n   - is_active: Column(Boolean, nullable=False, default=True).\n   - trigger_prompt: Column(Text, nullable=True).\n   - metadata_: Column(JSON, nullable=True).\n   - created_at: Column(DateTime, nullable=False, default=utcnow).\n   - __tablename__ = 'rituals'.\n\n5. All three tables must use the existing declarative base, import Column from the same sqlalchemy import used by existing models, and follow the same table-naming convention. Do NOT change any existing table or column definition.",
+  "acceptance_criteria": [
+    "chatbot/db/models.py defines TimelineEntry model with all specified columns and __tablename__ = 'timeline_entries'",
+    "chatbot/db/models.py defines NarrativeThread model with all specified columns and __tablename__ = 'narrative_threads'",
+    "chatbot/db/models.py defines Ritual model with all specified columns and __tablename__ = 'rituals'",
+    "Existing Memory, Conversation, Turn, or any prior model classes are unmodified",
+    "python -m py_compile chatbot/db/models.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/db/models.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/db/models.py",
+    "modify any existing model class, table name, or column definition",
+    "remove or rename the pgvector embedding column",
+    "add database indexes, constraints, or foreign keys beyond what is specified",
+    "add new third-party dependencies",
+    "change SQLAlchemy base class or import style",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "TimelineEntry",
+    "NarrativeThread",
+    "Ritual"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add new SQLAlchemy model classes following existing conventions",
+      "use Column, String, Text, Float, Boolean, DateTime, JSON from the existing sqlalchemy import",
+      "use utcnow default for DateTime columns matching existing pattern"
+    ],
+    "forbidden": [
+      "modify, drop, or rename any existing table or column",
+      "add foreign key constraints or database-level relationships",
+      "change the declarative base or metadata"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

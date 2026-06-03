@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "task_id": "c.12",
+  "phase": "Q",
+  "phase_id": "c",
+  "title": "Create AuthScreen and CompanionSelector React components",
+  "description": "Create react_ui/src/components/AuthScreen.tsx and react_ui/src/components/CompanionSelector.tsx implementing the UI for user authentication (signup, login, logout) and companion selection/management.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md\n- react_ui/src/api/client.ts (updated by task c.8 \u2014 signup, login, logout, fetchMe, getAccessToken, Companion types, companion CRUD functions)\n- Existing react_ui/src/components/ files (understand React patterns, component structure, Tailwind dark-theme usage, and how components are exported)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY react_ui/src/components/AuthScreen.tsx and react_ui/src/components/CompanionSelector.tsx. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n--- react_ui/src/components/AuthScreen.tsx ---\n\n1. A React functional component `AuthScreen` with Tailwind dark-theme styling (bg-gray-900, text-gray-100):\n   - Props: `onAuthenticated: (user: User) => void` callback fired after successful login/signup.\n   - State: mode ('login' | 'signup'), username (string), email (string), password (string), confirmPassword (string, signup only), error (string | null), loading (boolean).\n   - On mount, checks if a stored token exists via getAccessToken(). If yes, calls fetchMe() to validate. If valid, calls onAuthenticated(user) immediately. If invalid, clears the token.\n   - Renders a centered card with dark background (bg-gray-800, rounded-lg, p-8, max-w-md).\n   - Title row: 'Abracapocus Companion' or similar, with the mode toggle link ('Sign up' / 'Log in').\n   - Form fields:\n     * Login mode: email (type=email, required), password (type=password, required).\n     * Signup mode: username (type=text, required, minLength=3), email (type=email, required), password (type=password, required, minLength=8), confirm password (type=password, required).\n   - Inline validation: password must be >= 8 chars (signup), passwords must match (signup), email format.\n   - Submit button: 'Log In' or 'Sign Up', disabled while loading. Shows spinner text while loading.\n   - Error display: if error state is set, show a red-bordered error box with the message.\n   - On submit:\n     * Validates form fields client-side.\n     * Calls login(email, password) or signup(username, email, password) from client.ts.\n     * On success, calls onAuthenticated(response.user).\n     * On error, sets error state with the error message.\n\n--- react_ui/src/components/CompanionSelector.tsx ---\n\n2. A React functional component `CompanionSelector` with Tailwind dark-theme styling:\n   - Props: `onSelectCompanion: (companion: Companion) => void` and `onLogout: () => void`.\n   - State: companions (Companion[]), loading (boolean), error (string | null), showCreate (boolean), createName (string), createPersona (string).\n   - On mount, calls listCompanions() to fetch the user's companions.\n   - Renders a grid or list of companion cards (bg-gray-800, rounded-lg, p-4).\n   - Each card shows: name (text-lg, font-semibold), persona/description (text-sm, text-gray-400), select button, delete button.\n   - Selecting a companion calls onSelectCompanion(companion).\n   - Deleting shows a confirmation ('Are you sure?') and calls deleteCompanion(companionId).\n   - \"Create New Companion\" button toggles an inline form with name and persona fields.\n   - On create: calls createCompanion({ name, persona }), refreshes the list.\n   - Logout button in the header calls clearAccessToken() and onLogout().\n   - Loading state shows a spinner or skeleton. Error state shows an error message.\n\n3. Both components must use only Tailwind CSS for styling \u2014 no CSS modules, styled-components, or UI libraries (Material UI, Ant Design, etc.).\n\n4. Do NOT add React Router or routing configuration \u2014 these components are standalone and should work when imported and rendered directly.",
+  "acceptance_criteria": [
+    "react_ui/src/components/AuthScreen.tsx exists and exports AuthScreen component",
+    "AuthScreen renders login and signup forms with email, password, and username fields",
+    "AuthScreen calls client.ts signup/login and fires onAuthenticated callback on success",
+    "AuthScreen checks stored token on mount and auto-authenticates if valid",
+    "AuthScreen displays error messages on authentication failure",
+    "react_ui/src/components/CompanionSelector.tsx exists and exports CompanionSelector component",
+    "CompanionSelector fetches and displays list of companions on mount",
+    "CompanionSelector has create, select, and delete companion functionality",
+    "CompanionSelector renders inline create form and delete confirmation",
+    "Both components use Tailwind dark-theme styling with no third-party UI libraries",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/components/AuthScreen.tsx",
+    "react_ui/src/components/CompanionSelector.tsx"
+  ],
+  "forbidden_changes": [
+    "modify any file outside react_ui/src/components/AuthScreen.tsx and react_ui/src/components/CompanionSelector.tsx",
+    "modify react_ui/src/api/client.ts",
+    "modify react_ui/src/main.tsx or react_ui/src/App.tsx",
+    "add new third-party npm dependencies",
+    "add React Router or routing configuration",
+    "use CSS modules, styled-components, or UI component libraries (Tailwind only)",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "AuthScreen",
+    "CompanionSelector"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use React functional components with hooks (useState, useEffect)",
+      "use Tailwind CSS for dark-theme styling (bg-gray-900, text-gray-100)",
+      "import API functions from react_ui/src/api/client",
+      "implement form validation before API calls",
+      "implement confirmation dialog for destructive actions"
+    ],
+    "forbidden": [
+      "introduce React Router, Redux, or any state management library",
+      "add UI component libraries (Material UI, Ant Design, etc.)",
+      "use CSS modules or styled-components (Tailwind only)",
+      "hard-code API URLs (use the client functions)",
+      "store passwords in component state longer than necessary"
+    ]
+  },
+  "dependencies": [
+    "c.8"
+  ],
+  "task_timeout_seconds": 1200
+}

@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "task_id": "a.4",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Implement per-user initiative controls module",
+  "description": "Create chatbot/agency/initiative.py implementing the InitiativeLevel enum, InitiativeSettings dataclass, per-user get/set operations, quiet hours support, and a default-level provider from operator configuration.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/agency/__init__.py (created by task a.1)\n- chatbot/db/models.py (for existing user/settings tables)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/agency/initiative.py. Do NOT modify any other file under any circumstance.\n\nImplementation:\n\n1. chatbot/agency/initiative.py:\n  - InitiativeLevel enum (enum.Enum): NEVER = 'never_proactive', REMINDERS = 'reminders_only', GENTLE = 'gentle_checkins', FREQUENT = 'frequent', HIGH_ENERGY = 'high_energy'.\n  - InitiativeSettings dataclass: user_id (str), level (InitiativeLevel default GENTLE), quiet_hours_start (str|None, HH:MM), quiet_hours_end (str|None, HH:MM).\n  - Module-level _default_level: InitiativeLevel = InitiativeLevel.GENTLE, settable via set_default_level().\n  - _settings dict: dict[str, InitiativeSettings] for in-memory v1 storage.\n  - get_initiative(user_id) -> InitiativeSettings: returns stored or default.\n  - set_initiative(user_id, settings) validates HH:MM format for quiet hours.\n  - get_effective_level(user_id) returns current level considering overrides.\n  - is_in_quiet_hours(user_id) handles quiet hours spanning midnight.\n  - can_initiate(user_id) returns False when level is NEVER or during quiet hours.\n  - set_default_level(level) / get_default_level() for operator config.\n  - class ProjectInitiative: wrapping module-level helpers with an async interface matching other agency modules.",
+  "acceptance_criteria": [
+    "chatbot/agency/initiative.py exists and defines InitiativeLevel, InitiativeSettings, ProjectInitiative",
+    "InitiativeLevel enum has NEVER, REMINDERS, GENTLE, FREQUENT, and HIGH_ENERGY values",
+    "get_initiative() returns default settings when user has no stored settings",
+    "set_initiative() validates HH:MM format for quiet_hours",
+    "is_in_quiet_hours() handles quiet hours spanning midnight",
+    "can_initiate() returns False when level is NEVER",
+    "can_initiate() returns False during quiet hours",
+    "set_default_level() and get_default_level() work correctly",
+    "python -m py_compile chatbot/agency/initiative.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/agency/initiative.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/agency/initiative.py",
+    "modify chatbot/agency/__init__.py or other agency modules",
+    "add new third-party dependencies",
+    "add timezone libraries (use built-in datetime only)",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "InitiativeLevel",
+    "InitiativeSettings",
+    "set_default_level",
+    "get_default_level",
+    "get_initiative",
+    "set_initiative",
+    "get_effective_level",
+    "is_in_quiet_hours",
+    "can_initiate",
+    "ProjectInitiative"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use python enum.Enum for InitiativeLevel",
+      "store per-user settings in an in-memory dict for v1",
+      "use HH:MM string format for quiet hours times",
+      "handle quiet hours wrapping across midnight"
+    ],
+    "forbidden": [
+      "add pytz or any timezone library dependency",
+      "add database-backed settings storage (use in-memory dict for v1)",
+      "add rate limiting or cooldown logic"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

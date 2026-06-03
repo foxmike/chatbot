@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "task_id": "d.6",
+  "phase": "D",
+  "phase_id": "d",
+  "title": "Modify chatbot/consolidation/worker.py to consume background queue",
+  "description": "Modify chatbot/consolidation/worker.py to consume tasks from the BackgroundQueue (created in task d.2) instead of running inline during the turn pipeline. The consolidation worker becomes a background consumer that processes memory extraction, consolidation, and related deferred tasks asynchronously.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- chatbot/consolidation/worker.py for the current worker implementation, task processing loop, and consolidation logic\n- chatbot/perf/background.py (created by task d.2) for BackgroundQueue, BackgroundTask, and run_background_worker\n- chatbot/core/turn.py (updated by task d.5) for the deferred task payloads\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.\n\nSINGLE-OWNER FILE: chatbot/consolidation/worker.py is owned exclusively by this task in this phase. No other task may modify it.\n\nImplementation details:\n\n1. Inspect chatbot/consolidation/worker.py to understand the current consolidation worker: how tasks are received, the processing loop, and what consolidation operations are performed.\n\n2. Extend the worker to consume from the BackgroundQueue:\n   - Accept a `BackgroundQueue` instance as an optional parameter in the worker's initialization or run function. When not provided, the worker falls back to its existing behavior.\n   - Define a `handle_background_task(task: BackgroundTask) -> None` function that:\n     * Routes by task_type:\n       - `memory_extract`: invokes the existing memory extraction logic using task.payload (user_id, session_id, turn_context).\n       - `consolidate`: invokes the existing consolidation logic for the user_id in task.payload.\n       - `sentiment`: runs sentiment analysis on the text in task.payload and stores the result.\n       - `index`: re-indexes the document identified by doc_id in task.payload for search/retrieval.\n       - `custom`: invokes a generic handler from task.payload.handler_key if registered, otherwise logs and drops.\n     * Returns None on success. Raises on failure (so run_background_worker can retry).\n   - In the worker's main loop or start function, when a background_queue is provided, call `run_background_worker(queue, stop_event, handle_background_task)` to consume tasks.\n   - Ensure the existing consolidation worker behavior (polling a database table, processing scheduled jobs, etc.) is preserved when background_queue is not provided \u2014 this maintains backward compatibility.\n\n3. The worker must handle task payload formats from the TurnPipeline's enqueue_deferred() method. The extract_memory payload contains (user_id, session_id, provider_response, user_message). The consolidate payload contains (user_id).\n\n4. Ensure python -m py_compile chatbot/consolidation/worker.py passes.",
+  "acceptance_criteria": [
+    "chatbot/consolidation/worker.py accepts an optional BackgroundQueue instance",
+    "chatbot/consolidation/worker.py defines handle_background_task() routing by task_type",
+    "handle_background_task routes memory_extract, consolidate, sentiment, index, and custom task types",
+    "Worker consumes tasks via run_background_worker when background_queue is provided",
+    "Existing consolidation worker behavior is preserved when background_queue is not provided",
+    "python -m py_compile chatbot/consolidation/worker.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/consolidation/worker.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/consolidation/worker.py",
+    "modify chatbot/core/turn.py or chatbot/perf/background.py",
+    "add new third-party dependencies",
+    "change the existing consolidation logic or algorithms",
+    "remove the existing worker startup/shutdown pattern",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "handle_background_task"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add BackgroundQueue parameter to worker",
+      "implement task-type routing in handle_background_task",
+      "call run_background_worker for queue consumption",
+      "preserve existing worker behavior as fallback"
+    ],
+    "forbidden": [
+      "change existing consolidation algorithms",
+      "remove existing worker startup/shutdown code",
+      "introduce a new worker process/thread management scheme",
+      "modify the BackgroundQueue or run_background_worker implementations"
+    ]
+  },
+  "dependencies": [
+    "d.2"
+  ],
+  "task_timeout_seconds": 1200
+}

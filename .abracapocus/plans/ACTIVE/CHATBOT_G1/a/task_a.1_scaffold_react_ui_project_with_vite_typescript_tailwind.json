@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "task_id": "a.1",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Scaffold react_ui project with Vite + TypeScript + Tailwind",
+  "description": "Create the react_ui/ project scaffold for a React chat UI.\n\nCreate package.json with dependencies: react, react-dom, @types/react, @types/react-dom, typescript, vite, @vitejs/plugin-react, tailwindcss, postcss, autoprefixer. Include scripts for dev (vite), build (tsc && vite build), preview (vite preview).\n\nConfigure vite.config.ts with the React plugin and a proxy for /api to http://localhost:8000 for development.\n\nConfigure tsconfig.json with strict mode, JSX react-jsx, target ES2020, module ESNext, moduleResolution bundler, paths for src/*.\n\nConfigure tailwind.config.js with content paths for ./index.html and ./src/**/*.{ts,tsx}, enable darkMode: 'class', and extend the theme with dark background and text colors.\n\nConfigure postcss.config.js with tailwindcss and autoprefixer plugins.\n\nCreate index.html with a root div and module script entry to /src/main.tsx.\n\nCreate src/main.tsx that renders a placeholder <div> into the root element with 'loading' text.\n\nCreate src/index.css with @tailwind base, components, utilities directives and a minimal dark theme: body background #111827, text #e5e7eb, font-family system-ui.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "react_ui/package.json exists with react, vite, typescript, tailwindcss dependencies",
+    "react_ui/vite.config.ts exists with React plugin and /api proxy",
+    "react_ui/tsconfig.json exists with strict mode and JSX support",
+    "react_ui/tailwind.config.js exists with dark mode and src content paths",
+    "react_ui/postcss.config.js exists with tailwindcss and autoprefixer plugins",
+    "react_ui/index.html exists with root div and module script entry",
+    "react_ui/src/main.tsx exists and renders a React root",
+    "react_ui/src/index.css exists with Tailwind directives and dark theme base styles",
+    "cd react_ui && npm install succeeds with exit code 0",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/package.json",
+    "react_ui/vite.config.ts",
+    "react_ui/tsconfig.json",
+    "react_ui/tailwind.config.js",
+    "react_ui/postcss.config.js",
+    "react_ui/index.html",
+    "react_ui/src/main.tsx",
+    "react_ui/src/index.css"
+  ],
+  "forbidden_changes": [
+    "modify any file outside react_ui/",
+    "modify docker-compose.yml",
+    "add new third-party dependencies beyond react, react-dom, vite, typescript, tailwindcss, postcss, autoprefixer"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

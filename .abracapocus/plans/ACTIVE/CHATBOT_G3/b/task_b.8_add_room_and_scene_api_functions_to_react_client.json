@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "task_id": "b.8",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Add room and scene API functions to React client",
+  "description": "Modify react_ui/src/api/client.ts to add TypeScript fetch functions for all room, scene, and roleplay API endpoints.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- react_ui/src/api/client.ts (existing API client \u2014 understand base URL configuration, fetch wrapper patterns, TypeScript type/interface conventions, error handling)\n- chatbot/api/rooms.py (created by task b.7 \u2014 understand exact endpoint paths, request bodies, and response shapes)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY react_ui/src/api/client.ts. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Open react_ui/src/api/client.ts and inspect the existing API function patterns: base URL, fetch wrapper, TypeScript type conventions (interface vs type, naming convention), error handling.\n\n2. Add TypeScript types/interfaces matching the Python Pydantic models:\n   - RoomType: 'one_on_one_chat' | 'roleplay_scene' | 'project' | 'emotional_support' | 'memory_review'\n   - RoomMemoryPolicy: persist_to_durable (boolean), scope ('room' | 'companion' | 'global'), max_context_turns (number), include_embeddings (boolean)\n   - RoomData: room_id (string), user_id (string), companion_id (string | null), room_type (RoomType), display_name (string), memory_policy (RoomMemoryPolicy), scene_id (string | null), created_at (string)\n   - RoomCreateParams: user_id (string), room_type (RoomType), display_name (string | undefined), companion_id (string | undefined)\n   - MemoryPolicyUpdateParams: persist_to_durable (boolean | undefined), scope (string | undefined), max_context_turns (number | undefined), include_embeddings (boolean | undefined)\n   - SceneData: all SceneState fields (scene_id, room_id, location, activity, tone, intensity, is_paused, started_at, paused_at, resumed_at, ended_at, participants, scene_context)\n   - SceneCreateParams: room_id (string), location (string), activity (string)\n   - SceneUpdateParams: location (string | undefined), activity (string | undefined), tone (string | undefined), intensity (number | undefined), scene_context (string | undefined), participants (string[] | undefined)\n   - PersonaParams: name (string), description (string), traits (string[]), voice_style (string), backstory (string), scene_goals (string[]), constraints (string[])\n   - ScenePromptResponse: system_prompt (string)\n   - ClassificationResponse: classification ('scene_only' | 'durable' | 'both')\n\n3. Add async fetch functions:\n   - createRoom(params: RoomCreateParams): Promise<RoomData>\n   - listRooms(userId: string): Promise<RoomData[]>\n   - getRoom(roomId: string): Promise<RoomData>\n   - updateRoomMemoryPolicy(roomId: string, params: MemoryPolicyUpdateParams): Promise<RoomData>\n   - deleteRoom(roomId: string): Promise<void>\n   - createScene(roomId: string, params: SceneCreateParams): Promise<SceneData>\n   - getActiveScene(roomId: string): Promise<SceneData>\n   - getScene(sceneId: string): Promise<SceneData>\n   - updateScene(sceneId: string, params: SceneUpdateParams): Promise<SceneData>\n   - pauseScene(sceneId: string): Promise<SceneData>\n   - resumeScene(sceneId: string): Promise<SceneData>\n   - endScene(sceneId: string): Promise<SceneData>\n   - setScenePersona(sceneId: string, params: PersonaParams): Promise<ScenePromptResponse>\n   - classifySceneMemory(sceneId: string, text: string): Promise<ClassificationResponse>\n\n4. All new functions use the existing fetch wrapper and base URL pattern.",
+  "acceptance_criteria": [
+    "react_ui/src/api/client.ts exports all 14 room/scene/roleplay API functions",
+    "react_ui/src/api/client.ts exports RoomType, RoomData, RoomCreateParams, MemoryPolicyUpdateParams types",
+    "react_ui/src/api/client.ts exports SceneData, SceneCreateParams, SceneUpdateParams types",
+    "react_ui/src/api/client.ts exports PersonaParams, ScenePromptResponse, ClassificationResponse types",
+    "All new functions use the existing fetch wrapper or URL pattern from client.ts",
+    "Existing API functions in client.ts are not removed or changed",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/api/client.ts"
+  ],
+  "forbidden_changes": [
+    "modify any file outside react_ui/src/api/client.ts",
+    "remove or rename existing exported functions from client.ts",
+    "add new third-party dependencies",
+    "introduce a new HTTP client library (axios, react-query, etc.)",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "RoomType",
+    "RoomData",
+    "RoomCreateParams",
+    "MemoryPolicyUpdateParams",
+    "SceneData",
+    "SceneCreateParams",
+    "SceneUpdateParams",
+    "PersonaParams",
+    "ScenePromptResponse",
+    "ClassificationResponse",
+    "createRoom",
+    "listRooms",
+    "getRoom",
+    "updateRoomMemoryPolicy",
+    "deleteRoom",
+    "createScene",
+    "getActiveScene",
+    "getScene",
+    "updateScene",
+    "pauseScene",
+    "resumeScene",
+    "endScene",
+    "setScenePersona",
+    "classifySceneMemory"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add TypeScript interfaces and types matching the API Pydantic models",
+      "add async fetch wrapper functions following existing client.ts patterns",
+      "use the existing base URL and error handling conventions",
+      "use union types for RoomType and classification literals"
+    ],
+    "forbidden": [
+      "introduce axios, react-query, tanstack query, or any new HTTP/data-fetching library",
+      "change the fetch wrapper pattern or base URL configuration",
+      "remove or rename any existing exported function or type"
+    ]
+  },
+  "dependencies": [
+    "b.7"
+  ],
+  "task_timeout_seconds": 900
+}

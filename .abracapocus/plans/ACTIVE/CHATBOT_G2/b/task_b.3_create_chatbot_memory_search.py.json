@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "task_id": "b.3",
+  "phase": "M",
+  "phase_id": "b",
+  "title": "Create chatbot/memory/search.py",
+  "description": "Create chatbot/memory/search.py \u2014 the searchable conversation history module.\n\nImplement search logic over stored memories and conversation turns: full-text or semantic search with date range filtering, topic/tag filtering, and pagination. Return results with provenance metadata when available. Optimize queries for Postgres (not in-memory scanning). The search interface should compose with existing memory and turn storage backends.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- chatbot/db/models.py for the memory and turn model schemas\n- chatbot/memory/ (any existing modules) for query patterns\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/memory/search.py exists and is a valid Python module",
+    "python -m py_compile chatbot/memory/search.py passes",
+    "Module exports a search function with date range, topic, and pagination parameters",
+    "Search queries run against Postgres (not in-memory)",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/memory/search.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/memory/search.py",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add async functions",
+      "use SQLAlchemy query builders",
+      "add date/topic filter parameters"
+    ],
+    "forbidden": [
+      "introduce new search framework like Elasticsearch or Meilisearch",
+      "modify existing database schema"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

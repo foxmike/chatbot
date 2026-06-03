@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "task_id": "l.5",
+  "phase": "L",
+  "phase_id": "l",
+  "title": "Create Alembic migration for relationship and character tables",
+  "description": "Create a new Alembic migration file under migrations/versions/ that adds the RelationshipConfigModel, CharacterProfileModel, and IdentityStateModel tables to the database.\n\nSteps:\n1. First, determine the current Alembic head revision by inspecting migrations/versions/ for the most recent migration file. Get its revision ID (the hex string).\n2. Generate a new migration file using 'alembic revision -m \"add relationship and character tables\"' or create it manually following the existing migration file patterns.\n3. In the upgrade() function, create three tables matching the SQLAlchemy models added in chatbot/db/models.py:\n   - relationship_config: id, session_id (FK to sessions), type, tone, directness, warmth, initiative_level, content_level, created_at, updated_at\n   - character_profile: id, session_id (FK to sessions), name, backstory, personality_sliders (JSON), humor_style, communication_style, favorite_topics (JSON), created_at, updated_at\n   - identity_state: id, session_id (FK to sessions), fixed (JSON), slow (JSON), mood (JSON), last_updated\n4. In the downgrade() function, drop the three tables in reverse order (identity_state, character_profile, relationship_config).\n5. Name the file to follow the pattern: migrations/versions/<revision>_add_relationship_and_character_tables.py\n\nThe migration MUST be reversible. Use exact column types matching the SQLAlchemy models. Follow Alembic autogenerate conventions (revision, down_revision, branch_labels, depends_on).\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- migrations/versions/ (all existing migration files to find current head revision and conventions)\n- chatbot/db/models.py (the updated models from task l.4)\n- alembic/env.py or alembic.ini (for environment configuration)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. The migration filename must use the real current Alembic head revision, not a hardcoded \"0003\" \u2014 inspect the existing versions directory to determine the correct down_revision. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "A new migration file exists under migrations/versions/ with a valid Alembic revision ID",
+    "down_revision references the current head revision from existing migrations",
+    "upgrade() creates relationship_config, character_profile, and identity_state tables",
+    "downgrade() drops the three tables in correct order and is fully reversible",
+    "The migration file imports and uses the same column types as chatbot/db/models.py",
+    "python -m py_compile <migration_file> passes",
+    "No file outside migrations/versions/ is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "migrations/versions/"
+  ],
+  "forbidden_changes": [
+    "modify any file outside migrations/versions/",
+    "modify existing migration files",
+    "modify chatbot/db/models.py",
+    "modify alembic/env.py or alembic.ini",
+    "create or modify documentation files"
+  ],
+  "allowed_symbols": [
+    "upgrade",
+    "downgrade"
+  ],
+  "dependencies": [
+    "l.4"
+  ],
+  "task_timeout_seconds": 600
+}

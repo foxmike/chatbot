@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "task_id": "a.7",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Create agency API endpoints and register router in FastAPI app",
+  "description": "Create chatbot/api/agency.py exposing a FastAPI APIRouter with endpoints for initiative settings management, notification polling, check-in triggering, and schedule viewing. Then modify chatbot/api/app.py to register the agency_router on the FastAPI application instance.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/agency/__init__.py (created by task a.1)\n- chatbot/agency/scheduler.py (created by task a.1 \u2014 understand Scheduler API)\n- chatbot/agency/checkins.py (created by task a.2 \u2014 understand CheckInGenerator and CheckInType)\n- chatbot/agency/notifications.py (created by task a.3 \u2014 understand NotificationQueue API)\n- chatbot/agency/initiative.py (created by task a.4 \u2014 understand InitiativeLevel and get/set API)\n- chatbot/api/__init__.py (existing API package init)\n- chatbot/api/app.py (existing FastAPI app \u2014 understand the import pattern, FastAPI instance variable name, and include_router convention)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/api/agency.py and chatbot/api/app.py. Do NOT modify any other file under any circumstance.\n\nPart 1 \u2014 chatbot/api/agency.py:\n\n1. Create a FastAPI APIRouter named agency_router with prefix '/agency' and tag 'agency'.\n\n2. Pydantic models: InitiativeResponse (user_id, level, quiet_hours_start|None, quiet_hours_end|None), InitiativeUpdateRequest (level string, quiet_hours_start|None, quiet_hours_end|None), NotificationResponse (notification_id, user_id, notif_type, title, body, created_at, read, dismissed, metadata), NotificationListResponse (notifications list[NotificationResponse], pending_count int), CheckInTriggerRequest (checkin_type string, user_id string, context dict|None), CheckInResponse (checkin_id, message, checkin_type, priority), ScheduleResponse (events list[dict], next_event dict|None).\n\n3. Module-level singletons: Scheduler, CheckInGenerator, NotificationQueue, ProjectInitiative (from chatbot/agency modules).\n\n4. Endpoints: GET /initiative/{user_id} returns InitiativeResponse. PUT /initiative/{user_id} accepts InitiativeUpdateRequest, validates level string against InitiativeLevel, returns 400 for invalid. GET /notifications/{user_id} with optional since query param, returns NotificationListResponse. PUT /notifications/{notification_id}/read returns 404 for unknown. PUT /notifications/{notification_id}/dismiss returns 404 for unknown. POST /checkins/trigger accepts CheckInTriggerRequest, delegates to CheckInGenerator. GET /schedule/{user_id} returns ScheduleResponse.\n\nPart 2 \u2014 chatbot/api/app.py:\n\n1. Import agency_router from chatbot.api.agency.\n2. Add app.include_router(agency_router) following existing convention.\n3. Do NOT create a new FastAPI instance, change existing router registrations, or add middleware.",
+  "acceptance_criteria": [
+    "chatbot/api/agency.py exists with agency_router and all Pydantic models",
+    "agency_router has GET/PUT /initiative/{user_id}, GET /notifications/{user_id}, PUT /notifications/{notification_id}/read and /dismiss, POST /checkins/trigger, GET /schedule/{user_id}",
+    "PUT /initiative validates level string against InitiativeLevel enum, returns 400 for invalid",
+    "Notification read/dismiss endpoints return 404 for unknown notification_id",
+    "No auth, rate-limiting, or middleware in the agency router",
+    "chatbot/api/app.py imports agency_router and registers it via app.include_router()",
+    "Existing router registrations in app.py are unchanged",
+    "python -m py_compile chatbot/api/agency.py passes",
+    "python -m py_compile chatbot/api/app.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/agency.py",
+    "chatbot/api/app.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/api/agency.py and chatbot/api/app.py",
+    "modify chatbot/agency/ source files",
+    "modify chatbot/db/models.py",
+    "modify any existing API endpoint files except app.py",
+    "add auth, rate-limiting, CORS, or middleware",
+    "call LLM providers from any endpoint",
+    "create a new FastAPI instance in app.py",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "agency_router",
+    "InitiativeResponse",
+    "InitiativeUpdateRequest",
+    "NotificationResponse",
+    "NotificationListResponse",
+    "CheckInTriggerRequest",
+    "CheckInResponse",
+    "ScheduleResponse"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use FastAPI APIRouter with prefix and tag",
+      "use Pydantic for request/response models",
+      "use module-level singleton instances for Scheduler and NotificationQueue",
+      "return standard HTTP status codes for errors (400, 404, 422)",
+      "add a single import and include_router call in app.py"
+    ],
+    "forbidden": [
+      "implement business logic in endpoint handlers (delegate to chatbot/agency modules)",
+      "add WebSocket support",
+      "add middleware, auth, rate-limiting, or CORS",
+      "return raw internal objects in responses",
+      "refactor existing router registrations in app.py"
+    ]
+  },
+  "dependencies": [
+    "a.2",
+    "a.3",
+    "a.4"
+  ],
+  "task_timeout_seconds": 1200
+}

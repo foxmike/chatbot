@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_id": "a.2",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Implement proactive check-in generation module",
+  "description": "Create chatbot/agency/checkins.py implementing proactive check-in generation grounded in recent context. Generates different check-in types (reminders, emotional check-ins, continuation prompts, milestone/event callbacks) respecting per-user initiative level.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/agency/__init__.py (created by task a.1)\n- chatbot/agency/scheduler.py (created by task a.1)\n- chatbot/agency/initiative.py (created by task a.4 \u2014 inspect the InitiativeLevel enum)\n- chatbot/db/models.py (conversation and memory tables for context retrieval)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/agency/checkins.py. Do NOT modify any other file under any circumstance.\n\nImplementation:\n\n1. chatbot/agency/checkins.py:\n  - CheckInType literal: 'reminder', 'emotional_checkin', 'continuation_prompt', 'milestone_callback', 'event_callback'.\n  - CheckIn dataclass: checkin_id (str), user_id (str), checkin_type (CheckInType), message (str), context_summary (str), generated_at (str, ISO timestamp), priority (int default 0).\n  - CheckInGenerator class:\n    * Accepts initiative module and optional database session.\n    * generate_reminder(user_id): template-based reminder message.\n    * generate_emotional_checkin(user_id): empathetic template grounded in recent context.\n    * generate_continuation_prompt(user_id): prompts based on recent session.\n    * generate_milestone_callback(user_id, context): milestone notification.\n    * generate_event_callback(user_id, context): event-based notification.\n    * generate(checkin_type, user_id, context=None): dispatch method routing to the correct generator.\n    * get_recent_context(user_id) returns recent conversation summary (empty list on DB error).\n    * Each generator returns None when initiative level is 'never'. Reminder/emotional generators return None for 'reminders_only' users. Milestone callback returns basic notification for 'reminders_only'.\n  - No LLM provider calls \u2014 template-based messages only.",
+  "acceptance_criteria": [
+    "chatbot/agency/checkins.py exists and defines CheckInType, CheckIn, CheckInGenerator",
+    "CheckInGenerator has separate generate_reminder, generate_emotional_checkin, generate_continuation_prompt, generate_milestone_callback, and generate_event_callback methods",
+    "Each generator returns None when initiative level is 'never'",
+    "generate_reminder and generate_emotional_checkin return None for 'reminders_only' users",
+    "generate_milestone_callback returns a basic notification for 'reminders_only' users",
+    "generate() dispatch method routes to correct generator by checkin_type",
+    "get_recent_context returns empty list on database error without crashing",
+    "No generator function calls an LLM provider (template-based messages only)",
+    "python -m py_compile chatbot/agency/checkins.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/agency/checkins.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/agency/checkins.py",
+    "modify chatbot/agency/__init__.py or chatbot/agency/scheduler.py",
+    "call LLM providers from checkin generators",
+    "add new third-party dependencies",
+    "wire external notification services",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "CheckInType",
+    "CheckIn",
+    "CheckInGenerator",
+    "get_recent_context"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use string templates with context-aware substitution for message generation",
+      "use Python Literal type for CheckInType",
+      "query existing conversation/memory tables for recent_context",
+      "catch and handle database errors gracefully"
+    ],
+    "forbidden": [
+      "call any LLM provider or embedding service",
+      "generate messages that exceed 500 characters",
+      "generate more than one check-in per user per scheduler cycle",
+      "schedule or enqueue check-ins directly (delegate to scheduler and notifications)"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

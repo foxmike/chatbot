@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "task_id": "c.5",
+  "phase": "Q",
+  "phase_id": "c",
+  "title": "Implement get_current_user FastAPI dependency in chatbot/auth/dependencies.py",
+  "description": "Create chatbot/auth/dependencies.py implementing a FastAPI dependency that extracts and validates the current user from a Bearer token in the Authorization header.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md\n- chatbot/auth/models.py (created by task c.1 \u2014 TokenResponse and UserResponse shapes)\n- chatbot/auth/security.py (created by task c.2 \u2014 decode_access_token signature)\n- chatbot/db/models.py (updated by task c.4 \u2014 User model class name and columns)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/auth/dependencies.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create chatbot/auth/dependencies.py with:\n   - Module docstring: 'FastAPI dependencies for authentication \u2014 current_user extraction and validation.'\n   - A class `CurrentUser` (Pydantic BaseModel or dataclass) with fields: user_id (str), username (str), email (str). This is the object injected into endpoints.\n   - An async function `get_current_user(authorization: str | None = Header(default=None)) -> CurrentUser` that:\n     * If authorization is None or does not start with 'Bearer ', raises HTTPException(status_code=401, detail='Not authenticated', headers={'WWW-Authenticate': 'Bearer'}).\n     * Extracts the token string after 'Bearer '.\n     * Calls decode_access_token(token) from chatbot.auth.security.\n     * If decode_access_token returns None (invalid/expired), raises HTTPException(status_code=401, detail='Invalid or expired token', headers={'WWW-Authenticate': 'Bearer'}).\n     * Returns CurrentUser(user_id=payload['sub'], username=payload['username'], email=payload['email']).\n   - An async function `get_current_user_id(current_user: CurrentUser = Depends(get_current_user)) -> str` that returns current_user.user_id. This is a convenience for endpoints that only need the user_id.\n\n2. The dependency performs token-only validation \u2014 no database lookup is required (the token payload contains user_id, username, email). This keeps the dependency fast and avoids a database round-trip on every request.\n\n3. Use fastapi.Header and fastapi.HTTPException for header extraction and error responses.",
+  "acceptance_criteria": [
+    "chatbot/auth/dependencies.py exists with CurrentUser class",
+    "chatbot/auth/dependencies.py defines get_current_user and get_current_user_id functions",
+    "get_current_user raises 401 with WWW-Authenticate header when no Bearer token present",
+    "get_current_user raises 401 when token is invalid or expired",
+    "get_current_user returns CurrentUser with user_id, username, email on success",
+    "python -m py_compile chatbot/auth/dependencies.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/auth/dependencies.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/auth/dependencies.py",
+    "modify chatbot/auth/security.py or chatbot/auth/models.py",
+    "modify chatbot/db/models.py",
+    "add new third-party dependencies",
+    "implement session lookup or database queries (token-only validation)",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "CurrentUser",
+    "get_current_user",
+    "get_current_user_id"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use fastapi.Header and HTTPException",
+      "delegate token decoding to chatbot.auth.security.decode_access_token",
+      "return a typed CurrentUser object"
+    ],
+    "forbidden": [
+      "perform database lookups in the dependency",
+      "implement role-based access control",
+      "add middleware or per-route decorators",
+      "query the UserSession table"
+    ]
+  },
+  "dependencies": [
+    "c.1",
+    "c.2"
+  ],
+  "task_timeout_seconds": 600
+}

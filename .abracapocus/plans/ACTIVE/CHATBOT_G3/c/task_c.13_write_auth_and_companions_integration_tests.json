@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "task_id": "c.13",
+  "phase": "Q",
+  "phase_id": "c",
+  "title": "Write auth and companions integration tests",
+  "description": "Create tests/test_auth_companions.py with pytest-based integration tests covering user signup, login, logout, token validation, current-user dependency, user_id scoping on sessions and chat endpoints, companion CRUD, and per-user/per-companion data isolation.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md\n- chatbot/auth/models.py (created by task c.1 \u2014 request/response schemas)\n- chatbot/auth/security.py (created by task c.2 \u2014 PasswordHasher, create_access_token, decode_access_token)\n- chatbot/auth/dependencies.py (created by task c.5 \u2014 get_current_user, CurrentUser)\n- chatbot/companions/companion.py (created by task c.3 \u2014 CompanionManager, companion schemas)\n- chatbot/db/models.py (updated by task c.4 \u2014 User, UserSession, Companion models)\n- chatbot/api/auth.py (created by task c.7 \u2014 auth_router endpoints)\n- chatbot/api/app.py (updated by task c.9 \u2014 router registration pattern)\n- chatbot/api/sessions.py (updated by task c.10 \u2014 user_id scoped sessions)\n- chatbot/api/chat.py (updated by task c.11 \u2014 user_id scoped chat)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY tests/test_auth_companions.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create tests/test_auth_companions.py with:\n   - Module docstring: 'Integration tests for authentication, user scoping, and companion management.'\n   - Use starlette.testclient.TestClient for HTTP endpoint testing or FastAPI TestClient.\n   - Use pytest fixtures for test app instance, test database (in-memory SQLite), and test user setup.\n   - Use mocks/unittest.mock where appropriate to isolate from real LLM/embedding services.\n\n2. Test classes \u2014 at minimum these nine:\n   a. `TestAuthSignup`:\n      - test_success: signup returns 200 with TokenResponse shape.\n      - test_duplicate_email: signup with same email returns 409.\n      - test_duplicate_username: signup with same username returns 409.\n      - test_short_password: signup with password < 8 chars returns 422.\n      - test_short_username: signup with username < 3 chars returns 422.\n      - test_invalid_email: signup with bad email format returns 422.\n   b. `TestAuthLogin`:\n      - test_success: login with valid credentials returns 200 with TokenResponse.\n      - test_wrong_password: login with wrong password returns 401.\n      - test_nonexistent_email: login with unknown email returns 401.\n      - test_expired_token: accessing endpoint with expired token returns 401.\n   c. `TestAuthLogout`:\n      - test_success: logout revokes the session and returns 200.\n      - test_revoked_token_rejected: after logout, the same token returns 401.\n      - test_unauthenticated: logout without auth header returns 401.\n   d. `TestAuthMe`:\n      - test_authenticated: GET /auth/me returns user info.\n      - test_unauthenticated: GET /auth/me without token returns 401.\n   e. `TestGetCurrentUser`:\n      - test_valid_token: get_current_user returns CurrentUser.\n      - test_missing_header: missing Authorization returns 401.\n      - test_malformed_header: 'InvalidFormat' (no Bearer prefix) returns 401.\n      - test_invalid_token: garbage token returns 401.\n   f. `TestCompanionCRUD`:\n      - test_create: POST /companions returns CompanionResponse.\n      - test_list: GET /companions returns list of user's companions.\n      - test_get: GET /companions/{id} returns single companion.\n      - test_get_wrong_user: user B cannot see user A's companion (404).\n      - test_update: PATCH /companions/{id} updates name/persona.\n      - test_update_wrong_user: user B cannot update user A's companion (404).\n      - test_delete: DELETE /companions/{id} removes companion.\n      - test_delete_wrong_user: user B cannot delete user A's companion (404).\n   g. `TestSessionScoping`:\n      - test_create: creates session with user_id.\n      - test_list_user_only: GET /sessions returns only current user's sessions.\n      - test_get_own: GET /sessions/{id} returns session.\n      - test_get_other_user: GET other user's session returns 404.\n      - test_delete_own: DELETE own session succeeds.\n      - test_delete_other_user: DELETE other user's session returns 404.\n      - test_create_with_companion: POST with companion_id stores it.\n   h. `TestChatScoping`:\n      - test_chat_own_session: POST to own session returns 200.\n      - test_chat_other_user_session: POST to other user's session returns 404.\n      - test_chat_with_valid_companion: POST with valid companion_id works.\n      - test_chat_with_invalid_companion: POST with nonexistent companion_id returns 404.\n      - test_chat_with_other_user_companion: POST with other user's companion returns 404.\n   i. `TestDataIsolation`:\n      - test_users_cannot_see_each_others_data: comprehensive test \u2014 user A and user B each create sessions and companions, verify neither can see the other's resources.\n      - test_companion_isolation: each user has private companion space.\n\n3. All tests must run against an in-memory SQLite database \u2014 do NOT require a running PostgreSQL server. Use pytest fixtures to set up and tear down per-test databases.\n\n4. Mock any LLM call, embedding service, or external API call. Tests must be fully deterministic.",
+  "acceptance_criteria": [
+    "tests/test_auth_companions.py exists with nine test classes",
+    "TestAuthSignup covers success, duplicate email, duplicate username, validation",
+    "TestAuthLogin covers success, wrong password, nonexistent email, expired token",
+    "TestAuthLogout covers session revocation and subsequent rejection",
+    "TestAuthMe covers authenticated and unauthenticated access",
+    "TestGetCurrentUser covers valid token, missing header, malformed header, invalid token",
+    "TestCompanionCRUD covers create, list, get, update, delete, and cross-user isolation",
+    "TestSessionScoping covers create, list, get, delete with user_id enforcement",
+    "TestChatScoping covers authorized chat, cross-user rejection, companion validation",
+    "TestDataIsolation covers complete data separation between two users",
+    "python -m py_compile tests/test_auth_companions.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "tests/test_auth_companions.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside tests/test_auth_companions.py",
+    "modify any chatbot/ source file",
+    "modify any react_ui/ source file",
+    "add new third-party dependencies",
+    "require a running Postgres, Redis, or external service for test execution",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "TestAuthSignup",
+    "TestAuthLogin",
+    "TestAuthLogout",
+    "TestAuthMe",
+    "TestGetCurrentUser",
+    "TestCompanionCRUD",
+    "TestSessionScoping",
+    "TestChatScoping",
+    "TestDataIsolation"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use starlette TestClient for HTTP endpoint tests",
+      "use pytest fixtures for app, database, and user setup",
+      "use mocks for database sessions",
+      "use in-memory SQLite for test isolation",
+      "assert on response JSON shape, status codes, and data isolation guarantees"
+    ],
+    "forbidden": [
+      "call real LLM providers or embedding services",
+      "require a running database server for tests to pass",
+      "add integration tests that require network access",
+      "modify production source code to accommodate tests"
+    ]
+  },
+  "dependencies": [
+    "c.1",
+    "c.2",
+    "c.3",
+    "c.4",
+    "c.5",
+    "c.6",
+    "c.7",
+    "c.8",
+    "c.9",
+    "c.10",
+    "c.11",
+    "c.12"
+  ],
+  "task_timeout_seconds": 1500
+}

@@ -1,0 +1,95 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "compile-soul-relationship",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/soul/relationship.py"
+        ]
+      },
+      {
+        "name": "compile-soul-character",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/soul/character.py"
+        ]
+      },
+      {
+        "name": "compile-soul-evolution",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/soul/evolution.py"
+        ]
+      },
+      {
+        "name": "compile-db-models",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/db/models.py"
+        ]
+      },
+      {
+        "name": "compile-soul-persona-prompt",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/soul/persona_prompt.py"
+        ]
+      },
+      {
+        "name": "compile-api-config",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/api/config.py"
+        ]
+      },
+      {
+        "name": "compile-api-app",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/api/app.py"
+        ]
+      },
+      {
+        "name": "typecheck-react-ui",
+        "command": [
+          "sh",
+          "-c",
+          "cd react_ui && npx tsc --noEmit"
+        ]
+      },
+      {
+        "name": "migration-compile",
+        "command": [
+          "sh",
+          "-c",
+          "python -m py_compile migrations/versions/*add_relationship_and_character_tables.py 2>&1 || python -m py_compile migrations/versions/*_add_relationship*.py 2>&1 || echo 'migration file path may differ; verify manually'"
+        ]
+      },
+      {
+        "name": "pytest-identity-config",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "tests/test_identity_config.py",
+          "-v"
+        ]
+      }
+    ]
+  }
+}

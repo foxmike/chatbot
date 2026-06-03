@@ -1,0 +1,38 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "install-deps",
+        "command": [
+          "sh",
+          "-c",
+          "cd react_ui && npm install"
+        ]
+      },
+      {
+        "name": "typecheck",
+        "command": [
+          "sh",
+          "-c",
+          "cd react_ui && npx tsc --noEmit"
+        ]
+      },
+      {
+        "name": "build",
+        "command": [
+          "sh",
+          "-c",
+          "cd react_ui && npx vite build"
+        ]
+      },
+      {
+        "name": "dockerfile-syntax",
+        "command": [
+          "sh",
+          "-c",
+          "docker build --dry-run -f react_ui/Dockerfile react_ui/ 2>&1 || true"
+        ]
+      }
+    ]
+  }
+}

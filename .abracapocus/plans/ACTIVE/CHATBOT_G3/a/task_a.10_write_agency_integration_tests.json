@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "task_id": "a.10",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Write agency integration tests",
+  "description": "Create tests/test_agency.py with pytest-based tests covering the scheduler, check-in generation, notification queue, initiative controls, and the agency API endpoints. Use starlette TestClient against a FastAPI app that includes the agency_router. Mock database calls and external context lookups.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/agency/__init__.py (created by task a.1)\n- chatbot/agency/scheduler.py (created by task a.1)\n- chatbot/agency/checkins.py (created by task a.2)\n- chatbot/agency/notifications.py (created by task a.3)\n- chatbot/agency/initiative.py (created by task a.4)\n- chatbot/db/models.py (updated by task a.5)\n- chatbot/api/agency.py (created by task a.7)\n- chatbot/api/app.py (updated by task a.7)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY tests/test_agency.py. Do NOT modify any other file under any circumstance.\n\nImplementation:\n\n1. tests/test_agency.py with four test classes: TestScheduler, TestCheckInGenerator, TestNotificationQueue, TestAgencyAPI.\n2. Test fixtures: test_app constructs FastAPI app with agency_router and yields starlette TestClient. test_user_id fixed string. scheduler preloaded with test events.\n3. TestScheduler: test_should_initiate_never returns False; test_should_initiate_quiet_hours returns False; test_get_next_event returns earliest; test_add_remove_event; test_run_loop_stops_on_event.\n4. TestCheckInGenerator: test_generate_never_returns_none; test_generate_reminders_ok_for_reminders_only; test_generate_emotional_none_for_reminders_only; test_generate_returns_checkin; test_dispatch_routes_correctly; test_get_recent_context_empty_catches_error.\n5. TestNotificationQueue: test_enqueue_never_gated; test_enqueue_reminders_only_types; test_dequeue_fifo_order; test_poll_filtering; test_pending_count; test_unknown_id_read; test_unknown_id_dismiss.\n6. TestAgencyAPI (using TestClient): test_get_initiative, test_put_initiative_valid, test_put_initiative_invalid_400, test_get_notifications, test_get_notifications_with_since, test_mark_read, test_dismiss, test_mark_read_unknown_404, test_dismiss_unknown_404, test_trigger_checkin, test_get_schedule.\n7. All tests use mocks for database calls. No real Postgres, Redis, or LLM providers.",
+  "acceptance_criteria": [
+    "tests/test_agency.py exists with four test classes: TestScheduler, TestCheckInGenerator, TestNotificationQueue, TestAgencyAPI",
+    "TestScheduler covers should_initiate, get_next_event, add/remove, and run_loop stop",
+    "TestCheckInGenerator covers initiative gating (never, reminders_only) and successful generation",
+    "TestNotificationQueue covers enqueue gating, dequeue order, poll filtering, pending_count, and unknown-id handling",
+    "TestAgencyAPI covers all seven endpoints including 400 and 404 error cases",
+    "All tests use mocks for database calls and external dependencies",
+    "No test requires a running Postgres, Redis, or external service",
+    "python -m py_compile tests/test_agency.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "tests/test_agency.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside tests/test_agency.py",
+    "modify any chatbot/ source file",
+    "modify any react_ui/ source file",
+    "add new third-party dependencies",
+    "require a running Postgres, Redis, or external service for test execution",
+    "call real LLM providers or embedding services",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "TestScheduler",
+    "TestCheckInGenerator",
+    "TestNotificationQueue",
+    "TestAgencyAPI"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use starlette TestClient for API tests",
+      "use pytest fixtures for app, scheduler, checkin_generator, and notification_queue",
+      "use unittest.mock.patch for mocking initiative and database calls",
+      "assert on response JSON shape, status codes, and method return values"
+    ],
+    "forbidden": [
+      "call real LLM providers or embedding services",
+      "require a running database server for tests to pass",
+      "add integration tests that require network access",
+      "use pytest-asyncio decorators that require an event loop plugin"
+    ]
+  },
+  "dependencies": [
+    "a.1",
+    "a.2",
+    "a.3",
+    "a.4",
+    "a.5",
+    "a.6",
+    "a.7"
+  ],
+  "task_timeout_seconds": 1200
+}

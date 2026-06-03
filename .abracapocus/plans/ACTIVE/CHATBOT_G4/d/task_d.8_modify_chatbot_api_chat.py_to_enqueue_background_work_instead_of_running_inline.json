@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_id": "d.8",
+  "phase": "D",
+  "phase_id": "d",
+  "title": "Modify chatbot/api/chat.py to enqueue background work instead of running inline",
+  "description": "Modify chatbot/api/chat.py to wire the BackgroundQueue and PersonaCache into the chat endpoint. After the fast response path completes, enqueue background work (memory extraction, consolidation) onto the BackgroundQueue instead of running them inline during the HTTP request.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- chatbot/api/chat.py for the current POST /chat handler, how the TurnPipeline is instantiated, and how the response is built\n- chatbot/core/turn.py (updated by task d.5) for the new TurnPipeline API with persona_cache and background_queue parameters\n- chatbot/perf/cache.py (created by task d.1) for PersonaCache\n- chatbot/perf/background.py (created by task d.2) for BackgroundQueue\n- chatbot/consolidation/worker.py (updated by task d.6) for how the worker consumes the queue\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.\n\nSINGLE-OWNER FILE: chatbot/api/chat.py is owned exclusively by this task in this phase. No other task may modify it.\n\nImplementation details:\n\n1. Inspect chatbot/api/chat.py to understand the current chat endpoint: the router, request/response models, how the TurnPipeline is instantiated, and how the response flows.\n\n2. Wire performance modules:\n   - Create module-level singleton instances of `PersonaCache` and `BackgroundQueue` (or accept them as constructor/dependency injection if the existing pattern supports it). Use module-level singletons for simplicity.\n   - Import PersonaCache from chatbot.perf.cache and BackgroundQueue from chatbot.perf.background.\n   - When constructing the TurnPipeline in the chat handler, pass `persona_cache=_persona_cache` and `background_queue=_background_queue` to `build_default_pipeline()` or directly to TurnPipeline().\n   - After the pipeline runs (which now runs only fast-path steps + enqueues deferred), return the response immediately. Do not wait for deferred work.\n\n3. Ensure the response latency is reduced:\n   - Before this change, the chat handler waited for all pipeline steps (including extract_memory and consolidate) inline.\n   - After this change, the chat handler returns after the fast path (receive \u2192 retrieve \u2192 compile_context \u2192 call_provider \u2192 respond).\n   - The consolidate worker (task d.6) picks up the deferred tasks from the queue asynchronously.\n\n4. Preserve the existing API contract: the ChatRequest and ChatResponse models must not change. The response shape, status codes, and error handling must be identical. The user's reply must be identical \u2014 only timing changes.\n\n5. If BackgroundQueue or PersonaCache imports fail (modules not yet created), define a graceful import guard that falls back to the existing inline pipeline behavior. This ensures the endpoint works before and after the performance modules exist.\n\n6. Ensure python -m py_compile chatbot/api/chat.py passes.",
+  "acceptance_criteria": [
+    "chatbot/api/chat.py imports PersonaCache and BackgroundQueue",
+    "chatbot/api/chat.py passes persona_cache and background_queue to TurnPipeline",
+    "Chat handler returns the response after fast-path steps complete (not after consolidation)",
+    "Deferred steps (extract_memory, consolidate) are enqueued not run inline",
+    "Existing API contract (ChatRequest, ChatResponse models, status codes) is preserved",
+    "Graceful fallback when performance modules are not available (existing inline behavior)",
+    "python -m py_compile chatbot/api/chat.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/chat.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/api/chat.py",
+    "modify chatbot/core/turn.py (already updated by task d.5)",
+    "modify chatbot/perf/cache.py or background.py",
+    "modify chatbot/api/streaming.py",
+    "change the ChatRequest or ChatResponse Pydantic models",
+    "change the router variable name, prefix, or URL path",
+    "change any existing auth dependency or error handling",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [],
+  "decision_budget": {
+    "allowed": [
+      "create module-level PersonaCache and BackgroundQueue singletons",
+      "pass cache and queue to TurnPipeline constructor",
+      "add import guard for graceful fallback",
+      "preserve existing response contract"
+    ],
+    "forbidden": [
+      "modify TurnPipeline internals",
+      "change response shape or timing contract in the API",
+      "add new endpoint routes",
+      "block the response on deferred work completion"
+    ]
+  },
+  "dependencies": [
+    "d.2",
+    "d.5"
+  ],
+  "task_timeout_seconds": 900
+}

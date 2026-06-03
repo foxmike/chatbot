@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "task_id": "b.2",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Create scene state engine",
+  "description": "Create chatbot/rooms/scene.py implementing a scene state engine that tracks location, activity, tone, intensity, and supports pause/resume across sessions.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/rooms/room.py (created by task b.1 \u2014 understand Room dataclass and scene_id reference)\n- chatbot/rooms/__init__.py (created by task b.1)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/rooms/scene.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create chatbot/rooms/scene.py with:\n   - Module docstring: 'Scene state engine for roleplay and contextual rooms. Tracks location, activity, tone, intensity, and supports pause/resume across sessions.'\n   - A `SceneState` dataclass with: scene_id (str), room_id (str), location (str), activity (str), tone (Literal['light', 'serious', 'tense', 'playful', 'romantic', 'neutral'], default 'neutral'), intensity (int, 1-10, default 5, clamped in __post_init__), is_paused (bool, default False), started_at (str, isoformat), paused_at (str | None), resumed_at (str | None), participants (list[str], default empty), scene_context (str, default empty \u2014 freeform narrative context), metadata (dict[str, Any], default empty).\n   - An async function `create_scene(room_id: str, location: str = '', activity: str = '') -> SceneState` that generates a uuid4 scene_id, sets started_at, and persists to the database.\n   - An async function `get_scene(scene_id: str) -> SceneState | None` that reads from the database.\n   - An async function `update_scene(scene_id: str, **kwargs) -> SceneState` that accepts partial updates: location, activity, tone, intensity, is_paused, scene_context, participants. Updates only the provided fields. Returns updated SceneState. Raises ValueError if scene_id not found.\n   - An async function `pause_scene(scene_id: str) -> SceneState` that sets is_paused=True and paused_at=utcnow isoformat.\n   - An async function `resume_scene(scene_id: str) -> SceneState` that sets is_paused=False and resumed_at=utcnow isoformat.\n   - An async function `end_scene(scene_id: str) -> SceneState` that sets is_paused=False and records ended_at. Ending is terminal \u2014 subsequent resume_scene raises ValueError.\n   - An async function `get_active_scene(room_id: str) -> SceneState | None` that returns the most recent unpaused, un-ended scene for the room.\n   - An async function `get_scene_summary(scene_id: str) -> str` that returns a one-paragraph text summary (location, activity, tone, intensity, participants, duration) suitable for context injection.",
+  "acceptance_criteria": [
+    "chatbot/rooms/scene.py exists and defines SceneState dataclass with all specified fields",
+    "SceneState.intensity is clamped to 1-10 range",
+    "create_scene generates uuid4 scene_id and persists to database",
+    "update_scene accepts partial keyword updates and returns updated SceneState",
+    "pause_scene sets is_paused=True and paused_at timestamp",
+    "resume_scene sets is_paused=False and resumed_at timestamp",
+    "end_scene records ended_at and makes subsequent resume raise ValueError",
+    "get_active_scene returns the most recent unpaused un-ended scene",
+    "get_scene_summary returns a one-paragraph text summary",
+    "python -m py_compile chatbot/rooms/scene.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/rooms/scene.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/rooms/scene.py",
+    "modify chatbot/rooms/__init__.py or chatbot/rooms/room.py",
+    "modify chatbot/db/models.py",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "SceneState",
+    "create_scene",
+    "get_scene",
+    "update_scene",
+    "pause_scene",
+    "resume_scene",
+    "end_scene",
+    "get_active_scene",
+    "get_scene_summary"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use Literal for tone values",
+      "use uuid4 for scene_id generation",
+      "use __post_init__ for intensity clamping",
+      "use async SQLAlchemy for database operations",
+      "generate text summaries from scene fields"
+    ],
+    "forbidden": [
+      "introduce new database framework or ORM",
+      "modify the database schema directly",
+      "call LLM providers from scene functions",
+      "add real-time collaboration or WebSocket support"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

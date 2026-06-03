@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "task_id": "c.3",
+  "phase": "C",
+  "phase_id": "c",
+  "title": "Create rituals and shared routines module",
+  "description": "Create chatbot/continuity/rituals.py implementing named recurring activities, inside jokes, check-in schedules, and routine templates.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/db/models.py (turn and session schema conventions from prior phases)\n- chatbot/continuity/timeline.py (created by task c.1)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/continuity/rituals.py and chatbot/continuity/__init__.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create chatbot/continuity/rituals.py with:\n   - Module docstring: 'Rituals and shared routines \u2014 recurring activities, inside jokes, check-ins, and routine templates for the companion.'\n\n2. A `Ritual` dataclass with: ritual_id (str), session_id (str), name (str), ritual_type (Literal['check_in', 'recap', 'planning', 'recurring', 'joke', 'custom']), description (str), schedule_description (str, e.g. 'every morning', 'weekly on Sunday'), last_triggered_at (str | None, isoformat), next_trigger_at (str | None, isoformat), is_active (bool, default True), trigger_prompt (str | None, a prompt the companion uses when initiating the ritual), created_at (str, isoformat), metadata (dict[str, Any], default_factory=dict).\n\n3. Template constants defined as module-level dicts:\n   - `MORNING_CHECK_IN`: {name, ritual_type: 'check_in', description, schedule_description: 'daily at conversation start', trigger_prompt}\n   - `NIGHTLY_RECAP`: {name, ritual_type: 'recap', description, schedule_description: 'daily at conversation end', trigger_prompt}\n   - `WEEKLY_PLANNING`: {name, ritual_type: 'planning', description, schedule_description: 'weekly', trigger_prompt}\n\n4. `async def create_ritual(session_id: str, name: str, ritual_type: str, description: str, schedule_description: str, trigger_prompt: str | None = None, metadata: dict | None = None) -> Ritual`: creates a new ritual. Generates uuid4 ritual_id. Sets created_at to now isoformat.\n\n5. `async def get_rituals(session_id: str, ritual_type: str | None = None, active_only: bool = True) -> list[Ritual]`: retrieves rituals for a session with optional type and active filtering.\n\n6. `async def get_due_rituals(session_id: str) -> list[Ritual]`: returns rituals where next_trigger_at has passed (or is None and last_triggered_at is older than the schedule window). Used by the turn pipeline to check if a ritual should fire before the conversational response.\n\n7. `async def trigger_ritual(ritual_id: str) -> str`: marks the ritual as triggered (updates last_triggered_at, computes next_trigger_at from schedule_description) and returns the trigger_prompt string for the companion to use. Raises ValueError if ritual_id not found.\n\n8. `async def add_inside_joke(session_id: str, name: str, joke_text: str, context: str) -> Ritual`: creates a ritual with ritual_type='joke'. The joke_text is the callback the companion uses; context describes when it makes sense to reference.\n\n9. `async def deactivate_ritual(ritual_id: str) -> None`: sets is_active=False.\n\n10. Update chatbot/continuity/__init__.py to also export Ritual, the template constants, and all ritual functions.",
+  "acceptance_criteria": [
+    "chatbot/continuity/rituals.py exists and defines Ritual, template constants, and all ritual functions",
+    "chatbot/continuity/rituals.py defines MORNING_CHECK_IN, NIGHTLY_RECAP, WEEKLY_PLANNING templates",
+    "create_ritual, get_rituals, get_due_rituals, trigger_ritual, add_inside_joke, deactivate_ritual are all defined",
+    "trigger_ritual computes next_trigger_at from schedule_description and returns trigger_prompt",
+    "get_due_rituals returns only rituals whose schedule window has elapsed",
+    "chatbot/continuity/__init__.py exports Ritual, template constants, and all ritual functions",
+    "python -m py_compile chatbot/continuity/rituals.py passes",
+    "python -m py_compile chatbot/continuity/__init__.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/continuity/rituals.py",
+    "chatbot/continuity/__init__.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/continuity/rituals.py and chatbot/continuity/__init__.py",
+    "modify chatbot/continuity/timeline.py",
+    "modify chatbot/db/models.py",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "Ritual",
+    "MORNING_CHECK_IN",
+    "NIGHTLY_RECAP",
+    "WEEKLY_PLANNING",
+    "create_ritual",
+    "get_rituals",
+    "get_due_rituals",
+    "trigger_ritual",
+    "add_inside_joke",
+    "deactivate_ritual"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add dataclasses for ritual data",
+      "use async SQLAlchemy sessions for database access",
+      "compute next trigger times from schedule descriptions",
+      "use uuid4 for ritual_id generation"
+    ],
+    "forbidden": [
+      "introduce a scheduler, cron, or background task library",
+      "use external scheduling services",
+      "create real timers or background threads (all scheduling is computed lazily on query)",
+      "modify the database schema directly"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

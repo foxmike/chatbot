@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "task_id": "c.6",
+  "phase": "C",
+  "phase_id": "c",
+  "title": "Extend context_compiler with timeline and narrative threads",
+  "description": "Modify chatbot/memory/context_compiler.py to incorporate timeline entries and narrative thread callbacks into the ranked conversation context so continuity shapes every turn.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/memory/context_compiler.py (existing context compiler \u2014 understand the current retrieval ranking, context assembly, and the function signatures)\n- chatbot/continuity/timeline.py (created by task c.1)\n- chatbot/continuity/narrative.py (created by task c.2 \u2014 understand generate_thread_callback and the ThreadCallback shape)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/memory/context_compiler.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Open chatbot/memory/context_compiler.py and understand the existing context assembly pipeline: how memories are retrieved, scored, ranked, and assembled into a context block. Identify the entry point function(s) and their parameter lists.\n\n2. Add a new helper `async def _inject_timeline_context(session_id: str, current_message: str, compiled_context: str | None = None) -> str` that:\n   - Calls get_recent_milestones from chatbot.continuity.timeline to fetch the last 5-10 milestones.\n   - Calls get_active_projects to fetch running projects.\n   - Calls get_pending_promises to fetch unresolved promises.\n   - Calls generate_thread_callback from chatbot.continuity.narrative with relevance_threshold=0.6 to get up to 3 narrative callbacks.\n   - Formats these into a 'Continuity Context' section as structured text: a labeled block with Milestones, Active Projects, Pending Promises, and Narrative Callbacks subsections. Use a compact, bullet-point format suitable for injection into a prompt.\n   - If no timeline entries, projects, promises, or qualifying callbacks exist, returns an empty string (no forced context injection).\n   - Returns the formatted continuity context string or the empty string.\n\n3. Modify the main context assembly function(s) to call `_inject_timeline_context` after the existing memory retrieval and ranking step but before the final context assembly. When the continuity context is non-empty, append it as an additional ranked context block with a high priority score so it appears near the top of the compiled context.\n\n4. CRITICAL: The change must be purely additive. Do NOT remove, reorder, or alter the existing retrieval ranking logic. Do NOT change how memories are scored or selected. Do NOT modify the existing function signatures beyond adding the new injection call. The existing retrieval ranking must produce the same output as before when no timeline data exists.\n\n5. The continuity context block must have a lower priority than the highest-ranked memory results but higher priority than lower-ranked memory results so that continuity insights are visible but do not drown out directly relevant memories.",
+  "acceptance_criteria": [
+    "chatbot/memory/context_compiler.py has _inject_timeline_context function",
+    "_inject_timeline_context calls get_recent_milestones, get_active_projects, get_pending_promises, and generate_thread_callback",
+    "_inject_timeline_context returns empty string when no timeline data exists (no forced injection)",
+    "The main context assembly function calls _inject_timeline_context and appends results as a ranked context block",
+    "Existing retrieval ranking logic is unmodified \u2014 the change is purely additive",
+    "python -m py_compile chatbot/memory/context_compiler.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/memory/context_compiler.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/memory/context_compiler.py",
+    "remove, reorder, or alter existing memory retrieval ranking logic",
+    "change existing function signatures in a backward-incompatible way",
+    "modify chatbot/continuity/ source files",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "_inject_timeline_context"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add a private helper function for timeline context injection",
+      "import from chatbot.continuity.timeline and chatbot.continuity.narrative",
+      "format timeline data into a structured text block for prompt injection",
+      "append the continuity block to the ranked context output"
+    ],
+    "forbidden": [
+      "refactor or replace the existing retrieval engine",
+      "change the scoring or ranking of existing memory results",
+      "force context injection when no timeline data is available",
+      "add new public API or export interfaces in context_compiler.py"
+    ]
+  },
+  "dependencies": [
+    "c.1",
+    "c.2"
+  ],
+  "task_timeout_seconds": 900
+}

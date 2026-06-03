@@ -1,0 +1,107 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "compile_agency_init",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/agency/__init__.py"
+        ]
+      },
+      {
+        "name": "compile_scheduler",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/agency/scheduler.py"
+        ]
+      },
+      {
+        "name": "compile_checkins",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/agency/checkins.py"
+        ]
+      },
+      {
+        "name": "compile_notifications",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/agency/notifications.py"
+        ]
+      },
+      {
+        "name": "compile_initiative",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/agency/initiative.py"
+        ]
+      },
+      {
+        "name": "compile_models",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/db/models.py"
+        ]
+      },
+      {
+        "name": "compile_migration",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "migrations/versions/0006_agency.py"
+        ]
+      },
+      {
+        "name": "compile_agency_api",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/api/agency.py"
+        ]
+      },
+      {
+        "name": "compile_app",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/api/app.py"
+        ]
+      },
+      {
+        "name": "compile_agency_tests",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "tests/test_agency.py"
+        ]
+      },
+      {
+        "name": "pytest_agency",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "tests/test_agency.py",
+          "-x",
+          "-v"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "task_id": "b.6",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Create Alembic migration for image-memories and appearance tables",
+  "description": "Create migrations/versions/0010_visual.py implementing a reversible Alembic migration that adds the image_memories, appearances, and outfit_records tables plus the appearance_id foreign key column on the existing companions table.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/db/models.py (updated by task b.3 \u2014 understand the exact ImageMemory, Appearance, and OutfitRecord model definitions, table names, and column types)\n- migrations/versions/ (existing migration files \u2014 understand the head revision number, naming convention, and migration structure)\n- migrations/env.py (Alembic environment configuration)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY migrations/versions/0010_visual.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nIMPORTANT \u2014 Verify the real head revision number before writing. The filename 0010_visual.py is a placeholder. Inspect the existing migrations/versions/ directory to determine the correct next revision sequence number and naming convention. If the highest existing revision uses Alembic hex revision identifiers, follow that convention instead and use a descriptive revision identifier.\n\nImplementation details:\n\n1. Create the migration file with a descriptive `revision` and `down_revision` that chains from the current head. The `down_revision` must equal the revision identifier of the most recent existing migration.\n\n2. In `upgrade()`:\n   - Create the `image_memories` table with all columns matching the ImageMemory model in chatbot/db/models.py:\n     * id (Integer, primary_key=True, autoincrement=True)\n     * image_id (String(36), unique=True, nullable=False)\n     * source_type (String(20), nullable=False)\n     * turn_id (String(64), nullable=True)\n     * session_id (String(64), nullable=True)\n     * user_id (String(36), nullable=True)\n     * image_data (LargeBinary, nullable=True)\n     * image_url (String(1024), nullable=True)\n     * mime_type (String(64), nullable=False)\n     * prompt_used (Text, nullable=True)\n     * seed_used (Integer, nullable=True)\n     * model_used (String(128), nullable=True)\n     * width (Integer, nullable=True), height (Integer, nullable=True)\n     * generation_time_ms (Float, nullable=True)\n     * description (Text, nullable=True)\n     * detected_objects (JSON, nullable=True)\n     * detected_text (Text, nullable=True)\n     * scene_category (String(128), nullable=True)\n     * understanding_confidence (Float, nullable=True)\n     * processing_time_ms (Float, nullable=True)\n     * created_at (DateTime, nullable=False, server_default=func.now())\n   - Create the `appearances` table with all columns matching the Appearance model.\n   - Create the `outfit_records` table with all columns matching the OutfitRecord model, including a foreign key to appearances.appearance_id.\n   - Add `appearance_id` column (String(36), nullable=True) to the existing companions table, with a ForeignKey to appearances.appearance_id.\n   - Do NOT touch any existing tables beyond adding the single nullable column to companions.\n\n3. In `downgrade()`:\n   - Drop the appearance_id column from the companions table first.\n   - Drop the outfit_records table.\n   - Drop the appearances table.\n   - Drop the image_memories table.\n   - Use op.drop_table() and op.drop_column() with the exact same table and column names used in upgrade().\n\n4. Follow the existing migration file import conventions: op from alembic, sa from sqlalchemy, and any existing helper imports.",
+  "acceptance_criteria": [
+    "migrations/versions/0010_visual.py exists with correct revision chain from current head",
+    "upgrade() creates image_memories, appearances, and outfit_records tables with all columns",
+    "upgrade() adds nullable appearance_id FK column to the companions table",
+    "downgrade() drops the added column and tables in correct reverse order",
+    "Table and column names match chatbot/db/models.py exactly",
+    "server_default=func.now() is used for non-nullable DateTime columns",
+    "python -m py_compile on the migration file passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "migrations/versions/0010_visual.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside migrations/versions/0010_visual.py",
+    "modify existing migration files",
+    "alter or drop existing tables or columns",
+    "modify the pgvector embedding column",
+    "modify the memory table or any prior-migration tables",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [],
+  "decision_budget": {
+    "allowed": [
+      "use op.create_table, op.drop_table, op.add_column, op.drop_column",
+      "use sa.Column, sa.Integer, sa.String, sa.Text, sa.LargeBinary, sa.Float, sa.DateTime, sa.JSON, sa.ForeignKey",
+      "use server_default=sa.func.now() for non-nullable DateTime columns",
+      "follow existing migration file conventions for imports and structure"
+    ],
+    "forbidden": [
+      "alter or recreate existing tables",
+      "change column types of existing columns",
+      "add constraints or indexes beyond column definitions",
+      "use op.bulk_insert or data migration operations"
+    ]
+  },
+  "dependencies": [
+    "b.3"
+  ],
+  "task_timeout_seconds": 600
+}

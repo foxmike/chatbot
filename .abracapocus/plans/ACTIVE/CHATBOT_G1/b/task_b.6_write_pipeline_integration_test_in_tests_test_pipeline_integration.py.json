@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "task_id": "b.6",
+  "phase": "J",
+  "phase_id": "b",
+  "title": "Write pipeline integration test in tests/test_pipeline_integration.py",
+  "description": "Create tests/test_pipeline_integration.py with pytest-based integration tests that verify persona injection, working-memory history flow, memory extraction, and the wired turn pipeline end-to-end. Tests must use mocks or stubs for external dependencies (provider calls, database) so no real services are required.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/core/steps.py (TurnContext, TurnStep, StepResult)\n- chatbot/core/turn.py (TurnPipeline, build_default_pipeline \u2014 wired in task b.4)\n- chatbot/api/chat.py (chat_router, ChatRequest, ChatResponse \u2014 wired in task b.5)\n- chatbot/soul/persona_prompt.py (PersonaPromptAssembler, created by task b.1)\n- chatbot/memory/working_memory.py (WorkingMemoryLoader, created by task b.3)\n- chatbot/memory/extraction.py (MemoryExtractor, created by task b.2)\n- tests/test_chat_e2e.py (existing test patterns, fixtures, TestClient usage \u2014 created in Phase G)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY tests/test_pipeline_integration.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create tests/test_pipeline_integration.py with:\n   - Module docstring: 'Integration tests for the wired turn pipeline (persona, working memory, extraction).'\n   - Test class `TestPersonaInjection`:\n     * test_persona_prompt_is_deterministic \u2014 same persona dict produces same prompt string.\n     * test_persona_injected_into_context \u2014 a TurnContext with a persona dict results in persona text appearing in compiled_context after pipeline run.\n   - Test class `TestWorkingMemoryFlow`:\n     * test_history_bounded_by_max_turns \u2014 WorkingMemoryLoader with mock store respects max_turns.\n     * test_history_injected_into_context \u2014 history loaded by Retrieve step appears in ctx.history and flows into compiled_context.\n   - Test class `TestMemoryExtraction`:\n     * test_extraction_produces_memories \u2014 MemoryExtractor with mock store returns list[dict] for a turn with content.\n     * test_empty_turn_returns_empty \u2014 extract on empty provider_response returns empty list.\n     * test_extraction_in_pipeline \u2014 ExtractMemory step populates ctx.extracted_memories.\n   - Test class `TestWiredPipelineE2E`:\n     * test_full_pipeline_with_persona_and_memory \u2014 builds a wired TurnPipeline (or mock-wired with test doubles), runs with a session_id and user_message, asserts all ctx fields populated: persona -> compiled_context, history -> history, provider_response -> provider_response, extraction -> extracted_memories.\n     * test_step_results_recorded \u2014 asserts 6 StepResults after pipeline run.\n   - All tests must use test doubles (unittest.mock.MagicMock/AsyncMock or manual stubs) for provider calls, database sessions, and any I/O. No real LLM calls, no real database connections.\n\n2. Follow the existing test patterns in tests/test_chat_e2e.py (pytest fixtures, class organization, assertion style).\n\n3. Ensure python -m py_compile tests/test_pipeline_integration.py passes.",
+  "acceptance_criteria": [
+    "tests/test_pipeline_integration.py exists with TestPersonaInjection, TestWorkingMemoryFlow, TestMemoryExtraction, TestWiredPipelineE2E classes",
+    "test_persona_prompt_is_deterministic passes",
+    "test_persona_injected_into_context passes",
+    "test_history_bounded_by_max_turns passes",
+    "test_history_injected_into_context passes",
+    "test_extraction_produces_memories passes",
+    "test_empty_turn_returns_empty passes",
+    "test_extraction_in_pipeline passes",
+    "test_full_pipeline_with_persona_and_memory passes",
+    "test_step_results_recorded passes",
+    "All tests use mocks/stubs \u2014 no real provider calls or database connections",
+    "python -m py_compile tests/test_pipeline_integration.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "tests/test_pipeline_integration.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside tests/test_pipeline_integration.py",
+    "modify any chatbot/ or abracapocus/ source file",
+    "add new third-party dependencies",
+    "call real LLM providers or establish real database connections in tests",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "TestPersonaInjection",
+    "TestWorkingMemoryFlow",
+    "TestMemoryExtraction",
+    "TestWiredPipelineE2E"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use unittest.mock.MagicMock and AsyncMock for test doubles",
+      "use pytest fixtures for constructing test TurnContext and pipeline",
+      "follow test patterns from tests/test_chat_e2e.py"
+    ],
+    "forbidden": [
+      "call real LLM providers",
+      "require Postgres, Redis, or external services",
+      "add integration tests requiring running servers"
+    ]
+  },
+  "dependencies": [
+    "b.5"
+  ],
+  "task_timeout_seconds": 1200,
+  "model": "openrouter/moonshotai/kimi-k2.6"
+}

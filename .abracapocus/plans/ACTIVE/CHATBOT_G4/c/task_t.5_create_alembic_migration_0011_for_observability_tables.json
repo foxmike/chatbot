@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "task_id": "t.5",
+  "phase": "T",
+  "phase_id": "c",
+  "title": "Create Alembic migration 0011 for observability tables",
+  "description": "Create migrations/versions/0011_observability.py implementing a reversible Alembic migration that creates the observability_traces and observability_usage tables matching the model definitions from task t.4. This migration must chain correctly from the current head revision and must be downgradable.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md\n- chatbot/db/models.py (updated by task t.4 \u2014 exact column names, types, nullability, and constraints for TraceRecord and UsageRecord)\n- migrations/versions/ (all existing migration files \u2014 determine the current head revision number and naming convention)\n- migrations/env.py (Alembic environment configuration)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY migrations/versions/0011_observability.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nIMPORTANT \u2014 Verify the real head revision number before writing. The filename 0011_observability.py is a placeholder. Inspect the existing migrations/versions/ directory to determine the correct next revision sequence number and naming convention. If the highest existing revision is 0010_something.py, use 0011. If it uses alembic hex revisions, follow that convention instead.\n\nImplementation details:\n\n1. Inspect the existing migrations/versions/ directory to find:\n   - The highest revision number/identifier and its revision variable value.\n   - The naming convention used for migration files (numeric prefix, alembic hex, or other).\n   - The import pattern (from alembic import op, import sqlalchemy as sa).\n   - How revision and down_revision variables are set.\n\n2. Create the migration file at the correct path and revision.\n\n3. upgrade() must:\n   - Create observability_traces table with all columns from TraceRecord: id, trace_id (unique, indexed), turn_id (indexed), session_id (indexed), user_id (indexed), model_provider, model_id, task_class, prompt_tokens, completion_tokens, cost_usd_micros, total_latency_ms, retrieve_latency_ms, prompt (Text), routing_decision (JSON), retrieval_snippets (JSON), steps (JSON), created_at.\n   - Create observability_usage table with all columns from UsageRecord: id, session_id (indexed), model_provider (indexed), model_id (indexed), turn_count, prompt_tokens, completion_tokens, cost_usd_micros, avg_latency_ms, created_at, updated_at, and a unique constraint on (session_id, model_provider, model_id).\n\n4. downgrade() must:\n   - Drop the observability_usage table.\n   - Drop the observability_traces table.\n   - No CASCADE or IF EXISTS.\n\n5. Do NOT alter existing tables, add triggers, add data migration, or add foreign keys.",
+  "acceptance_criteria": [
+    "migrations/versions/0011_observability.py (or filename matching real head+1) exists",
+    "Migration has correct revision and down_revision pointing to actual head",
+    "upgrade() creates observability_traces table with all specified columns and indexes",
+    "upgrade() creates observability_usage table with all specified columns, indexes, and unique constraint",
+    "downgrade() drops both tables in reverse order",
+    "python -m py_compile on the migration file passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "migrations/versions/0011_observability.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside migrations/versions/0011_observability.py",
+    "modify existing migration files",
+    "modify chatbot/db/models.py",
+    "alter existing tables or columns",
+    "add CASCADE, IF EXISTS, or conditional logic to downgrade",
+    "add foreign key constraints",
+    "add data migration or backfill logic",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [],
+  "decision_budget": {
+    "allowed": [
+      "use op.create_table and op.drop_table",
+      "use sa.Column, sa.Integer, sa.String, sa.Text, sa.Float, sa.DateTime, sa.JSON, sa.UniqueConstraint",
+      "use server_default for DateTime columns",
+      "follow existing migration file conventions for imports and structure",
+      "create indexes via index=True on sa.Column"
+    ],
+    "forbidden": [
+      "alter existing tables or columns",
+      "add triggers, sequences, or custom SQL",
+      "add CASCADE or IF EXISTS to drop_table",
+      "add foreign key constraints"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

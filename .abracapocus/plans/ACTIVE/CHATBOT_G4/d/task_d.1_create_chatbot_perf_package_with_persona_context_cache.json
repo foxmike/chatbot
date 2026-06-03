@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "task_id": "d.1",
+  "phase": "D",
+  "phase_id": "d",
+  "title": "Create chatbot/perf/ package with persona context cache",
+  "description": "Create chatbot/perf/__init__.py and chatbot/perf/cache.py implementing a cached persona context layer that avoids recompiling the persona and system prompt on every turn.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- chatbot/core/turn.py for how TurnContext carries persona/compiled_context today\n- chatbot/db/models.py for persona-related model columns\n- chatbot/providers/ for any existing provider adapter patterns\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create chatbot/perf/__init__.py with:\n   - Module docstring: 'Performance and latency package \u2014 caching, background processing, and streaming support.'\n   - Export PersonaCache from cache.py.\n\n2. Create chatbot/perf/cache.py with:\n   - Module docstring: 'Cached persona context to avoid recompiling persona/prompt every turn.'\n   - A `PersonaCache` class that:\n     * Uses an in-process dict (TTL-style dict or simple dict) keyed by (user_id, companion_id) for the persona context. The persona_context is the compiled system prompt block.\n     * `async def get(self, user_id: str, companion_id: str | None) -> str | None` \u2014 returns cached persona context if present and not expired. Returns None on cache miss.\n     * `async def set(self, user_id: str, companion_id: str | None, persona_context: str, ttl_seconds: int = 300) -> None` \u2014 stores persona context with a TTL. Extend the value dict with a cached_at timestamp.\n     * `async def invalidate(self, user_id: str, companion_id: str | None) -> None` \u2014 removes a cached persona entry. MUST be called whenever a character/relationship change from phase L occurs (persona edit, companion update, memory consolidation that changes persona). Callers that trigger these changes are responsible for calling invalidate.\n     * `async def invalidate_user(self, user_id: str) -> None` \u2014 removes ALL cached entries for a user. Called on major user-level persona changes.\n     * Stale entries are skipped on get() if TTL has expired (compare cached_at + ttl_seconds with current time). No background cleanup sweep is needed.\n     * The cache is in-process and per-worker. For multi-process deployments, each worker has its own cache. Invalidation across workers is deferred \u2014 the TTL handles staleness.\n   - A `DEFAULT_PERSONA_TTL_SECONDS = 300` module constant.\n\n3. Ensure python -m py_compile on both files passes.",
+  "acceptance_criteria": [
+    "chatbot/perf/__init__.py exists and exports PersonaCache",
+    "chatbot/perf/cache.py exists and defines PersonaCache with get, set, invalidate, and invalidate_user methods",
+    "PersonaCache.get() returns None on cache miss",
+    "PersonaCache.get() skips entries whose TTL has expired",
+    "PersonaCache.invalidate() removes a specific (user_id, companion_id) entry",
+    "PersonaCache.invalidate_user() removes all entries for a user",
+    "No background cleanup sweep is implemented (stale check is on get)",
+    "python -m py_compile chatbot/perf/__init__.py passes",
+    "python -m py_compile chatbot/perf/cache.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/perf/__init__.py",
+    "chatbot/perf/cache.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/perf/__init__.py and chatbot/perf/cache.py",
+    "add Redis, memcached, or any external cache dependency",
+    "add background thread or asyncio task for cleanup",
+    "change the Abracapocus runtime, orchestrator, or backends",
+    "modify chatbot/core/turn.py (saved for task d.5)"
+  ],
+  "allowed_symbols": [
+    "PersonaCache",
+    "DEFAULT_PERSONA_TTL_SECONDS"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use in-process dict for cache storage",
+      "use time.time() for TTL checking",
+      "use async method signatures for future backend compatibility"
+    ],
+    "forbidden": [
+      "introduce Redis or any external cache back-end",
+      "add thread safety primitives beyond asyncio",
+      "add background cleanup task or timer"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

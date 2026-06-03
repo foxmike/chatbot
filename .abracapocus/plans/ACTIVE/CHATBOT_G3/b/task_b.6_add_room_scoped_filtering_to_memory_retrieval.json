@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_id": "b.6",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Add room-scoped filtering to memory retrieval",
+  "description": "Modify chatbot/memory/retrieval.py to add room-scoped memory filtering. Retrieval must respect the room's memory policy: scope (room/companion/global), whether embeddings should be included, max context turns, and whether durable vs. scene-isolated memories are queried. Default one-on-one chat behavior must remain unchanged when no room context is provided.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/memory/retrieval.py (existing retrieval functions \u2014 understand the current signatures, query patterns, and return types)\n- chatbot/rooms/room.py (created by task b.1 \u2014 Room, RoomType, RoomMemoryPolicy, DEFAULT_ROOM_POLICIES)\n- chatbot/rooms/roleplay.py (created by task b.4 \u2014 RoleplayEngine.get_scene_memory_scope, is_durable_candidate)\n- chatbot/db/models.py (updated by task b.3 \u2014 Room and Scene models)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/memory/retrieval.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Open chatbot/memory/retrieval.py and understand the existing retrieval function signatures, pgvector query patterns, and the interface other modules depend on.\n\n2. Add a `RoomMemoryContext` dataclass or TypedDict with: room_id (str | None), room_type (str | None), memory_scope (Literal['room', 'companion', 'global'], default 'global'), persist_to_durable (bool, default True), max_context_turns (int, default 50), include_embeddings (bool, default True), companion_id (str | None). None values mean no room scoping is applied.\n\n3. Modify existing retrieval functions to accept an optional `room_context: RoomMemoryContext | None = None` parameter. When room_context is None, behavior is unchanged (backward compatible).\n\n4. When room_context is provided:\n   - Filter by memory_scope: 'room' scopes to memory associated with that room_id only; 'companion' scopes to companion_id memories across rooms; 'global' or None returns all.\n   - When persist_to_durable is False (roleplay default), exclude memories tagged as durable and include only scene-scoped memories.\n   - When include_embeddings is False, skip pgvector similarity search and use text-based keyword matching only.\n   - Limit results to max_context_turns.\n   - When room_type is 'roleplay_scene' and an active scene exists, apply scene memory isolation: by default exclude durable factual memories from the retrieval result unless they are explicitly marked for cross-scene persistence.\n\n5. Add a helper function `build_room_context(room: Room, scene: SceneState | None = None) -> RoomMemoryContext` that constructs the context from a Room and optional Scene.\n\n6. All changes must be additive \u2014 add parameters with defaults, add filter branches gated by the parameter, do not remove or rename existing functions or parameters.",
+  "acceptance_criteria": [
+    "chatbot/memory/retrieval.py has RoomMemoryContext dataclass/TypedDict",
+    "Existing retrieval functions accept optional room_context parameter with default None",
+    "When room_context is None, behavior is identical to pre-change behavior",
+    "When memory_scope='room', results are filtered to that room_id",
+    "When persist_to_durable=False, durable memories are excluded from results",
+    "When include_embeddings=False, pgvector similarity is skipped",
+    "When room_type='roleplay_scene', scene memory isolation is applied by default",
+    "build_room_context() constructs RoomMemoryContext from Room and optional Scene",
+    "Existing function signatures are backward compatible",
+    "python -m py_compile chatbot/memory/retrieval.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/memory/retrieval.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/memory/retrieval.py",
+    "remove or rename existing retrieval function signatures",
+    "change the return type of existing retrieval functions",
+    "modify chatbot/db/models.py",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "RoomMemoryContext",
+    "build_room_context"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add optional parameters with backward-compatible defaults",
+      "add filter branches gated by the new parameter",
+      "use SQLAlchemy query filters for scope and durability",
+      "add helper dataclass for room context"
+    ],
+    "forbidden": [
+      "change the core retrieval algorithm",
+      "remove or rename existing functions or parameters",
+      "add new database tables or schemas",
+      "alter the pgvector query in incompatible ways"
+    ]
+  },
+  "dependencies": [
+    "b.1"
+  ],
+  "task_timeout_seconds": 900
+}

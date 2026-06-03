@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "task_id": "c.7",
+  "phase": "C",
+  "phase_id": "c",
+  "title": "Add continuity API functions to React client",
+  "description": "Modify react_ui/src/api/client.ts to add TypeScript fetch functions for continuity endpoints: timeline queries, ritual management, and narrative callbacks.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- react_ui/src/api/client.ts (existing API client \u2014 understand base URL configuration, fetch wrapper patterns, TypeScript conventions, and existing types/functions)\n- chatbot/continuity/timeline.py (created by task c.1)\n- chatbot/continuity/rituals.py (created by task c.3)\n- chatbot/continuity/narrative.py (created by task c.2)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY react_ui/src/api/client.ts. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Open react_ui/src/api/client.ts and inspect the existing API function patterns: base URL configuration, fetch wrapper, TypeScript type conventions, error handling. All new code must follow these conventions.\n\n2. Add TypeScript interfaces:\n   - `TimelineEntry`: entry_id (string), session_id (string), entry_type ('milestone' | 'emotional_event' | 'promise' | 'running_project'), title (string), description (string), content (string), turn_id (string), created_at (string), updated_at (string), status ('active' | 'resolved' | 'broken' | 'completed' | 'abandoned'), tags (string[]), metadata (Record<string, unknown>).\n   - `TimelineFilter`: session_id (string | null), entry_types (string[] | null), statuses (string[] | null), tags (string[] | null), date_from (string | null), date_to (string | null).\n   - `RitualInfo`: ritual_id (string), session_id (string), name (string), ritual_type ('check_in' | 'recap' | 'planning' | 'recurring' | 'joke' | 'custom'), description (string), schedule_description (string), last_triggered_at (string | null), next_trigger_at (string | null), is_active (boolean), trigger_prompt (string | null), created_at (string), metadata (Record<string, unknown>).\n   - `NarrativeThread`: thread_id (string), session_id (string), label (string), turns (string[]), created_at (string), last_referenced_at (string), relevance_score (number), summary (string).\n   - `ThreadCallback`: thread_id (string), label (string), callback_text (string), turn_id (string), confidence (number), thread_summary (string).\n   - `CreateRitualRequest`: name (string), ritual_type (string), description (string), schedule_description (string), trigger_prompt (string | null).\n\n3. Add async fetch functions following the existing pattern:\n   - `fetchTimeline(sessionId: string, filter?: TimelineFilter): Promise<TimelineEntry[]>` \u2014 GET /timeline/{sessionId} with optional filter query params.\n   - `fetchActiveProjects(sessionId: string): Promise<TimelineEntry[]>` \u2014 GET /timeline/{sessionId}/projects/active.\n   - `fetchPendingPromises(sessionId: string): Promise<TimelineEntry[]>` \u2014 GET /timeline/{sessionId}/promises/pending.\n   - `resolveTimelineEntry(entryId: string, resolution?: string): Promise<TimelineEntry>` \u2014 POST /timeline/{entryId}/resolve.\n   - `fetchNarrativeThreads(sessionId: string): Promise<NarrativeThread[]>` \u2014 GET /narrative/{sessionId}/threads.\n   - `fetchThreadCallbacks(sessionId: string, message: string): Promise<ThreadCallback[]>` \u2014 POST /narrative/{sessionId}/callbacks with {message} body.\n   - `fetchRituals(sessionId: string, type?: string): Promise<RitualInfo[]>` \u2014 GET /rituals/{sessionId}.\n   - `createRitual(sessionId: string, request: CreateRitualRequest): Promise<RitualInfo>` \u2014 POST /rituals/{sessionId}.\n   - `deactivateRitual(ritualId: string): Promise<void>` \u2014 DELETE /rituals/{ritualId}.\n\n4. Existing API functions in client.ts must not be removed or changed.",
+  "acceptance_criteria": [
+    "react_ui/src/api/client.ts exports TimelineEntry, TimelineFilter, RitualInfo, NarrativeThread, ThreadCallback, CreateRitualRequest types",
+    "react_ui/src/api/client.ts exports all nine continuity fetch functions",
+    "All new functions use the existing fetch wrapper or URL pattern from client.ts",
+    "Existing API functions in client.ts are not removed or changed",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/api/client.ts"
+  ],
+  "forbidden_changes": [
+    "modify any file outside react_ui/src/api/client.ts",
+    "remove or rename existing exported functions from client.ts",
+    "add new third-party dependencies",
+    "introduce a new HTTP client library",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "TimelineEntry",
+    "TimelineFilter",
+    "RitualInfo",
+    "NarrativeThread",
+    "ThreadCallback",
+    "CreateRitualRequest",
+    "fetchTimeline",
+    "fetchActiveProjects",
+    "fetchPendingPromises",
+    "resolveTimelineEntry",
+    "fetchNarrativeThreads",
+    "fetchThreadCallbacks",
+    "fetchRituals",
+    "createRitual",
+    "deactivateRitual"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add TypeScript interfaces matching the Python dataclass shapes",
+      "add async fetch wrapper functions following existing client.ts patterns",
+      "use the existing base URL and error handling conventions"
+    ],
+    "forbidden": [
+      "introduce axios, react-query, or any new HTTP/data-fetching library",
+      "change the fetch wrapper pattern or base URL configuration"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "task_id": "b.7",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Create rooms and scenes API endpoints",
+  "description": "Create chatbot/api/rooms.py exposing a FastAPI APIRouter with endpoints for room management (create, list, get, update memory policy, delete), scene lifecycle (create, get, update, pause, resume, end, active scene), and roleplay persona management.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/api/__init__.py (existing API package init)\n- chatbot/rooms/room.py (created by task b.1 \u2014 Room, RoomType, RoomMemoryPolicy, create_room, get_room, get_user_rooms, update_room_memory_policy)\n- chatbot/rooms/scene.py (created by task b.2 \u2014 SceneState, all scene lifecycle functions)\n- chatbot/rooms/roleplay.py (created by task b.4 \u2014 RoleplayPersona, RoleplayEngine)\n- chatbot/db/models.py (updated by task b.3 \u2014 Room and Scene models)\n- Existing API endpoint files (chatbot/api/chat.py, chatbot/api/sessions.py, chatbot/api/memory.py) for router pattern conventions\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/api/rooms.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create chatbot/api/rooms.py with:\n   - Module docstring: 'Room and scene management API endpoints.'\n   - A FastAPI APIRouter instance named `rooms_router` with prefix '/rooms' and tag 'rooms'.\n   - Pydantic request/response models:\n     * RoomCreateRequest: user_id (str), room_type (RoomType), display_name (str | None), companion_id (str | None)\n     * RoomResponse: room_id, user_id, companion_id, room_type, display_name, memory_policy (dict), scene_id, created_at, metadata\n     * RoomListResponse: rooms (list[RoomResponse])\n     * MemoryPolicyUpdateRequest: persist_to_durable (bool | None), scope (str | None), max_context_turns (int | None), include_embeddings (bool | None)\n     * SceneCreateRequest: room_id (str), location (str), activity (str)\n     * SceneUpdateRequest: location (str | None), activity (str | None), tone (str | None), intensity (int | None), scene_context (str | None), participants (list[str] | None)\n     * SceneResponse: all SceneState fields as JSON\n     * PersonaRequest: name (str), description (str), traits (list[str]), voice_style (str), backstory (str), scene_goals (list[str]), constraints (list[str])\n     * ScenePromptResponse: system_prompt (str)\n     * MemoryClassificationResponse: classification (Literal['scene_only', 'durable', 'both'])\n\n   - Room endpoints:\n     * POST /rooms/ \u2014 create a new room. Returns RoomResponse.\n     * GET /rooms/{user_id} \u2014 list all rooms for a user. Returns RoomListResponse.\n     * GET /rooms/detail/{room_id} \u2014 get single room details. Returns RoomResponse.\n     * PUT /rooms/{room_id}/memory-policy \u2014 update room memory policy. Returns RoomResponse.\n     * DELETE /rooms/{room_id} \u2014 delete a room and associated scenes.\n\n   - Scene endpoints:\n     * POST /rooms/{room_id}/scenes \u2014 create a new scene in a room. Returns SceneResponse.\n     * GET /rooms/{room_id}/scenes/active \u2014 get the active scene. Returns SceneResponse or 404.\n     * GET /scenes/{scene_id} \u2014 get scene details. Returns SceneResponse or 404.\n     * PATCH /scenes/{scene_id} \u2014 update scene fields. Returns SceneResponse.\n     * POST /scenes/{scene_id}/pause \u2014 pause scene. Returns SceneResponse.\n     * POST /scenes/{scene_id}/resume \u2014 resume scene. Returns SceneResponse.\n     * POST /scenes/{scene_id}/end \u2014 end scene. Returns SceneResponse.\n\n   - Roleplay endpoints:\n     * POST /scenes/{scene_id}/persona \u2014 set or update persona for a scene. Returns ScenePromptResponse with the built system prompt.\n     * POST /scenes/{scene_id}/classify \u2014 classify a text string for memory importance. Takes text (str) in body, returns MemoryClassificationResponse.\n\n   All endpoints delegate to functions in chatbot.rooms.* modules. Do not implement business logic directly in the router.",
+  "acceptance_criteria": [
+    "chatbot/api/rooms.py exists with rooms_router and all Pydantic models",
+    "POST /rooms/ creates a room and returns RoomResponse",
+    "GET /rooms/{user_id} lists user rooms",
+    "GET /rooms/detail/{room_id} returns room details or 404",
+    "PUT /rooms/{room_id}/memory-policy updates memory policy",
+    "DELETE /rooms/{room_id} deletes room",
+    "POST /rooms/{room_id}/scenes creates a scene",
+    "GET /rooms/{room_id}/scenes/active returns active scene or 404",
+    "PATCH /scenes/{scene_id}, POST /scenes/{scene_id}/pause, /resume, /end work correctly",
+    "POST /scenes/{scene_id}/persona returns system prompt from RoleplayEngine",
+    "POST /scenes/{scene_id}/classify returns classification result",
+    "python -m py_compile chatbot/api/rooms.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/rooms.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/api/rooms.py",
+    "modify chatbot/rooms/ source files",
+    "modify chatbot/db/models.py",
+    "modify existing API endpoint files (chat.py, sessions.py, streaming.py, memory.py)",
+    "add new third-party dependencies",
+    "implement business logic directly in endpoint handlers (delegate to chatbot.rooms modules)",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "rooms_router",
+    "RoomCreateRequest",
+    "RoomResponse",
+    "RoomListResponse",
+    "MemoryPolicyUpdateRequest",
+    "SceneCreateRequest",
+    "SceneUpdateRequest",
+    "SceneResponse",
+    "PersonaRequest",
+    "ScenePromptResponse",
+    "MemoryClassificationResponse"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use FastAPI APIRouter with prefix and tag",
+      "use Pydantic for request/response models",
+      "use dependency injection for database sessions",
+      "return standard HTTP status codes (201 for create, 200 for read/update, 204 for delete, 404 for not found)",
+      "delegate all business logic to chatbot.rooms.* module functions"
+    ],
+    "forbidden": [
+      "add middleware, auth, rate-limiting, or CORS to this router",
+      "add WebSocket support",
+      "implement business logic directly in endpoint handlers",
+      "return raw database rows or SQLAlchemy objects in responses"
+    ]
+  },
+  "dependencies": [
+    "b.1",
+    "b.2"
+  ],
+  "task_timeout_seconds": 1200
+}

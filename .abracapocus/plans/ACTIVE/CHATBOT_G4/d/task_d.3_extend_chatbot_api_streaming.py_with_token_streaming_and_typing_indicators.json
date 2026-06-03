@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "task_id": "d.3",
+  "phase": "D",
+  "phase_id": "d",
+  "title": "Extend chatbot/api/streaming.py with token streaming and typing indicators",
+  "description": "Extend chatbot/api/streaming.py to implement real token streaming with typing indicators and partial generation on the /chat/stream SSE path. The streaming endpoint must emit tokens as they arrive from the provider rather than waiting for the full response, and must emit typing indicator events.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- chatbot/api/streaming.py for the current SSE endpoint structure, router, and StreamRequest model\n- chatbot/core/turn.py for how the pipeline calls the provider and produces a response\n- chatbot/providers/ for any existing provider adapter streaming methods\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.\n\nSINGLE-OWNER FILE: chatbot/api/streaming.py is owned exclusively by this task in this phase. No other task may modify it.\n\nImplementation details:\n\n1. Inspect the existing chatbot/api/streaming.py to understand the current SSE endpoint shape: the router variable name, prefix, the StreamRequest model, and how the existing handler returns a StreamingResponse.\n\n2. Extend the POST /chat/stream handler to implement token streaming:\n   - The handler must accept a `stream_tokens: bool = True` field in the request body (or query param) that controls whether tokens are streamed one-by-one or emitted in chunks.\n   - The async generator must yield SSE events in the following order:\n     a. `data: {\"type\": \"typing\", \"status\": \"started\"}\\n\\n` \u2014 typing indicator begins\n     b. For each step in the pipeline that runs before the provider call (receive, retrieve, compile_context), emit SSE events as before: `data: {\"step\": \"<name>\", \"status\": \"running\"}\\n\\n` and completed events.\n     c. When the provider call step begins, emit `data: {\"step\": \"call_provider\", \"status\": \"streaming\"}\\n\\n`.\n     d. As tokens arrive from the provider (via a streaming adapter), emit each token as: `data: {\"type\": \"token\", \"text\": \"<token_text>\"}\\n\\n`.\n       - If the provider does not support streaming or stream_tokens is False, emit the full response as before.\n     e. After provider completes, emit `data: {\"step\": \"call_provider\", \"status\": \"done\", \"duration_ms\": <N>}\\n\\n`.\n     f. Emit `data: {\"type\": \"typing\", \"status\": \"stopped\"}\\n\\n` \u2014 typing indicator ends.\n     g. Run remaining pipeline steps (extract, respond) emitting their step events.\n     h. Emit final response event and [DONE] terminator as before.\n   - The typing indicator events (`started` and `stopped`) are emitted even when stream_tokens is False \u2014 they signal the UI to show/hide the typing bubble.\n\n3. Ensure backward compatibility: the existing /chat/stream contract (returning step events and a final response) must still work. The token streaming is additive \u2014 clients that ignore token events will see the same final response event as before.\n\n4. If the provider adapter does not expose streaming yet, token streaming is a no-op: the generator yields the full response as a single text block after the provider step completes. This ensures the endpoint is importable and functional before provider streaming is wired.\n\n5. Ensure python -m py_compile chatbot/api/streaming.py passes.",
+  "acceptance_criteria": [
+    "chatbot/api/streaming.py emits SSE typing indicator events ('started' and 'stopped')",
+    "chatbot/api/streaming.py supports token streaming via 'type': 'token' SSE events when stream_tokens is True",
+    "Token streaming falls back to full-response emission when provider does not support streaming",
+    "Existing step events (step: running, step: done) are preserved",
+    "Existing final response event and [DONE] terminator are preserved",
+    "The /chat/stream endpoint remains backward-compatible with existing clients",
+    "python -m py_compile chatbot/api/streaming.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/streaming.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/api/streaming.py",
+    "change the router variable name or URL prefix",
+    "remove existing SSE event types or the [DONE] terminator",
+    "add WebSocket support",
+    "modify chatbot/core/turn.py (saved for task d.5)",
+    "modify chatbot/api/chat.py (saved for task d.8)",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [],
+  "decision_budget": {
+    "allowed": [
+      "extend the async generator with typing and token events",
+      "check for provider streaming capability",
+      "emit tokens one-by-one if provider supports it",
+      "preserve backward-compatible SSE event contract"
+    ],
+    "forbidden": [
+      "introduce new SSE event format that removes existing event types",
+      "add WebSocket support",
+      "change the router prefix or endpoint URL",
+      "require provider streaming \u2014 gracefully degrade"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 1200
+}

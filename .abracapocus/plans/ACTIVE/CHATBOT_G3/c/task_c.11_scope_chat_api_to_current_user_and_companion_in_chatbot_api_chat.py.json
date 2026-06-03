@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "task_id": "c.11",
+  "phase": "Q",
+  "phase_id": "c",
+  "title": "Scope chat API to current user and companion in chatbot/api/chat.py",
+  "description": "Modify chatbot/api/chat.py to scope all chat operations to the authenticated user and optionally to a companion. Apply get_current_user dependency and enforce user_id ownership on session access and chat message storage.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md\n- chatbot/api/chat.py (existing chat API \u2014 understand current endpoints, request/response models, router name, and how sessions are used)\n- chatbot/auth/dependencies.py (created by task c.5 \u2014 get_current_user, CurrentUser)\n- chatbot/db/models.py (updated by task c.4 \u2014 Session and ChatMessage models with user_id/companion_id columns)\n- chatbot/companions/companion.py (created by task c.3 \u2014 CompanionManager)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/api/chat.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Open chatbot/api/chat.py and understand:\n   - Current endpoints and their signatures.\n   - How the session_id is validated (in-memory lookup, database, etc.).\n   - Router variable name, prefix, and tag.\n   - How chat messages/turns are stored.\n   - Request/response model definitions (ChatRequest, ChatResponse, etc.).\n\n2. Add user_id scoping:\n   - Import `get_current_user` from chatbot.auth.dependencies.\n   - Add `current_user: CurrentUser = Depends(get_current_user)` to every endpoint.\n   - Before processing any chat message, validate that the session belongs to the current user. If not found or owned by a different user, return 404.\n   - Store user_id from current_user on all created chat messages/turns.\n\n3. Add companion support:\n   - Accept optional companion_id in the chat request body.\n   - If companion_id is provided, validate it exists and is owned by the current user (use CompanionManager). If not, return 404.\n   - Store companion_id on chat messages/turns.\n   - The session's companion_id (if set) should match the request's companion_id (if both are set), otherwise return 400.\n\n4. Do NOT modify the chat pipeline execution logic, TurnContext, TurnPipeline, or any pipeline step code \u2014 only add auth scoping around the existing logic.\n\n5. Do NOT rename the router, change endpoint URL paths, or change HTTP methods.",
+  "acceptance_criteria": [
+    "chatbot/api/chat.py imports and uses get_current_user dependency on all endpoints",
+    "Chat endpoint verifies session belongs to current_user before processing",
+    "Chat endpoint returns 404 when session is not owned by the authenticated user",
+    "Chat messages/turns are stored with user_id from current_user",
+    "Chat endpoint accepts optional companion_id and validates ownership",
+    "Chat endpoint returns 404 when companion_id is provided but not found or not owned by user",
+    "Existing endpoint paths, router name, and prefix are preserved",
+    "python -m py_compile chatbot/api/chat.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/chat.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/api/chat.py",
+    "modify chatbot/auth/dependencies.py",
+    "modify chatbot/db/models.py",
+    "modify chatbot/api/sessions.py or chatbot/api/app.py",
+    "rename the router or change existing endpoint URL paths",
+    "change the chat pipeline or step execution logic",
+    "return 200 for chat against sessions owned by a different user",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [],
+  "decision_budget": {
+    "allowed": [
+      "add Depends(get_current_user) to existing endpoint signatures",
+      "validate session ownership before processing chat messages",
+      "validate companion ownership when companion_id is provided",
+      "store user_id and companion_id on chat message records"
+    ],
+    "forbidden": [
+      "change existing endpoint URL paths or HTTP methods",
+      "remove existing chat functionality (pipeline execution, response generation)",
+      "modify TurnContext, TurnPipeline, or pipeline step logic",
+      "return 200 or 403 for unauthorized session access (use 404 to prevent enumeration)"
+    ]
+  },
+  "dependencies": [
+    "c.3",
+    "c.4",
+    "c.5"
+  ],
+  "task_timeout_seconds": 1200
+}

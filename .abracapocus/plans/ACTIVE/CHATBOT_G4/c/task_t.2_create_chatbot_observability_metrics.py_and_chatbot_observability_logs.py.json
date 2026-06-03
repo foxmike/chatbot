@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "task_id": "t.2",
+  "phase": "T",
+  "phase_id": "c",
+  "title": "Create chatbot/observability/metrics.py and chatbot/observability/logs.py",
+  "description": "Create chatbot/observability/metrics.py implementing latency, token, and cost metering per conversation and per model, and chatbot/observability/logs.py implementing structured event logs for memory-write, contradiction, and failed-retrieval events.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md\n- chatbot/observability/__init__.py (created by task t.1) for TraceRecord shape\n- chatbot/observability/tracing.py (created by task t.1) for TraceCollector singleton\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/observability/metrics.py and chatbot/observability/logs.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n--- chatbot/observability/metrics.py ---\n\n1. Create chatbot/observability/metrics.py with:\n   - Module docstring: 'Latency, token, and cost metering \u2014 per-conversation and per-model aggregate metrics.'\n   - A `TokenUsage` dataclass with: prompt_tokens (int), completion_tokens (int), total_tokens (int), cost_usd_micros (int).\n   - A `ModelMetrics` dataclass with: model_id (str), provider (str), request_count (int), total_prompt_tokens (int), total_completion_tokens (int), total_cost_usd_micros (int), avg_latency_ms (float), p50_latency_ms (float), p95_latency_ms (float), p99_latency_ms (float).\n   - A `SessionMetrics` dataclass with: session_id (str), turn_count (int), total_tokens (int), total_cost_usd_micros (int), avg_latency_ms (float), models_used (list[str]).\n   - A `MetricsCollector` class with:\n     * In-memory storage: dict for session-level aggregates and dict for per-model aggregates.\n     * async `record_trace(trace: TraceRecord) -> None` \u2014 extracts token counts, cost, latency from a TraceRecord and updates session and per-model aggregates. Uses a sorted-list approach for p50/p95/p99 latency computation, keeping at most 1000 latencies per model.\n     * async `get_session_metrics(session_id: str) -> SessionMetrics | None`.\n     * async `get_model_metrics(model_id: str) -> ModelMetrics | None`.\n     * async `get_model_metrics_all() -> list[ModelMetrics]` \u2014 returns all tracked models sorted by total_cost_usd_micros descending.\n     * async `get_global_summary() -> dict[str, Any]` \u2014 returns total requests, total tokens, total cost, avg latency across all sessions.\n     * async `reset() -> None` \u2014 clears all stored metrics.\n   - A module-level singleton `metrics_collector = MetricsCollector()`.\n\n--- chatbot/observability/logs.py ---\n\n2. Create chatbot/observability/logs.py with:\n   - Module docstring: 'Structured event logs for memory-write, contradiction, and failed-retrieval events.'\n   - A `LogEventType` Literal: 'memory_write', 'contradiction', 'failed_retrieval', 'extraction_error', 'consolidation_complete'.\n   - A `LogEvent` dataclass with: event_id (str, uuid4), event_type (LogEventType), timestamp (str, ISO format), session_id (str | None), turn_id (str | None), user_id (str | None), details (dict[str, Any], default_factory=dict), severity (str, default 'info').\n   - A `StructuredLogger` class with:\n     * In-memory ring buffer of at most 10000 events.\n     * async `log_memory_write(session_id, turn_id, user_id, memory_id, content_length, extraction_time_ms) -> LogEvent` \u2014 creates and stores a 'memory_write' event.\n     * async `log_contradiction(session_id, turn_id, user_id, original_memory_id, new_memory_id, conflict_fields) -> LogEvent` \u2014 creates and stores a 'contradiction' event.\n     * async `log_failed_retrieval(session_id, turn_id, user_id, query, reason, retry_count) -> LogEvent` \u2014 creates and stores a 'failed_retrieval' event.\n     * async `query_events(event_type=None, session_id=None, since=None, limit=100, offset=0) -> list[LogEvent]` \u2014 filtered query with optional timestamp range.\n     * async `get_event(event_id) -> LogEvent | None`.\n     * async `clear() -> None` \u2014 empties the ring buffer.\n   - A module-level singleton `structured_logger = StructuredLogger()`.\n\n3. Update chatbot/observability/__init__.py to export MetricsCollector, metrics_collector, StructuredLogger, structured_logger, LogEvent, LogEventType, TokenUsage, ModelMetrics, SessionMetrics from their respective modules.",
+  "acceptance_criteria": [
+    "chatbot/observability/metrics.py exists and defines TokenUsage, ModelMetrics, SessionMetrics, MetricsCollector",
+    "MetricsCollector.record_trace aggregates prompt/completion tokens, cost, and latency per-session and per-model",
+    "MetricsCollector.get_model_metrics returns p50/p95/p99 latency percentiles",
+    "MetricsCollector.get_global_summary returns total requests, tokens, cost, avg latency",
+    "chatbot/observability/logs.py exists and defines LogEventType, LogEvent, StructuredLogger",
+    "StructuredLogger has dedicated methods for memory_write, contradiction, and failed_retrieval events",
+    "StructuredLogger.query_events supports type, session_id, since, and pagination filters",
+    "Both modules use in-memory storage with no database dependency",
+    "chatbot/observability/__init__.py exports all symbols from metrics.py and logs.py",
+    "python -m py_compile chatbot/observability/metrics.py passes",
+    "python -m py_compile chatbot/observability/logs.py passes",
+    "python -m py_compile chatbot/observability/__init__.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/observability/metrics.py",
+    "chatbot/observability/logs.py",
+    "chatbot/observability/__init__.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/observability/metrics.py, chatbot/observability/logs.py, and chatbot/observability/__init__.py",
+    "add new third-party dependencies",
+    "write to a persistent database or file",
+    "modify chatbot/observability/tracing.py",
+    "modify the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "TokenUsage",
+    "ModelMetrics",
+    "SessionMetrics",
+    "MetricsCollector",
+    "metrics_collector",
+    "LogEventType",
+    "LogEvent",
+    "StructuredLogger",
+    "structured_logger"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use dataclasses for metric and log event types",
+      "use in-memory dict/list storage with ring-buffer cap",
+      "compute p50/p95/p99 from sorted latency list",
+      "use uuid4 for event_id",
+      "use ISO format for timestamps"
+    ],
+    "forbidden": [
+      "introduce Prometheus, OpenMetrics, or Grafana SDKs",
+      "write to Postgres, SQLite, or any persistent store",
+      "add structured logging frameworks (loguru, structlog)",
+      "add infinite unbounded storage"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 1200
+}

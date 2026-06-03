@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "task_id": "t.8",
+  "phase": "T",
+  "phase_id": "c",
+  "title": "Extend react_ui/src/api/client.ts with admin dashboard API functions",
+  "description": "Extend react_ui/src/api/client.ts with typed TypeScript API functions for the admin dashboard endpoints defined in chatbot/api/admin.py. Add TypeScript types matching the API response shapes.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md\n- react_ui/src/api/client.ts (existing API client \u2014 understand base URL configuration, fetchApi wrapper pattern, TypeScript type conventions, and error handling)\n- chatbot/api/admin.py (created by task t.6 \u2014 understand the endpoint paths, query parameters, and response shapes)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY react_ui/src/api/client.ts. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nSINGLE-OWNER FILE: react_ui/src/api/client.ts is owned exclusively by this task in this phase. No other task may modify it.\n\nImplementation details:\n\n1. Open react_ui/src/api/client.ts and inspect the existing patterns:\n   - How the base URL is configured.\n   - How fetch is wrapped (fetchApi or similar helper).\n   - TypeScript type convention (interface vs type, PascalCase).\n   - Error handling pattern.\n\n2. Add TypeScript types matching the Python Pydantic response models:\n   - `TraceSummary`: traceId (string), sessionId (string), turnId (string), modelId (string | null), taskClass (string | null), totalLatencyMs (number), promptTokens (number), completionTokens (number), costUsdMicros (number), createdAt (string).\n   - `TraceDetail`: extends TraceSummary with prompt (string), routingDecision (object), retrievalSnippets (string[]), steps (object[]), retrieveLatencyMs (number).\n   - `TraceListResponse`: traces (TraceSummary[]), total (number), page (number), pageSize (number).\n   - `MetricsGlobal`: totalRequests (number), totalTokens (number), totalCostUsdMicros (number), avgLatencyMs (number), modelsUsed (number).\n   - `ModelMetricSummary`: modelId (string), provider (string), requestCount (number), totalPromptTokens (number), totalCompletionTokens (number), totalCostUsdMicros (number), avgLatencyMs (number), p50LatencyMs (number), p95LatencyMs (number), p99LatencyMs (number).\n   - `ModelMetricsListResponse`: models (ModelMetricSummary[]).\n   - `LogEvent`: eventId (string), eventType (string), timestamp (string), sessionId (string | null), turnId (string | null), details (object), severity (string).\n   - `LogEventsListResponse`: events (LogEvent[]), total (number).\n   - `UsageReport`: totalSessions (number), totalTurns (number), totalTokens (number), totalCostUsdMicros (number), perModel (ModelMetricSummary[]).\n   - `AdminHealth`: status (string), tracesStored (number), eventsStored (number).\n\n3. Add API functions using the existing fetchApi wrapper:\n   - `fetchTraces(sessionId?: string, page?: number, pageSize?: number): Promise<TraceListResponse>` \u2014 calls GET /admin/traces with query params.\n   - `fetchTraceDetail(traceId: string): Promise<TraceDetail>` \u2014 calls GET /admin/traces/{traceId}.\n   - `fetchMetricsGlobal(): Promise<MetricsGlobal>` \u2014 calls GET /admin/metrics/global.\n   - `fetchModelMetrics(): Promise<ModelMetricsListResponse>` \u2014 calls GET /admin/metrics/models.\n   - `fetchLogEvents(eventType?: string, sessionId?: string, since?: string, limit?: number, offset?: number): Promise<LogEventsListResponse>` \u2014 calls GET /admin/logs with query params.\n   - `fetchUsageReport(): Promise<UsageReport>` \u2014 calls GET /admin/usage.\n   - `fetchAdminHealth(): Promise<AdminHealth>` \u2014 calls GET /admin/health.\n\n4. Existing API functions and types in client.ts must remain unchanged.",
+  "acceptance_criteria": [
+    "react_ui/src/api/client.ts exports all eleven TypeScript types (TraceSummary, TraceDetail, TraceListResponse, MetricsGlobal, ModelMetricSummary, ModelMetricsListResponse, LogEvent, LogEventsListResponse, UsageReport, AdminHealth)",
+    "react_ui/src/api/client.ts exports all seven admin API functions (fetchTraces, fetchTraceDetail, fetchMetricsGlobal, fetchModelMetrics, fetchLogEvents, fetchUsageReport, fetchAdminHealth)",
+    "fetchTraces supports optional sessionId, page, pageSize query parameters",
+    "fetchLogEvents supports optional eventType, sessionId, since, limit, offset query parameters",
+    "All new functions use the existing fetchApi wrapper pattern from client.ts",
+    "Existing API functions and types in client.ts are unchanged",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/api/client.ts"
+  ],
+  "forbidden_changes": [
+    "modify any file outside react_ui/src/api/client.ts",
+    "remove, rename, or change the signature of any existing exported function or type",
+    "add new third-party npm dependencies",
+    "introduce axios, react-query, or any new HTTP library",
+    "change the base URL configuration or fetch wrapper pattern for existing calls",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "fetchTraces",
+    "fetchTraceDetail",
+    "fetchMetricsGlobal",
+    "fetchModelMetrics",
+    "fetchLogEvents",
+    "fetchUsageReport",
+    "fetchAdminHealth",
+    "TraceSummary",
+    "TraceDetail",
+    "TraceListResponse",
+    "MetricsGlobal",
+    "ModelMetricSummary",
+    "ModelMetricsListResponse",
+    "LogEvent",
+    "LogEventsListResponse",
+    "UsageReport",
+    "AdminHealth"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add TypeScript interfaces/types matching API response shapes",
+      "add async fetch wrapper functions following existing client.ts patterns",
+      "use the existing base URL and error handling conventions",
+      "append query parameters for optional filter arguments"
+    ],
+    "forbidden": [
+      "introduce axios, react-query, swr, or any new HTTP/data-fetching library",
+      "change the fetch wrapper pattern or base URL configuration",
+      "add polling intervals or WebSocket logic"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

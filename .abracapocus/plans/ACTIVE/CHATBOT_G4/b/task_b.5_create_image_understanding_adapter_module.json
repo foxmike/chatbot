@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_id": "b.5",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Create image understanding adapter module",
+  "description": "Create chatbot/visual/understanding.py implementing a concrete ImageUnderstandingProvider adapter for multimodal image understanding of user-sent images. Understood images are persisted as ImageMemory records.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/visual/base.py (created by task b.1 \u2014 ImageUnderstandingProvider ABC, ImageUnderstandingResult, VisualModelIdentifier, validate_model_identifier)\n- chatbot/db/models.py (updated by task b.3 \u2014 ImageMemory model columns)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/visual/understanding.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create chatbot/visual/understanding.py with:\n   - Module docstring: 'Image understanding adapter. Provides concrete ImageUnderstandingProvider implementations and an understanding service that analyzes user-sent images, producing descriptions, object detection, OCR text, and scene classification. Results are persisted as ImageMemory records.'\n\n2. A `UnderstandingOptions` dataclass with: question (str | None, default None) \u2014 an optional question to ask about the image, detail_level (Literal['brief', 'standard', 'detailed'], default 'standard'), detect_objects (bool, default True), extract_text (bool, default True), classify_scene (bool, default True).\n\n3. A concrete `ImageUnderstandingService` class:\n   - `__init__(self, provider: ImageUnderstandingProvider)`: stores the provider dependency.\n   - `async def understand_and_persist(self, image_data: bytes, mime_type: str, options: UnderstandingOptions | None = None, session_id: str | None = None, turn_id: str | None = None, user_id: str | None = None, db_session=None) -> ImageUnderstandingResult`:\n     * Builds the question string for the provider: if options.question is set, use it directly; otherwise construct a composite question from the options flags (e.g. 'Describe this image. Detect objects. Extract any visible text. Classify the scene.').\n     * Records start time, calls provider.understand(image_data, mime_type, question), records end time.\n     * If db_session is provided, creates an ImageMemory record with source_type='understood', the description, detected_objects, detected_text, scene_category, confidence, model_used, and processing_time_ms.\n     * Stores the original image_data in the ImageMemory record.\n     * Returns the ImageUnderstandingResult.\n   - `async def understand_only(self, image_data: bytes, mime_type: str, question: str | None = None) -> ImageUnderstandingResult`:\n     * Same as understand_and_persist but without database persistence.\n\n4. An `UnderstandingError` exception class that wraps provider errors.\n\n5. The provider `__init__` must call `validate_model_identifier()` before storing the identifier.",
+  "acceptance_criteria": [
+    "chatbot/visual/understanding.py exists and defines UnderstandingOptions, ImageUnderstandingService, UnderstandingError",
+    "ImageUnderstandingService.understand_and_persist creates an ImageMemory record with source_type='understood'",
+    "ImageUnderstandingService.understand_and_persist stores the original image_data in the ImageMemory record",
+    "ImageUnderstandingService.understand_only skips database persistence",
+    "UnderstandingOptions with question='Explain this' passes that question directly to the provider",
+    "UnderstandingOptions with question=None builds a composite question from detail_level and boolean flags",
+    "Provider __init__ validates the model identifier before storing",
+    "python -m py_compile chatbot/visual/understanding.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/visual/understanding.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/visual/understanding.py",
+    "modify chatbot/visual/base.py",
+    "modify chatbot/db/models.py",
+    "add new third-party dependencies",
+    "call real vision APIs in module-level code",
+    "implement rate-limiting, retry, or caching logic",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "UnderstandingOptions",
+    "ImageUnderstandingService",
+    "UnderstandingError"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use async SQLAlchemy session for ImageMemory persistence",
+      "wrap provider calls in try/except with UnderstandingError wrapping",
+      "use time.monotonic for understanding timing",
+      "build composite questions from option flags using string formatting"
+    ],
+    "forbidden": [
+      "implement a concrete provider class in this task (only the service layer)",
+      "add HTTP client code or API key handling",
+      "implement multimodal chat or conversation logic in this module",
+      "compress or resize image data (pass through as-is)"
+    ]
+  },
+  "dependencies": [
+    "b.1"
+  ],
+  "task_timeout_seconds": 900
+}

@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "task_id": "b.5",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Create Alembic migration for rooms and scenes tables",
+  "description": "Create migrations/versions/0007_rooms_scenes.py implementing an Alembic migration that creates the rooms and scenes tables. The migration must be reversible.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/db/models.py (updated by task b.3 \u2014 Room and Scene model classes with exact column definitions)\n- migrations/versions/ (existing migration files \u2014 understand revision chain, naming convention, import patterns)\n- migrations/env.py (Alembic environment configuration)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY migrations/versions/0007_rooms_scenes.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nIMPORTANT \u2014 Verify the real head revision number. Inspect the existing migrations/versions/ directory to determine the correct next revision sequence number. The filename 0007_rooms_scenes.py is the target but the actual revision prefix must match the existing convention. If the highest existing revision is 0006, use 0007. If the directory uses a different numbering scheme, follow it.\n\nImplementation details:\n\n1. Create the migration file with `revision` and `down_revision` chaining from the current head.\n\n2. upgrade() must:\n   - Create the rooms table with all columns matching the Room model: room_id (primary key, String), user_id (String, not null, indexed), companion_id (String, nullable), room_type (String, not null), display_name (String, not null), memory_persist_to_durable (Boolean, default True), memory_scope (String, default 'room'), memory_max_context_turns (Integer, default 50), memory_include_embeddings (Boolean, default True), scene_id (String, nullable), created_at (DateTime, default func.now()), metadata (JSON, nullable).\n   - Create the scenes table with all columns: scene_id (primary key, String), room_id (String, ForeignKey to rooms.room_id, not null, indexed), location (String, default ''), activity (String, default ''), tone (String, default 'neutral'), intensity (Integer, default 5), is_paused (Boolean, default False), started_at (DateTime, default func.now()), paused_at (DateTime, nullable), resumed_at (DateTime, nullable), ended_at (DateTime, nullable), participants (JSON, nullable), scene_context (Text, nullable), metadata (JSON, nullable).\n   - Set scene_id foreign key on rooms table referencing scenes.scene_id (this may need to be done as an ALTER TABLE after creating the scenes table, since the FK goes Rooms.scene_id -> Scenes.scene_id and scenes has FK rooms.room_id -> Rooms.room_id). Create rooms first, then scenes with FK to rooms, then ALTER rooms to add FK to scenes, or use create_foreign_key with initially nullable then add.\n\n3. downgrade() must:\n   - Drop the rooms scene_id FK constraint\n   - Drop the scenes table\n   - Drop the rooms table\n   - In correct reverse order to avoid dependency violations",
+  "acceptance_criteria": [
+    "migrations/versions/0007_rooms_scenes.py exists with correct revision chain",
+    "upgrade() creates rooms and scenes tables with all specified columns",
+    "user_id and room_id columns on rooms table have appropriate indexes",
+    "rooms.scene_id references scenes.scene_id via foreign key",
+    "scenes.room_id references rooms.room_id via foreign key",
+    "downgrade() drops tables and constraints in reverse order",
+    "The migration uses the exact table names from chatbot/db/models.py",
+    "python -m py_compile on the migration file passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "migrations/versions/0007_rooms_scenes.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside migrations/versions/0007_rooms_scenes.py",
+    "modify existing migration files",
+    "alter or drop any existing table",
+    "add triggers, stored procedures, or database functions",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [],
+  "decision_budget": {
+    "allowed": [
+      "use op.create_table, op.drop_table, op.create_foreign_key, op.drop_constraint",
+      "use op.create_index for indexed columns",
+      "follow existing migration file conventions for imports and structure",
+      "handle circular FK dependencies (rooms->scenes, scenes->rooms) with deferred constraint creation"
+    ],
+    "forbidden": [
+      "alter or recreate existing tables",
+      "add data migration logic (DDL only, no DML)",
+      "add custom SQL procedures"
+    ]
+  },
+  "dependencies": [
+    "b.3"
+  ],
+  "task_timeout_seconds": 600
+}

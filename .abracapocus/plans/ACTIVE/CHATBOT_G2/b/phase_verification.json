@@ -1,0 +1,97 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "compile_provenance",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/memory/provenance.py"
+        ]
+      },
+      {
+        "name": "compile_controls",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/memory/controls.py"
+        ]
+      },
+      {
+        "name": "compile_search",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/memory/search.py"
+        ]
+      },
+      {
+        "name": "compile_export",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/memory/export.py"
+        ]
+      },
+      {
+        "name": "compile_db_models",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/db/models.py"
+        ]
+      },
+      {
+        "name": "compile_migration",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "migrations/versions/0004_memory_provenance.py"
+        ]
+      },
+      {
+        "name": "compile_api_memory",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/api/memory.py"
+        ]
+      },
+      {
+        "name": "compile_api_app",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/api/app.py"
+        ]
+      },
+      {
+        "name": "pytest_memory",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "tests/test_memory_management.py",
+          "-x",
+          "-v"
+        ]
+      },
+      {
+        "name": "tsc_typecheck",
+        "command": [
+          "sh",
+          "-c",
+          "cd react_ui && npx tsc --noEmit"
+        ]
+      }
+    ]
+  }
+}

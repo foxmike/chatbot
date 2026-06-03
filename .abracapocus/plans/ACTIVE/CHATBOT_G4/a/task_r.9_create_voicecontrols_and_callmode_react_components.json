@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "task_id": "r.9",
+  "phase": "R",
+  "phase_id": "r",
+  "title": "Create VoiceControls and CallMode React components",
+  "description": "Create react_ui/src/components/VoiceControls.tsx and react_ui/src/components/CallMode.tsx implementing the UI for voice input (STT), voice output (TTS), and a phone-call-style conversation mode.\n\n--- VoiceControls.tsx ---\n\nA React functional component `VoiceControls` with Tailwind dark-theme styling that:\n- Accepts props: `onTranscription(text: string): void` callback and optional `className`.\n- Uses the `useAudioRecorder` hook from task r.7 for recording.\n- Renders a microphone toggle button: red/recording state when active, muted/default when idle.\n- On recording start: visual pulsating indicator. On stop: calls `transcribeAudio()` from client.ts, then invokes `onTranscription(text)` with the result.\n- Shows recording duration timer.\n- Shows error messages when recording fails or transcription fails.\n- If browser does not support MediaRecorder (`isSupported === false`), renders a disabled button with tooltip.\n\n--- CallMode.tsx ---\n\nA React functional component `CallMode` with Tailwind dark-theme styling that:\n- Accepts props: `sessionId: string` and `onEnd(): void` callback.\n- Implements a full-screen (or overlay) phone-call UI:\n  * A call-status header showing 'Connected' with a pulsing green indicator.\n  * A transcript area showing exchanged messages (scrollable).\n  * Uses the `useAudioRecorder` hook for voice input (microphone button).\n  * On transcription: sends transcribed text as a chat message via the existing chat API, receives the assistant's text response, then calls `synthesizeSpeech()` from client.ts and plays the audio via a hidden `<audio>` element.\n  * An end-call button that calls `onEnd()`.\n- Handles loading states (synthesizing, transcribing) with status text.\n- Handles error states (synthesis failed, transcription failed, chat failed) with inline error display.\n\nUse text/emoji icons (no icon library). Follow existing component patterns in react_ui/src/components/.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- react_ui/src/components/ for existing component patterns, imports, and Tailwind conventions\n- react_ui/src/api/client.ts (updated by task r.7) for voice API functions and types\n- react_ui/src/hooks/useAudioRecorder.ts (created by task r.7) for hook API\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "react_ui/src/components/VoiceControls.tsx exists and exports VoiceControls component",
+    "VoiceControls renders microphone toggle with recording/stopped visual states",
+    "VoiceControls calls transcribeAudio on stop and invokes onTranscription callback",
+    "VoiceControls shows recording duration and handles errors",
+    "react_ui/src/components/CallMode.tsx exists and exports CallMode component",
+    "CallMode renders full-screen call UI with status header, transcript area, mic button, and end-call",
+    "CallMode sends transcribed text via chat API and synthesizes responses via TTS",
+    "CallMode plays synthesized audio responses via <audio> element",
+    "Both components handle loading, error, and unsupported-browser states",
+    "No icon library, no new npm dependencies",
+    "npx tsc --noEmit (run from react_ui/) passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/components/VoiceControls.tsx",
+    "react_ui/src/components/CallMode.tsx"
+  ],
+  "forbidden_changes": [
+    "modify any file outside react_ui/src/components/VoiceControls.tsx and react_ui/src/components/CallMode.tsx",
+    "modify react_ui/src/api/client.ts",
+    "modify react_ui/src/hooks/useAudioRecorder.ts",
+    "modify react_ui/src/main.tsx",
+    "add new npm dependencies",
+    "add icon libraries (FontAwesome, Heroicons, etc.)",
+    "add UI component libraries (Material UI, Ant Design, etc.)",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use React functional components with hooks",
+      "use Tailwind CSS for dark-theme styling",
+      "import from client.ts and useAudioRecorder",
+      "use HTML5 <audio> element for playback",
+      "use text/emoji for icons"
+    ],
+    "forbidden": [
+      "introduce React Router, Redux, or state management libraries",
+      "add icon libraries or UI component libraries",
+      "hard-code API URLs",
+      "add WebSocket support"
+    ]
+  },
+  "dependencies": [
+    "r.7",
+    "r.8"
+  ],
+  "task_timeout_seconds": 1200
+}

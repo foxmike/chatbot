@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "task_id": "b.1",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Create rooms package init and room model",
+  "description": "Create chatbot/rooms/__init__.py and chatbot/rooms/room.py implementing the room model with typed rooms and per-room memory policy.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/db/models.py (existing model conventions for columns, base classes, and SQLAlchemy patterns)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/rooms/__init__.py and chatbot/rooms/room.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create chatbot/rooms/__init__.py with:\n   - Module docstring: 'Rooms and roleplay package. Typed rooms with per-room memory policy, scene state engine, and roleplay memory isolation.'\n   - Export Room, RoomType, RoomMemoryPolicy, SceneState, and RoleplayEngine from their respective modules.\n\n2. Create chatbot/rooms/room.py with:\n   - Module docstring: 'Room model with typed rooms and per-room memory policy.'\n   - A `RoomType` enum or Literal with values: 'one_on_one_chat', 'roleplay_scene', 'project', 'emotional_support', 'memory_review'.\n   - A `RoomMemoryPolicy` dataclass with: persist_to_durable (bool, default=True for most room types, False for roleplay_scene), scope (Literal['room', 'companion', 'global'], default 'room'), max_context_turns (int, default 50), include_embeddings (bool, default True).\n   - A `Room` dataclass with: room_id (str), user_id (str), companion_id (str | None), room_type (RoomType), display_name (str), memory_policy (RoomMemoryPolicy), scene_id (str | None), created_at (str), metadata (dict[str, Any]).\n   - `DEFAULT_ROOM_POLICIES`: a dict mapping RoomType to RoomMemoryPolicy with default settings per room type. Roleplay scenes default to persist_to_durable=False and scope='room'. Memory review rooms default to include_embeddings=True and max_context_turns=200.\n   - An async function `create_room(user_id: str, room_type: RoomType, display_name: str | None = None, companion_id: str | None = None) -> Room` that generates a uuid4 room_id, applies the default memory policy for the room type, sets created_at to utcnow isoformat, and persists to the database.\n   - An async function `get_room(room_id: str) -> Room | None` that reads from the database.\n   - An async function `get_user_rooms(user_id: str) -> list[Room]` that lists all rooms for a user.\n   - An async function `update_room_memory_policy(room_id: str, policy: RoomMemoryPolicy) -> None` for per-room override.",
+  "acceptance_criteria": [
+    "chatbot/rooms/__init__.py exists and exports Room, RoomType, RoomMemoryPolicy",
+    "chatbot/rooms/room.py exists and defines Room, RoomType, RoomMemoryPolicy, DEFAULT_ROOM_POLICIES",
+    "RoomType includes one_on_one_chat, roleplay_scene, project, emotional_support, memory_review",
+    "DEFAULT_ROOM_POLICIES has persist_to_durable=False for roleplay_scene",
+    "create_room generates a uuid4 room_id and applies default memory policy",
+    "get_room returns None for nonexistent room_id",
+    "update_room_memory_policy allows per-room override",
+    "python -m py_compile chatbot/rooms/__init__.py passes",
+    "python -m py_compile chatbot/rooms/room.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/rooms/__init__.py",
+    "chatbot/rooms/room.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/rooms/",
+    "modify chatbot/db/models.py",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "Room",
+    "RoomType",
+    "RoomMemoryPolicy",
+    "DEFAULT_ROOM_POLICIES",
+    "create_room",
+    "get_room",
+    "get_user_rooms",
+    "update_room_memory_policy"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use Python Enum or Literal for RoomType",
+      "use uuid4 for room_id generation",
+      "use async SQLAlchemy for database operations",
+      "define default memory policies per room type"
+    ],
+    "forbidden": [
+      "introduce new database framework or ORM",
+      "modify the database schema directly",
+      "add new tables or columns"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

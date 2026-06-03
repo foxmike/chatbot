@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "task_id": "c.9",
+  "phase": "C",
+  "phase_id": "c",
+  "title": "Create TimelinePanel React component and continuity tests",
+  "description": "Create react_ui/src/components/TimelinePanel.tsx and tests/test_continuity.py implementing the UI for timeline visualization and ritual display, along with integration tests for all continuity modules.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- react_ui/src/api/client.ts (updated by task c.7 \u2014 understand the available API functions, TypeScript types, and call patterns)\n- Existing react_ui/src/components/ files (understand React patterns, component structure, and Tailwind usage)\n- chatbot/continuity/timeline.py (created by task c.1)\n- chatbot/continuity/narrative.py (created by task c.2)\n- chatbot/continuity/rituals.py (created by task c.3)\n- chatbot/db/models.py (updated by task c.4 \u2014 continuity models)\n- chatbot/core/turn.py (updated by task c.8 \u2014 TimelineUpdateStep)\n- chatbot/memory/context_compiler.py (updated by task c.6)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY react_ui/src/components/TimelinePanel.tsx and tests/test_continuity.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n--- react_ui/src/components/TimelinePanel.tsx ---\n\n1. A React functional component `TimelinePanel` with Tailwind dark-theme styling:\n   - Accepts a `sessionId` prop (string).\n   - On mount, fetches timeline entries, active projects, narrative threads, and rituals for the session using the client API functions.\n   - Three collapsible sections:\n     a. **Timeline**: chronological list of timeline entries, each showing entry_type badge (color-coded: milestone=blue, emotional_event=pink, promise=yellow, project=green), title, description preview, and timestamp. Click to expand full content. Filterable by entry_type and status.\n     b. **Active Projects & Promises**: cards showing running projects and pending promises with status badges. Each card has a resolve/complete button that calls resolveTimelineEntry.\n     c. **Rituals**: list of rituals showing name, type badge, schedule description, and last triggered time. Active/inactive toggle. 'Create Ritual' button opening a small form with name, type, description, schedule, and optional trigger prompt fields.\n   - Narrative threads shown as a compact list: thread label, summary, and turn count.\n   - Loading, empty, and error states for each section.\n\n2. Use React functional components with hooks (useState, useEffect). Use Tailwind CSS for dark-theme styling consistent with existing components. Import API functions from react_ui/src/api/client.\n\n--- tests/test_continuity.py ---\n\n3. Create tests/test_continuity.py with pytest-based tests:\n   - Module docstring: 'Integration tests for continuity \u2014 timeline, narrative, rituals, and the TimelineUpdateStep.'\n   - Test class `TestTimeline`:\n     * test_add_timeline_entry: creates entry, verifies returned shape and fields\n     * test_get_timeline_with_filter: creates entries of different types/statuses/tags, verifies filtering\n     * test_get_active_projects: creates mixed entries, verifies only active projects returned\n     * test_get_pending_promises: creates mixed entries, verifies only active promises returned\n     * test_resolve_entry: creates a promise, resolves it, verifies status change\n     * test_update_not_found: verifies ValueError for nonexistent entry_id\n   - Test class `TestNarrative`:\n     * test_build_narrative_threads: creates related turns, verifies threads are formed\n     * test_generate_callback_with_threshold: calls with decreasing threshold, verifies empty below threshold\n     * test_mark_thread_referenced: creates thread, marks, verifies last_referenced_at updated\n   - Test class `TestRituals`:\n     * test_create_and_get_rituals: creates ritual, retrieves, verifies fields\n     * test_get_due_rituals: creates ritual with past next_trigger_at, verifies it appears\n     * test_trigger_ritual: triggers a due ritual, verifies return value and updated timestamps\n     * test_add_inside_joke: creates joke ritual, verifies ritual_type='joke'\n     * test_deactivate_ritual: creates ritual, deactivates, verifies is_active=False\n   - Test class `TestTimelineUpdateStep`:\n     * test_step_detects_milestone: gives a message with emotional milestone, verifies entry created\n     * test_step_detects_promise: gives a message with commitment phrase, verifies entry created\n     * test_step_triggers_due_ritual: creates a due ritual, runs step, verifies trigger called and ritual prompts added\n   - Use mocks for database sessions. Do NOT require a running Postgres or external service.",
+  "acceptance_criteria": [
+    "react_ui/src/components/TimelinePanel.tsx exists and exports TimelinePanel component",
+    "TimelinePanel has three collapsible sections: Timeline, Active Projects & Promises, Rituals",
+    "TimelinePanel fetches and displays timeline entries, projects, promises, threads, and rituals",
+    "TimelinePanel has filter controls for entry_type, status and a 'Create Ritual' form",
+    "TimelinePanel handles loading, empty, and error states",
+    "tests/test_continuity.py exists with TestTimeline, TestNarrative, TestRituals, TestTimelineUpdateStep classes",
+    "TestTimeline covers add, filter, resolve, and not-found cases",
+    "TestNarrative covers thread building, callback threshold, and thread marking",
+    "TestRituals covers create, due detection, trigger, joke, and deactivate",
+    "TestTimelineUpdateStep tests milestone detection, promise detection, and ritual triggering",
+    "python -m py_compile tests/test_continuity.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/components/TimelinePanel.tsx",
+    "tests/test_continuity.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside react_ui/src/components/TimelinePanel.tsx and tests/test_continuity.py",
+    "modify react_ui/src/api/client.ts",
+    "modify react_ui/src/main.tsx",
+    "modify any chatbot/ source file",
+    "add new third-party dependencies",
+    "add React Router or routing configuration",
+    "require a running Postgres, Redis, or external service for test execution",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "TimelinePanel",
+    "TestTimeline",
+    "TestNarrative",
+    "TestRituals",
+    "TestTimelineUpdateStep"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use React functional components with hooks",
+      "use Tailwind CSS for dark-theme styling",
+      "import API functions from react_ui/src/api/client",
+      "use pytest fixtures and mocks for database sessions",
+      "assert on function return values, dataclass fields, and raised exceptions"
+    ],
+    "forbidden": [
+      "introduce React Router, Redux, or any state management library",
+      "add UI component libraries (Material UI, Ant Design, etc.)",
+      "use CSS modules or styled-components (Tailwind only)",
+      "hard-code API URLs (use the client functions)",
+      "call real LLM providers or embedding services",
+      "require a running Postgres or Redis instance for tests"
+    ]
+  },
+  "dependencies": [
+    "c.1",
+    "c.2",
+    "c.3",
+    "c.4",
+    "c.5",
+    "c.6",
+    "c.7",
+    "c.8"
+  ],
+  "task_timeout_seconds": 1200
+}

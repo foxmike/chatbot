@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "task_id": "b.8",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Create image API endpoints and register router in app",
+  "description": "Create chatbot/api/images.py with FastAPI endpoints for image generation, understanding, retrieval, appearance management, and outfit management. Then modify chatbot/api/app.py to register the images router.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/visual/generation.py (created by task b.4 \u2014 ImageGenerationService API)\n- chatbot/visual/understanding.py (created by task b.5 \u2014 ImageUnderstandingService API)\n- chatbot/visual/appearance.py (created by task b.2 \u2014 AppearanceManager, OutfitManager)\n- chatbot/db/models.py (updated by task b.3 \u2014 ImageMemory, Appearance, OutfitRecord models)\n- chatbot/api/app.py (existing FastAPI app, understand router registration pattern, import conventions, and existing include_router calls)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/api/images.py and chatbot/api/app.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n--- chatbot/api/images.py ---\n\n1. Module docstring: 'Image API endpoints for generation, understanding, retrieval, appearance management, and outfit management.'\n\n2. A FastAPI APIRouter instance named `images_router` with prefix '/images' and tag 'images'.\n\n3. Pydantic models:\n   - `ImageGenerateRequest`: scene_description (str, min_length=1), width (int, default=512, ge=64, le=2048), height (int, default=512, ge=64, le=2048), negative_prompt (str | None, default=None), seed (int | None, default=None).\n   - `ImageGenerateResponse`: image_id (str), image_url (str), mime_type (str), seed_used (int), prompt_used (str), width (int), height (int), generation_time_ms (float).\n   - `ImageUnderstandResponse`: image_id (str), description (str), detected_objects (list[str]), detected_text (str | None), scene_category (str | None), confidence (float), processing_time_ms (float).\n   - `ImageView`: image_id (str), source_type (str), image_url (str), mime_type (str), prompt_used (str | None), description (str | None), width (int | None), height (int | None), created_at (str).\n   - `ImageListResponse`: images (list[ImageView]), total (int).\n   - `AppearanceResponse`: character_seed (int), character_description (str), visual_traits (list[str]), art_style (str), color_palette (list[str]), created_at (str), updated_at (str | None).\n   - `AppearanceUpdateRequest`: character_description (str | None, default=None), visual_traits (list[str] | None, default=None), art_style (str | None, default=None), color_palette (list[str] | None, default=None). At least one field must be non-None.\n   - `SeedLockRequest`: seed (int).\n   - `OutfitResponse`: outfit_id (str), name (str), description (str), visual_tags (list[str]), is_active (bool), created_at (str).\n   - `OutfitCreateRequest`: name (str, min_length=1, max_length=128), description (str), visual_tags (list[str]).\n   - `OutfitListResponse`: outfits (list[OutfitResponse]).\n\n4. Endpoints:\n   - `POST /generate`: accepts ImageGenerateRequest JSON body plus session_id as a query param. Uses ImageGenerationService to generate and persist. Returns ImageGenerateResponse.\n   - `POST /understand`: accepts a multipart UploadFile (required) plus question (optional form field) and session_id (query param). Reads file bytes and mime type, calls ImageUnderstandingService. Returns ImageUnderstandResponse.\n   - `GET /{image_id}`: returns ImageView for a single image, 404 if not found.\n   - `GET /`: lists images, accepts session_id, offset (default 0), limit (default 20) query params. Returns ImageListResponse.\n   - `GET /appearance/{companion_id}`: returns the AppearanceResponse for a companion. Creates default if none exists.\n   - `PATCH /appearance/{companion_id}`: updates appearance fields. Only updates fields present in the request body.\n   - `PUT /appearance/{companion_id}/seed`: locks the character seed.\n   - `GET /outfits/{appearance_id}`: lists outfits for an appearance.\n   - `POST /outfits/{appearance_id}`: creates a new outfit.\n   - `PUT /outfits/{appearance_id}/{outfit_id}/activate`: activates an outfit.\n\n--- chatbot/api/app.py ---\n\n5. Open chatbot/api/app.py and locate the existing `app.include_router(...)` calls. \n\n6. Import images_router from chatbot.api.images.\n\n7. Add `app.include_router(images_router)` following the existing convention.\n\n8. Do NOT create a new FastAPI instance, change the app variable name, modify other router registrations, or add middleware.",
+  "acceptance_criteria": [
+    "chatbot/api/images.py exists with images_router and all Pydantic request/response models",
+    "images_router has POST /generate, POST /understand, GET /{image_id}, GET / endpoints",
+    "images_router has GET and PATCH /appearance/{companion_id}, PUT /appearance/{companion_id}/seed endpoints",
+    "images_router has GET, POST /outfits/{appearance_id} and PUT activate endpoint",
+    "POST /understand accepts multipart UploadFile and reads file bytes correctly",
+    "GET /{image_id} returns 404 for nonexistent image_id",
+    "GET /appearance/{companion_id} creates a default appearance when none exists",
+    "PATCH /appearance/{companion_id} only updates fields provided in the request",
+    "chatbot/api/app.py imports images_router and registers it via app.include_router()",
+    "Existing router registrations in app.py are unchanged",
+    "python -m py_compile chatbot/api/images.py passes",
+    "python -m py_compile chatbot/api/app.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/images.py",
+    "chatbot/api/app.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/api/images.py and chatbot/api/app.py",
+    "modify chatbot/visual/ source files",
+    "modify chatbot/db/models.py",
+    "modify existing API endpoint files (chat.py, sessions.py, streaming.py, memory.py)",
+    "modify existing router registrations in app.py",
+    "add CORS, middleware, auth, or any new configuration to app.py",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "images_router",
+    "ImageGenerateRequest",
+    "ImageGenerateResponse",
+    "ImageUnderstandResponse",
+    "ImageView",
+    "ImageListResponse",
+    "AppearanceResponse",
+    "AppearanceUpdateRequest",
+    "SeedLockRequest",
+    "OutfitResponse",
+    "OutfitCreateRequest",
+    "OutfitListResponse"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use FastAPI APIRouter with prefix and tag",
+      "use Pydantic for request/response models",
+      "use UploadFile for multipart image upload",
+      "return standard HTTP status codes for errors",
+      "add a single import and include_router call to app.py",
+      "follow existing import and registration conventions in app.py"
+    ],
+    "forbidden": [
+      "add middleware, auth, rate-limiting, or CORS to the images router",
+      "add WebSocket support",
+      "implement business logic directly in endpoints (delegate to chatbot.visual modules)",
+      "return raw bytes in JSON responses (use URL or base64-encoded strings)",
+      "refactor existing router registrations in app.py",
+      "add any new features or endpoints directly in app.py"
+    ]
+  },
+  "dependencies": [
+    "b.4",
+    "b.5"
+  ],
+  "task_timeout_seconds": 1200
+}

@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "task_id": "c.9",
+  "phase": "Q",
+  "phase_id": "c",
+  "title": "Register auth router and apply auth dependency in chatbot/api/app.py",
+  "description": "Modify chatbot/api/app.py to register the auth_router from chatbot/api/auth.py and apply the get_current_user dependency as a global or per-router dependency where appropriate. Companion endpoints may also need registration.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md\n- chatbot/api/app.py (existing FastAPI app with router registrations \u2014 understand the app variable name, include_router pattern, and any existing dependencies)\n- chatbot/api/auth.py (created by task c.7 \u2014 auth_router, endpoint paths)\n- chatbot/auth/dependencies.py (created by task c.5 \u2014 get_current_user signature)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/api/app.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Open chatbot/api/app.py and understand:\n   - The FastAPI app variable name.\n   - How routers are imported and registered (app.include_router(...)).\n   - Whether dependencies are applied at app level, router level, or per-endpoint.\n   - Existing imports and module structure.\n\n2. Import auth_router from chatbot.api.auth.\n\n3. Register auth_router: `app.include_router(auth_router)`. The auth_router already has prefix '/auth' \u2014 do not double-prefix.\n\n4. Do NOT apply get_current_user as a global dependency on the entire app \u2014 auth endpoints (signup, login) must be publicly accessible. Any global auth dependency would break those.\n\n5. Leave existing router registrations unchanged.\n\n6. Do NOT create a new FastAPI instance or add middleware.",
+  "acceptance_criteria": [
+    "chatbot/api/app.py imports auth_router from chatbot/api.auth",
+    "chatbot/api/app.py registers auth_router via app.include_router()",
+    "Existing router registrations in app.py are unchanged",
+    "No global authentication dependency is applied (auth endpoints remain open)",
+    "python -m py_compile chatbot/api/app.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/app.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/api/app.py",
+    "modify existing router registrations",
+    "create a new FastAPI instance",
+    "add CORS, middleware, or global authentication dependency",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [],
+  "decision_budget": {
+    "allowed": [
+      "add an import statement for auth_router",
+      "add a single app.include_router() call",
+      "follow existing import and registration conventions"
+    ],
+    "forbidden": [
+      "refactor existing router registrations",
+      "add global middleware or dependencies",
+      "add any new features or endpoints directly in app.py"
+    ]
+  },
+  "dependencies": [
+    "c.5",
+    "c.7"
+  ],
+  "task_timeout_seconds": 300
+}

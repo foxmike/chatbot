@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "task_id": "c.7",
+  "phase": "Q",
+  "phase_id": "c",
+  "title": "Implement auth API endpoints in chatbot/api/auth.py",
+  "description": "Create chatbot/api/auth.py exposing FastAPI endpoints for user signup, login, and logout with credential storage and JWT token issuance.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md\n- chatbot/auth/models.py (created by task c.1 \u2014 UserCreateRequest, UserLoginRequest, UserResponse, TokenResponse)\n- chatbot/auth/security.py (created by task c.2 \u2014 PasswordHasher, create_access_token, decode_access_token)\n- chatbot/db/models.py (updated by task c.4 \u2014 User and UserSession model classes, column names)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/api/auth.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create chatbot/api/auth.py with:\n   - Module docstring: 'Authentication API endpoints \u2014 signup, login, logout.'\n   - A FastAPI `APIRouter` instance named `auth_router` with prefix '/auth' and tag 'auth'.\n   - A `PasswordHasher` singleton instance imported from chatbot.auth.security.\n\n2. POST '/signup' handler:\n   - Accepts UserCreateRequest as JSON body.\n   - Checks if a user with the given email already exists in the database. If so, raises HTTPException(409, detail='Email already registered').\n   - Checks if a user with the given username already exists. If so, raises HTTPException(409, detail='Username already taken').\n   - Hashes the password using password_hasher.hash_password().\n   - Inserts a new User row into the database with a UUID user_id, username, email, and password_hash.\n   - Creates an access token with sub=user_id, username, email.\n   - Inserts a UserSession row tracking the token.\n   - Returns TokenResponse with access_token, token_type='bearer', and UserResponse.\n\n3. POST '/login' handler:\n   - Accepts UserLoginRequest as JSON body.\n   - Looks up the user by email. If not found, raises HTTPException(401, detail='Invalid email or password').\n   - Verifies the password using password_hasher.verify_password(). If mismatch, raises HTTPException(401, detail='Invalid email or password').\n   - Creates an access token and inserts a UserSession row (same as signup).\n   - Returns TokenResponse.\n\n4. POST '/logout' handler:\n   - Requires authentication: add `current_user: CurrentUser = Depends(get_current_user)`.\n   - Extract the token from the Authorization header (repeat the header extraction logic, or accept the raw token).\n   - Hash the token (SHA256) and look up the UserSession row by token_hash.\n   - If found, set revoked=True.\n   - Returns {'detail': 'Logged out'} with status 200.\n\n5. GET '/me' handler:\n   - Requires authentication: add `current_user: CurrentUser = Depends(get_current_user)`.\n   - Returns UserResponse with the current user's data.\n\n6. Use FastAPI Depends for database session injection. The DB session dependency should follow the existing pattern in the project (inspect other routers to match).\n\n7. Use a consistent error response pattern: return specific HTTP codes with descriptive detail strings.",
+  "acceptance_criteria": [
+    "chatbot/api/auth.py exists with auth_router and prefix '/auth'",
+    "POST /auth/signup creates user, hashes password, returns TokenResponse",
+    "POST /auth/signup returns 409 on duplicate email or username",
+    "POST /auth/login verifies credentials and returns TokenResponse",
+    "POST /auth/login returns 401 on invalid email or password",
+    "POST /auth/logout requires authentication and revokes session",
+    "GET /auth/me requires authentication and returns UserResponse",
+    "python -m py_compile chatbot/api/auth.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/auth.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/api/auth.py",
+    "modify chatbot/auth/security.py or chatbot/auth/models.py",
+    "modify chatbot/db/models.py",
+    "modify any existing API endpoint files",
+    "add middleware, CORS, or rate-limiting",
+    "store passwords in plain text",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "auth_router"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use FastAPI APIRouter with prefix and tag",
+      "use Depends for database session and auth dependency injection",
+      "hash passwords with bcrypt before storage",
+      "return JWT tokens in TokenResponse",
+      "raise HTTPException with appropriate status codes for errors"
+    ],
+    "forbidden": [
+      "store plaintext passwords",
+      "implement OAuth or third-party identity providers",
+      "add session refresh or token rotation in this task",
+      "modify get_current_user dependency logic"
+    ]
+  },
+  "dependencies": [
+    "c.1",
+    "c.2",
+    "c.4",
+    "c.5"
+  ],
+  "task_timeout_seconds": 1200
+}

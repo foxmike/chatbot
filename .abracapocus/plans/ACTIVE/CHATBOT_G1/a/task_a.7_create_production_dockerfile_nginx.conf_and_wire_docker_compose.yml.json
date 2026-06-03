@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "task_id": "a.7",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Create production Dockerfile, nginx.conf, and wire docker-compose.yml",
+  "description": "Create react_ui/Dockerfile, react_ui/nginx.conf, and modify docker-compose.yml to add the UI service.\n\nreact_ui/Dockerfile (multi-stage build):\n- Stage 1 (build): FROM node:20-alpine AS build. WORKDIR /app. COPY package.json package-lock.json or npm-shrinkwrap.json ./. RUN npm ci --only=production && npm install typescript. COPY . . RUN npx vite build.\n- Stage 2 (serve): FROM nginx:alpine. COPY --from=build /app/dist /usr/share/nginx/html. COPY react_ui/nginx.conf /etc/nginx/conf.d/default.conf. EXPOSE 80. CMD [\"nginx\", \"-g\", \"daemon off;\"].\n\nreact_ui/nginx.conf:\n- server block listening on port 80\n- location /: root /usr/share/nginx/html; index index.html; try_files $uri $uri/ /index.html (SPA fallback)\n- location /api/: proxy_pass http://backend:8000; proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr; add_header X-Frame-Options SAMEORIGIN\n- gzip on; gzip_types text/css application/javascript application/json image/svg+xml\n\ndocker-compose.yml:\n- Add a 'ui' service: build context ./react_ui, dockerfile Dockerfile. ports: \"3000:80\". depends_on: backend. environment: NODE_ENV production.\n- Do not modify any existing services. Only add the ui service block.\n- Preserve all existing indentation, formatting, and service definitions.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docker-compose.yml (if it exists \u2014 to understand existing service definitions and formatting)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "react_ui/Dockerfile exists with multi-stage Node build + nginx serve",
+    "react_ui/nginx.conf exists with SPA fallback and /api/ proxy to backend:8000",
+    "nginx.conf has gzip enabled for text/css, application/javascript, application/json, image/svg+xml",
+    "docker-compose.yml has a 'ui' service with build context ./react_ui, port 3000:80, depends_on backend",
+    "Existing docker-compose.yml services are not modified or removed",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/Dockerfile",
+    "react_ui/nginx.conf",
+    "docker-compose.yml"
+  ],
+  "forbidden_changes": [
+    "modify any existing service definition in docker-compose.yml",
+    "remove or reorder existing services in docker-compose.yml",
+    "modify any file outside the listed allowed_write_paths"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

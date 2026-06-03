@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "task_id": "b.1",
+  "phase": "J",
+  "phase_id": "b",
+  "title": "Implement deterministic persona prompt assembly in chatbot/soul/persona_prompt.py",
+  "description": "Create chatbot/soul/persona_prompt.py implementing a deterministic persona-to-prompt assembler that converts the persona configuration (loaded via TurnContext.persona dict) into a reproducible system-prompt string consumable by the CompileContext step. The assembly must be driven by configurable runtime settings, not hardcoded blocks, so that switching persona profiles or traits produces different but deterministic output.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/core/steps.py (TurnContext dataclass, its persona field signature)\n- chatbot/core/turn.py (CompileContext placeholder step, TurnPipeline)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/soul/__init__.py and chatbot/soul/persona_prompt.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create chatbot/soul/__init__.py as an empty module (docstring: 'Chatbot soul package.').\n\n2. Create chatbot/soul/persona_prompt.py with:\n   - Module docstring: 'Deterministic persona-to-prompt assembly for the chatbot engine.'\n   - A `PersonaPromptAssembler` class that:\n     * Accepts a persona configuration dict at construction (or via a classmethod from_dict / from_config).\n     * Exposes `def assemble(self, persona: dict[str, Any]) -> str` that returns a deterministic system-prompt string.\n     * Derives the prompt from structured persona fields such as name, tone, traits, backstory, boundaries, and any custom directives. The mapping from persona fields to prompt text must be rule-based and deterministic \u2014 no LLM calls, no random sampling, no non-deterministic hashing.\n     * Supports an optional `template` or `style` key in the persona dict to select among a small set of formatting strategies (e.g. 'narrative', 'concise', 'roleplay').\n   - A module-level convenience function `assemble_persona_prompt(persona: dict[str, Any]) -> str` that creates a default PersonaPromptAssembler and calls assemble().\n   - The assembler must handle missing or empty persona dicts gracefully by returning a neutral fallback string.\n\n3. The prompt output must be a single string ready for concatenation into the compiled context. It should NOT include the conversation history or user message \u2014 those are the responsibility of CompileContext in turn.py.\n\n4. Ensure python -m py_compile chatbot/soul/persona_prompt.py passes.",
+  "acceptance_criteria": [
+    "chatbot/soul/__init__.py exists",
+    "chatbot/soul/persona_prompt.py exists and defines PersonaPromptAssembler",
+    "PersonaPromptAssembler.assemble() returns a deterministic string given the same persona dict",
+    "assemble_persona_prompt() convenience function works",
+    "Empty persona dict returns a neutral fallback, not an error",
+    "python -m py_compile chatbot/soul/persona_prompt.py passes",
+    "python -m py_compile chatbot/soul/__init__.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/soul/__init__.py",
+    "chatbot/soul/persona_prompt.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/soul/",
+    "modify chatbot/core/ files",
+    "add new third-party dependencies",
+    "introduce LangGraph, LangChain, Letta, Zep, or any orchestration framework",
+    "call LLM providers from persona assembly",
+    "use random, uuid, or any non-deterministic source in prompt assembly",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "PersonaPromptAssembler",
+    "assemble_persona_prompt"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use dataclass or plain class for PersonaPromptAssembler",
+      "map persona dict fields to prompt text with deterministic string formatting",
+      "support a small set of prompt-style strategies (narrative, concise, roleplay)"
+    ],
+    "forbidden": [
+      "introduce LLM-based persona generation",
+      "add runtime personality randomization",
+      "hardcode a single bot persona without configurability"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

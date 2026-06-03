@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "task_id": "b.10",
+  "phase": "M",
+  "phase_id": "b",
+  "title": "Create tests/test_memory_management.py",
+  "description": "Create tests/test_memory_management.py with comprehensive tests for the memory management domain modules.\n\nTest each module independently (not integration tests against live DB unless SQLite in-memory is suitable):\n- test_provenance.py: verify provenance metadata attachment, null handling\n- test_controls.py: verify pin/unpin, delete (soft/hard), edit, privacy changes, do-not-remember, remember-forever, correct-a-misunderstanding\n- test_search.py: verify search with date/topic filters, pagination, empty results\n- test_export.py: verify JSON export structure, text export, provenance inclusion, filter support\n\nUse pytest with fixtures. Mock database access where needed. Cover edge cases including null/absent provenance fields, invalid memory IDs, and privacy boundary enforcement.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- tests/ for existing test patterns, conftest.py fixtures, and import conventions\n- chatbot/memory/provenance.py, controls.py, search.py, export.py for the actual function signatures\n- chatbot/db/models.py for model shapes used in test fixtures\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "tests/test_memory_management.py exists",
+    "python -m py_compile tests/test_memory_management.py passes",
+    "Tests cover provenance, controls, search, and export modules",
+    "Edge cases covered: null provenance, invalid IDs, empty results, privacy boundaries",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "tests/test_memory_management.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside tests/test_memory_management.py",
+    "add new third-party dependencies",
+    "modify existing test files or conftest.py",
+    "modify the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use pytest fixtures",
+      "use unittest.mock",
+      "write test functions"
+    ],
+    "forbidden": [
+      "add new test frameworks",
+      "modify conftest.py",
+      "add integration tests requiring live PostgreSQL"
+    ]
+  },
+  "dependencies": [
+    "b.1",
+    "b.2",
+    "b.3",
+    "b.4",
+    "b.7"
+  ],
+  "task_timeout_seconds": 900
+}

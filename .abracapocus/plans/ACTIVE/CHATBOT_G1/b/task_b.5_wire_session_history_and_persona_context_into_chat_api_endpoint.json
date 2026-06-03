@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "task_id": "b.5",
+  "phase": "J",
+  "phase_id": "b",
+  "title": "Wire session history and persona context into chat API endpoint",
+  "description": "Modify chatbot/api/chat.py to pass session history and persona configuration through TurnContext so the wired turn pipeline (from task b.4) receives the context it needs. Load session history from the sessions store, load or construct persona configuration for the session, and attach both to TurnContext before calling the pipeline. Preserve the existing ChatRequest/ChatResponse models and chat_router interface.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/core/steps.py (TurnContext, its persona and metadata fields)\n- chatbot/core/turn.py (TurnPipeline, build_default_pipeline \u2014 wired in task b.4)\n- chatbot/api/chat.py (existing ChatRequest, ChatResponse, chat_router, POST /chat handler)\n- chatbot/api/sessions.py (session store structure, if available)\n- chatbot/soul/persona_prompt.py (persona config shape, created by task b.1)\n- chatbot/memory/working_memory.py (history shape, created by task b.3)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Modify ONLY chatbot/api/chat.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Modify the POST /chat handler to populate TurnContext with real session context before calling pipeline.run():\n   - Load or build a `persona` dict for the session (from a default persona configuration or session-specific persona if tracked). Store in ctx.persona.\n   - Populate ctx.metadata with session-scoped context the pipeline steps may need (e.g., session_id, created_at, message_count, or a reference to any store adapter).\n   - If a persona configuration module or default is available (from chatbot/soul), use it. Otherwise, use a minimal default persona dict with standard keys (name, traits, tone).\n\n2. Preserve the existing ChatRequest, ChatResponse models, chat_router prefix, and POST /chat route signature. Do not break the existing response shape (session_id, response, step_results).\n\n3. After the pipeline runs, the step_results in the response should reflect the now-wired pipeline steps (not placeholder-only results).\n\n4. If the wired turn pipeline (from task b.4) is not available or raises ImportError, the handler should fall back to the existing build_default_pipeline() placeholder behavior so the endpoint remains functional.\n\n5. Ensure python -m py_compile chatbot/api/chat.py passes.",
+  "acceptance_criteria": [
+    "chatbot/api/chat.py POST /chat handler populates ctx.persona before calling pipeline.run()",
+    "chatbot/api/chat.py POST /chat handler populates ctx.metadata before calling pipeline.run()",
+    "ChatRequest and ChatResponse models are unchanged",
+    "Existing chat_router prefix and route signature are preserved",
+    "Handler falls back gracefully if wired modules are not importable",
+    "python -m py_compile chatbot/api/chat.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/chat.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/api/chat.py",
+    "modify chatbot/core/ or chatbot/soul/ files",
+    "change ChatRequest or ChatResponse model signatures",
+    "change chat_router prefix or route path",
+    "add new third-party dependencies",
+    "introduce LangGraph, LangChain, Letta, Zep, or any orchestration framework",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "ChatRequest",
+    "ChatResponse",
+    "chat_router"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add a default persona dict when no configuration is available",
+      "populate TurnContext.metadata with session context",
+      "add graceful ImportError fallback to placeholder pipeline"
+    ],
+    "forbidden": [
+      "change the POST /chat response model shape",
+      "add auth, rate-limiting, or CORS middleware",
+      "hardcode persona values in the endpoint body"
+    ]
+  },
+  "dependencies": [
+    "b.4"
+  ],
+  "exclusivity_category": "api_wiring",
+  "max_in_category": 1,
+  "task_timeout_seconds": 900
+}

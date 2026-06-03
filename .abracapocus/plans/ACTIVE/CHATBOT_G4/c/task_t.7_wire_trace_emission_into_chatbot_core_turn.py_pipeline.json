@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "task_id": "t.7",
+  "phase": "T",
+  "phase_id": "c",
+  "title": "Wire trace emission into chatbot/core/turn.py pipeline",
+  "description": "Extend chatbot/core/turn.py to emit trace records at each pipeline step. After each pipeline step completes, record the step name, duration, and metadata into the trace_collector singleton. On turn completion, finalize the trace with prompt content, retrieval snippets, routing decision, total latency, token counts, and cost.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md\n- chatbot/core/turn.py (existing turn pipeline \u2014 understand TurnContext class, pipeline steps/stages, how session/user data is carried, and where step execution is managed)\n- chatbot/observability/__init__.py (created by task t.1, updated by task t.2)\n- chatbot/observability/tracing.py (created by task t.1 \u2014 TraceCollector.start_trace, record_step, complete_trace signatures)\n- chatbot/observability/metrics.py (created by task t.2 \u2014 MetricsCollector.record_trace signature)\n- chatbot/providers/router.py (updated by task t.3 \u2014 select_model_for_task signature and TaskClass values)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/core/turn.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nSINGLE-OWNER FILE: chatbot/core/turn.py is owned exclusively by this task in this phase. No other task may modify it.\n\nImplementation details:\n\n1. Open chatbot/core/turn.py and understand:\n   - The TurnContext or equivalent dataclass/class that holds turn state (turn_id, session_id, user_id, messages, response).\n   - Where each pipeline step is executed (a loop, a chain of async function calls, or a pipeline runner pattern).\n   - Where the LLM provider is invoked and where model/provider identifiers are selected.\n   - Where prompt content is assembled and where retrieval (RAG) results are injected.\n   - Where the final response is assembled.\n\n2. At the start of each turn (before any pipeline steps execute):\n   - Determine the task_class for this turn (e.g., from TurnContext flags, intent classifier output, or default to 'casual'). If no task class metadata exists on the context, default to 'casual'.\n   - Call `from chatbot.observability.tracing import trace_collector` and `await trace_collector.start_trace(turn_id, session_id, user_id, task_class)`.\n\n3. Around each pipeline step execution:\n   - Use `TraceStep(step_name, started_at=time.monotonic())` with the context-manager protocol to time the step.\n   - After the context manager exits, call `await trace_collector.record_step(trace_id, step.step_name, step.duration_ms, metadata=...)` with relevant metadata (e.g., for retrieval steps include snippet_count, for LLM steps include model_id).\n\n4. After all steps complete and the final response is assembled:\n   - Call `await trace_collector.complete_trace(...)` with all collected data:\n     * model_provider and model_id from the LLM invocation\n     * prompt_tokens and completion_tokens (extracted from provider response if available, or estimated)\n     * cost_usd_micros (computed from a simple token-cost formula, or 0 if unknown)\n     * prompt (the full prompt sent to the LLM)\n     * routing_decision (the provider/model pair selected for this turn)\n     * retrieval_snippets (the snippets passed to the prompt from RAG)\n     * total_latency_ms (sum of all step durations)\n   - Call `from chatbot.observability.metrics import metrics_collector` and `await metrics_collector.record_trace(trace_record)`.\n\n5. Wrap all trace calls in try/except. If tracing fails for any reason (missing imports, collector unavailable, etc.), the turn must still complete successfully \u2014 trace failures are non-fatal. Log a warning to the structured_logger if available.\n\n6. Changes must be additive. Do not remove, rename, or refactor existing pipeline step logic. Do not change TurnContext fields unless adding optional fields for task_class metadata.",
+  "acceptance_criteria": [
+    "chatbot/core/turn.py imports and uses trace_collector from chatbot.observability.tracing",
+    "chatbot/core/turn.py imports and uses metrics_collector from chatbot.observability.metrics",
+    "Each turn starts a trace via trace_collector.start_trace() with turn_id, session_id, user_id, task_class",
+    "Each pipeline step is timed and recorded via trace_collector.record_step()",
+    "Each turn completion finalizes trace via trace_collector.complete_trace() with full trace data",
+    "The complete trace is forwarded to metrics_collector.record_trace()",
+    "Trace failures (import error, collector error) are caught and do not block turn completion",
+    "Existing pipeline step logic, signatures, and flow are preserved",
+    "python -m py_compile chatbot/core/turn.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/core/turn.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/core/turn.py",
+    "remove, rename, or refactor existing pipeline step logic or signatures",
+    "change TurnContext fields except adding optional task_class metadata",
+    "break turn execution on trace failure",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [],
+  "decision_budget": {
+    "allowed": [
+      "import observability singletons",
+      "add try/except wrappers around trace calls",
+      "determine task_class from TurnContext metadata or default to 'casual'",
+      "time steps using context-manager or explicit timing",
+      "extract token counts from LLM provider response if available"
+    ],
+    "forbidden": [
+      "change the pipeline execution order or step interfaces",
+      "add new pipeline steps or modify existing step implementations",
+      "store traces or metrics to a persistent database from turn.py",
+      "make trace emission conditional on an environment variable (always emit, fail gracefully)"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 1200
+}

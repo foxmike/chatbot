@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "task_id": "l.7",
+  "phase": "L",
+  "phase_id": "l",
+  "title": "Create identity configuration API endpoints",
+  "description": "Create chatbot/api/config.py with FastAPI router endpoints for relationship configuration and character profile CRUD, and register the router in chatbot/api/app.py.\n\nEndpoints to implement:\n\nGET /api/config/relationship/{session_id}\n- Returns the RelationshipConfig for a session, or defaults if none stored\n\nPUT /api/config/relationship/{session_id}\n- Accepts a JSON body with partial RelationshipConfig fields\n- Validates fields (type, tone must be valid literals; directness/warmth/initiative clamped 0.0\u20131.0; content_level must be valid)\n- Persists to the database via RelationshipConfigModel\n- Returns the saved config\n\nGET /api/config/character/{session_id}\n- Returns the CharacterProfile for a session, or defaults if none stored\n\nPUT /api/config/character/{session_id}\n- Accepts a JSON body with partial CharacterProfile fields\n- Validates fields (humor_style, communication_style must be valid literals; sliders clamped 0.0\u20131.0; name and backstory non-empty strings)\n- Persists to the database via CharacterProfileModel\n- Returns the saved profile\n\nGET /api/config/identity/{session_id}\n- Returns the current IdentityState for a session (fixed, slow, mood)\n\nPOST /api/config/identity/{session_id}/evolve\n- Accepts an optional turn_context dict\n- Calls identity_state.apply_evolution() with the context\n- Persists the updated IdentityState\n- Returns the new state\n\nPOST /api/config/identity/{session_id}/reset-mood\n- Resets mood to default and persists\n- Returns the new state\n\nUse Pydantic models for request/response validation. Follow existing FastAPI router patterns in the chatbot/api/ package (parameter style, error responses, dependency injection). Import RelationshipConfig, CharacterProfile, and IdentityState from chatbot.soul.* modules. Import RelationshipConfigModel, CharacterProfileModel, and IdentityStateModel from chatbot.db.models.\n\nIn chatbot/api/app.py, add one line to include the config router: app.include_router(config_router, prefix=\"/api/config\", tags=[\"config\"])\n\nExpected files: chatbot/api/config.py (created), chatbot/api/app.py (modified)\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/api/app.py (FastAPI app setup, existing router registration patterns, import conventions)\n- chatbot/api/chat.py (or any existing api router for endpoint patterns)\n- chatbot/soul/relationship.py\n- chatbot/soul/character.py\n- chatbot/soul/evolution.py\n- chatbot/db/models.py\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/api/config.py exists with a FastAPI router",
+    "GET/PUT /api/config/relationship/{session_id} endpoints exist and return valid JSON",
+    "GET/PUT /api/config/character/{session_id} endpoints exist and return valid JSON",
+    "GET /api/config/identity/{session_id}, POST /evolve, POST /reset-mood endpoints exist",
+    "Field validation rejects invalid literals and out-of-range float values",
+    "chatbot/api/app.py includes the config router via app.include_router()",
+    "python -m py_compile chatbot/api/config.py passes",
+    "python -m py_compile chatbot/api/app.py passes",
+    "No file outside chatbot/api/config.py and chatbot/api/app.py is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/config.py",
+    "chatbot/api/app.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/api/config.py and chatbot/api/app.py",
+    "add new third-party dependencies",
+    "create or modify documentation files",
+    "modify existing API routers (chat.py, sessions.py, streaming.py)",
+    "modify chatbot/soul/ or chatbot/core/ files"
+  ],
+  "allowed_symbols": [
+    "config_router",
+    "get_relationship",
+    "update_relationship",
+    "get_character",
+    "update_character",
+    "get_identity",
+    "evolve_identity",
+    "reset_mood"
+  ],
+  "dependencies": [
+    "l.1",
+    "l.2"
+  ],
+  "task_timeout_seconds": 900
+}

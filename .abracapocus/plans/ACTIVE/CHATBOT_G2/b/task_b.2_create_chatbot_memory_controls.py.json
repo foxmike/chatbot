@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "task_id": "b.2",
+  "phase": "M",
+  "phase_id": "b",
+  "title": "Create chatbot/memory/controls.py",
+  "description": "Create chatbot/memory/controls.py \u2014 the memory control operations module.\n\nImplement the core logic for: pin/unpin a memory, delete a memory (soft/hard), edit a memory's content or metadata, mark a memory as private/temporary/permanent, do-not-remember (flag a turn to be excluded from memory extraction), remember-forever (flag a memory as immune to eviction), and correct-a-misunderstanding (update a memory based on user correction). Design clean functions that operate on memory records by ID and return results suitable for the API layer. Handle null provenance gracefully \u2014 memories created before this phase will lack provenance fields.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- chatbot/memory/ (any existing modules) for patterns and imports\n- chatbot/db/models.py for the memory model and how records are persisted\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/memory/controls.py exists and is a valid Python module",
+    "python -m py_compile chatbot/memory/controls.py passes",
+    "Module exports functions for pin, delete, edit, set privacy level, do-not-remember, remember-forever, correct-a-misunderstanding",
+    "Operations handle null/absent provenance fields without crashing",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/memory/controls.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/memory/controls.py",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add async functions",
+      "use SQLAlchemy queries over memory records"
+    ],
+    "forbidden": [
+      "introduce new framework",
+      "modify existing database schema"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

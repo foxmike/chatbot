@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "task_id": "t.1",
+  "phase": "T",
+  "phase_id": "c",
+  "title": "Create chatbot/observability package init and tracing module",
+  "description": "Create chatbot/observability/__init__.py and chatbot/observability/tracing.py implementing per-turn trace collection with trace records containing prompt payload, model routing decision, retrieval context snippets, per-step latency, and overall response latency.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/operations.md\n- docs/architecture.md\n- docs/PLANS/ACTIVE/CHATBOT/README.md\n- docs/PLANS/ACTIVE/CHATBOT/DISPATCH.md\n- chatbot/core/turn.py (existing turn pipeline \u2014 understand TurnContext, pipeline step structure, and where trace hooks should be added)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/observability/__init__.py and chatbot/observability/tracing.py. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Create chatbot/observability/__init__.py with:\n   - Module docstring: 'Observability package \u2014 per-turn tracing, structured logging, metrics, and admin dashboard data providers.'\n   - Exports: TraceRecord, TraceCollector, TraceStep.\n\n2. Create chatbot/observability/tracing.py with:\n   - Module docstring: 'Per-turn trace collection \u2014 prompt payload, retrieval decisions, model routing records, and latency instrumentation.'\n   - A `TraceStep` dataclass with: step_name (str), started_at (float, time.monotonic), ended_at (float | None), duration_ms (float, default 0), metadata (dict[str, Any], default_factory=dict). Supports context-manager protocol (__enter__/__exit__) for automatic timing.\n   - A `TraceRecord` dataclass with: trace_id (str, uuid4), turn_id (str), session_id (str), user_id (str | None), model_provider (str | None), model_id (str | None), task_class (str | None, e.g. 'casual', 'emotional', 'summarize', 'extract', 'embed'), prompt_tokens (int, default 0), completion_tokens (int, default 0), cost_usd_micros (int, default 0), retrieve_latency_ms (float, default 0), prompt (str, default ''), routing_decision (dict[str, Any], default_factory=dict), retrieval_snippets (list[str], default_factory=list), steps (list[TraceStep], default_factory=list), total_latency_ms (float, default 0), started_at (str, default ''), completed_at (str, default '').\n   - A `TraceCollector` class with:\n     * `__init__(self, store: str = 'memory')` \u2014 accepts store type ('memory', 'sqlite', or 'postgres'). Default is 'memory' to avoid loading the primary database. Stores traces in an in-memory list when 'memory' is selected.\n     * async `start_trace(turn_id, session_id, user_id, task_class) -> str` \u2014 creates and returns a trace_id.\n     * async `record_step(trace_id, step_name, duration_ms, metadata) -> None` \u2014 appends a completed TraceStep.\n     * async `complete_trace(trace_id, model_provider, model_id, prompt_tokens, completion_tokens, cost_usd_micros, prompt, routing_decision, retrieval_snippets, total_latency_ms) -> TraceRecord` \u2014 finalizes and stores the record.\n     * async `get_trace(trace_id) -> TraceRecord | None`.\n     * async `list_traces(session_id, limit, offset) -> list[TraceRecord]`.\n     * async `flush() -> None` \u2014 no-op for in-memory, placeholder for persistent stores.\n   - A module-level singleton `trace_collector = TraceCollector()` for convenient import.\n   - Uses `time.monotonic()` for latency measurements to avoid wall-clock jumps.\n   - All methods are async to allow future persistent store swaps without signature changes.",
+  "acceptance_criteria": [
+    "chatbot/observability/__init__.py exists with package docstring and exports TraceRecord, TraceCollector, TraceStep",
+    "chatbot/observability/tracing.py exists and defines TraceStep, TraceRecord, TraceCollector",
+    "TraceStep supports context-manager protocol with automatic timing",
+    "TraceCollector.start_trace creates a trace with unique trace_id",
+    "TraceCollector.complete_trace finalizes a record with all trace fields",
+    "TraceCollector defaults to in-memory storage to avoid primary database load",
+    "All TraceCollector methods are async",
+    "python -m py_compile chatbot/observability/__init__.py passes",
+    "python -m py_compile chatbot/observability/tracing.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/observability/__init__.py",
+    "chatbot/observability/tracing.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/observability/__init__.py and chatbot/observability/tracing.py",
+    "add new third-party dependencies",
+    "write to a persistent database or file directly",
+    "modify the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "TraceStep",
+    "TraceRecord",
+    "TraceCollector",
+    "trace_collector"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use dataclasses for trace types",
+      "use uuid4 for trace_id generation",
+      "use time.monotonic for latency measurement",
+      "store traces in-memory by default",
+      "use async method signatures for future persistence",
+      "use context-manager protocol for automatic timing"
+    ],
+    "forbidden": [
+      "introduce OpenTelemetry, Jaeger, or any distributed tracing framework",
+      "write to Postgres, SQLite, or the primary application database",
+      "add Prometheus or metrics-wrapping dependencies",
+      "add file-based persistence without operator opt-in"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "task_id": "l.1",
+  "phase": "L",
+  "phase_id": "l",
+  "title": "Create relationship configuration model (relationship.py)",
+  "description": "Create chatbot/soul/relationship.py with a RelationshipConfig model that captures companion relationship settings as a configurable runtime record.\n\nDefine a RelationshipConfig dataclass or Pydantic model with these fields:\n- type: Literal['friend', 'mentor', 'peer', 'partner', 'custom'] describing the relationship archetype\n- tone: Literal['warm', 'neutral', 'formal', 'playful', 'sarcastic'] for the companion's conversation tone\n- directness: float clamped 0.0\u20131.0 (0 = subtle/indirect, 1 = blunt/direct)\n- warmth: float clamped 0.0\u20131.0 (0 = cool/detached, 1 = affectionate/warm)\n- initiative_level: float clamped 0.0\u20131.0 (0 = purely reactive, 1 = proactively initiates topics/questions)\n- content_level: Literal['light', 'moderate', 'deep', 'intellectual'] for conversation depth\n\nAdd a classmethod defaults() returning a sensible default RelationshipConfig (type 'friend', tone 'warm', directness 0.5, warmth 0.7, initiative 0.3, content 'moderate').\n\nAdd a to_prompt_fragment() method that serializes the config into a short, stably-formatted text block suitable for injection into a persona prompt. No new dependencies beyond what is already in the chatbot package.\n\nDefine an enum or Literal for each constrained field to ensure type safety.\n\nExpected file path: chatbot/soul/relationship.py\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- chatbot/soul/persona_prompt.py (to understand how prompt fragments are consumed)\n- Any existing chatbot/soul/__init__.py\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/soul/relationship.py exists",
+    "RelationshipConfig model is defined with fields: type, tone, directness, warmth, initiative_level, content_level",
+    "RelationshipConfig.defaults() classmethod returns a valid default config",
+    "RelationshipConfig.to_prompt_fragment() returns a non-empty string suitable for persona prompt injection",
+    "All constrained fields use Literal or Enum types, not free-form str",
+    "python -m py_compile chatbot/soul/relationship.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/soul/relationship.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/soul/relationship.py",
+    "add new third-party dependencies to pyproject.toml or requirements.txt",
+    "create or modify documentation files",
+    "modify chatbot/soul/persona_prompt.py",
+    "modify chatbot/api/ or chatbot/core/ files"
+  ],
+  "allowed_symbols": [
+    "RelationshipConfig",
+    "RelationshipType",
+    "ToneStyle",
+    "ContentLevel"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

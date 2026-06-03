@@ -1,0 +1,106 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "compile_perf_init",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/perf/__init__.py"
+        ]
+      },
+      {
+        "name": "compile_perf_cache",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/perf/cache.py"
+        ]
+      },
+      {
+        "name": "compile_perf_background",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/perf/background.py"
+        ]
+      },
+      {
+        "name": "compile_streaming",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/api/streaming.py"
+        ]
+      },
+      {
+        "name": "compile_turn",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/core/turn.py"
+        ]
+      },
+      {
+        "name": "compile_core_init",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/core/__init__.py"
+        ]
+      },
+      {
+        "name": "compile_consolidation_worker",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/consolidation/worker.py"
+        ]
+      },
+      {
+        "name": "compile_chat",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/api/chat.py"
+        ]
+      },
+      {
+        "name": "compile_perf_test",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "tests/test_performance.py"
+        ]
+      },
+      {
+        "name": "pytest_performance",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "tests/test_performance.py",
+          "-x",
+          "-v"
+        ]
+      },
+      {
+        "name": "tsc_typecheck",
+        "command": [
+          "sh",
+          "-c",
+          "cd react_ui && npx tsc --noEmit"
+        ]
+      }
+    ]
+  }
+}

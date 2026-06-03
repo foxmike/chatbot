@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "task_id": "a.2",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Create TypeScript types for chat API and UI state",
+  "description": "Create react_ui/src/types.ts with TypeScript interfaces for the chat application.\n\nDefine the following types aligned with the existing FastAPI chat endpoints:\n- Session: { session_id: string; title: string; created_at: string }\n- Message: { role: 'user' | 'assistant'; content: string; timestamp?: string }\n- ChatRequest: { message: string; session_id: string }\n- ChatResponse: { session_id: string; response: string; step_results?: Array<{step_name: string; status: string; detail?: string}> }\n- StreamEvent: { event: string; data: string }\n- CreateSessionResponse: { session_id: string }\n- ApiError: { detail: string; status_code: number }\n\nUse TypeScript strict typing. Export all types. Do not add runtime code or utility functions.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "react_ui/src/types.ts exists",
+    "Session, Message, ChatRequest, ChatResponse, StreamEvent, CreateSessionResponse, ApiError types are exported",
+    "Message.role is typed as 'user' | 'assistant' union",
+    "All types use TypeScript strict syntax with no any types",
+    "File contains only type/interface declarations and no runtime code",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/types.ts"
+  ],
+  "forbidden_changes": [
+    "modify any file outside react_ui/src/types.ts",
+    "add runtime code, functions, or classes",
+    "import any modules or dependencies"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 300
+}

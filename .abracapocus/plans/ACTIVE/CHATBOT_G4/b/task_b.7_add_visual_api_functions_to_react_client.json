@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "task_id": "b.7",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Add visual API functions to React client",
+  "description": "Modify react_ui/src/api/client.ts to add TypeScript fetch functions for all visual/image API endpoints: generate image, understand image, get image, list images, get appearance, update appearance, manage outfits.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- docs/architecture.md\n- react_ui/src/api/client.ts (existing API client \u2014 understand base URL configuration, fetch wrapper patterns, TypeScript interfaces vs types, naming conventions, and error handling patterns)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY react_ui/src/api/client.ts. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed path. If you believe other files need updating, ignore that impulse and finish the task with only the listed file modified. Out-of-scope edits will cause the task to be rejected.\n\nImplementation details:\n\n1. Open react_ui/src/api/client.ts and inspect the existing API function patterns: base URL configuration, fetch wrapper conventions, TypeScript naming (interfaces vs types, PascalCase vs camelCase), error handling, and export style.\n\n2. Add TypeScript interfaces/types matching the expected API shapes:\n   - `ImageGenerationRequest`: scene_description (string), width? (number), height? (number), negative_prompt? (string | null), seed? (number | null).\n   - `ImageGenerationResponse`: image_id (string), image_url (string), mime_type (string), seed_used (number), prompt_used (string), width (number), height (number), generation_time_ms (number).\n   - `ImageUnderstandingRequest`: question? (string | null), detail_level? ('brief' | 'standard' | 'detailed').\n   - `ImageUnderstandingResponse`: image_id (string), description (string), detected_objects (string[]), detected_text (string | null), scene_category (string | null), confidence (number), processing_time_ms (number).\n   - `ImageView`: image_id (string), source_type ('generated' | 'uploaded' | 'understood'), image_url (string), mime_type (string), prompt_used (string | null), description (string | null), width (number | null), height (number | null), created_at (string).\n   - `ImageListResponse`: images (ImageView[]), total (number).\n   - `AppearanceProfile`: character_seed (number), character_description (string), visual_traits (string[]), art_style (string), color_palette (string[]), created_at (string), updated_at (string | null).\n   - `AppearanceUpdateRequest`: character_description? (string), visual_traits? (string[]), art_style? (string), color_palette? (string[]).\n   - `OutfitView`: outfit_id (string), name (string), description (string), visual_tags (string[]), is_active (boolean), created_at (string).\n   - `OutfitCreateRequest`: name (string), description (string), visual_tags (string[]).\n   - `OutfitListResponse`: outfits (OutfitView[]).\n\n3. Add async fetch functions following the existing client.ts patterns:\n   - `generateImage(sessionId: string, request: ImageGenerationRequest): Promise<ImageGenerationResponse>`: POST to `/images/generate` with session_id in body.\n   - `understandImage(sessionId: string, file: File, question?: string): Promise<ImageUnderstandingResponse>`: POST to `/images/understand` with multipart form data.\n   - `getImage(imageId: string): Promise<ImageView>`: GET `/images/{imageId}`.\n   - `listImages(sessionId: string, offset?: number, limit?: number): Promise<ImageListResponse>`: GET `/images/` with query params.\n   - `getAppearance(companionId: string): Promise<AppearanceProfile>`: GET `/images/appearance/{companionId}`.\n   - `updateAppearance(companionId: string, request: AppearanceUpdateRequest): Promise<AppearanceProfile>`: PATCH `/images/appearance/{companionId}`.\n   - `lockCharacterSeed(companionId: string, seed: number): Promise<AppearanceProfile>`: PUT `/images/appearance/{companionId}/seed` with seed in body.\n   - `listOutfits(appearanceId: string): Promise<OutfitListResponse>`: GET `/images/outfits/{appearanceId}`.\n   - `createOutfit(appearanceId: string, request: OutfitCreateRequest): Promise<OutfitView>`: POST `/images/outfits/{appearanceId}`.\n   - `activateOutfit(appearanceId: string, outfitId: string): Promise<OutfitView>`: PUT `/images/outfits/{appearanceId}/{outfitId}/activate`.\n\n4. Do NOT remove or rename existing exported functions. Do NOT change the base URL configuration or fetch wrapper pattern.",
+  "acceptance_criteria": [
+    "react_ui/src/api/client.ts exports all ten visual/image API functions",
+    "react_ui/src/api/client.ts exports ImageGenerationRequest, ImageGenerationResponse, ImageUnderstandingRequest, ImageUnderstandingResponse types",
+    "react_ui/src/api/client.ts exports ImageView, ImageListResponse, AppearanceProfile, AppearanceUpdateRequest types",
+    "react_ui/src/api/client.ts exports OutfitView, OutfitCreateRequest, OutfitListResponse types",
+    "understandImage uses multipart form data for file upload",
+    "All new functions use the existing fetch wrapper or URL pattern from client.ts",
+    "Existing API functions in client.ts are not removed, renamed, or changed",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/api/client.ts"
+  ],
+  "forbidden_changes": [
+    "modify any file outside react_ui/src/api/client.ts",
+    "remove or rename existing exported functions or types from client.ts",
+    "add new third-party dependencies",
+    "introduce a new HTTP client library (axios, react-query, etc.)",
+    "change the base URL configuration or fetch wrapper pattern",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "allowed_symbols": [
+    "ImageGenerationRequest",
+    "ImageGenerationResponse",
+    "ImageUnderstandingRequest",
+    "ImageUnderstandingResponse",
+    "ImageView",
+    "ImageListResponse",
+    "AppearanceProfile",
+    "AppearanceUpdateRequest",
+    "OutfitView",
+    "OutfitCreateRequest",
+    "OutfitListResponse",
+    "generateImage",
+    "understandImage",
+    "getImage",
+    "listImages",
+    "getAppearance",
+    "updateAppearance",
+    "lockCharacterSeed",
+    "listOutfits",
+    "createOutfit",
+    "activateOutfit"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add TypeScript interfaces and types matching the API shapes",
+      "add async fetch wrapper functions following existing client.ts patterns",
+      "use the existing base URL and error handling conventions",
+      "use FormData for multipart file upload"
+    ],
+    "forbidden": [
+      "introduce axios, react-query, or any new HTTP/data-fetching library",
+      "change the fetch wrapper pattern or base URL configuration"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

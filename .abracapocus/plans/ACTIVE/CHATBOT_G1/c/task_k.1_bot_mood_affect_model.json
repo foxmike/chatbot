@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "task_id": "k.1",
+  "phase": "K",
+  "phase_id": "k",
+  "title": "Bot mood/affect model",
+  "description": "Create chatbot/soul/mood.py with a dynamic bot mood/affect model distinct from fixed personality.\n\nImplement a MoodState dataclass (or Pydantic model) with fields:\n- mood: str \u2014 current mood label from a closed enum (e.g. warm, neutral, playful, tired, reflective, direct, gentle, upbeat)\n- energy: float \u2014 0.0 (depleted) to 1.0 (peppy), drifts slowly over turns\n- closeness: float \u2014 0.0 (new) to 1.0 (deep trust), accumulates slowly\n- last_updated: datetime \u2014 UTC timestamp of last update\n- recent_emotional_context: list[str] \u2014 last N turn summaries (e.g. \"user shared a worry\", \"user laughed at a joke\")\n\nImplement a MoodEngine class with:\n- update(turn_result, current_state: MoodState) -> MoodState \u2014 apply a small delta per turn. Energy decays slightly each turn and recovers with positive engagement. Closeness increases with personal sharing, self-disclosure, or user expressing appreciation. Mood label shifts are infrequent (every 5+ turns) based on conversation trajectory.\n- default_state() -> MoodState \u2014 factory returning warm/neutral/0.5/0.0 baseline\n- to_prompt_hints(state: MoodState) -> str \u2014 return a short string injected into persona prompt assembly (e.g. \"You are feeling warm and energetic today\" or \"You are a bit tired but attentive\")\n\nRules:\n- All deltas must be small (max 0.05 per turn for energy, max 0.03 for closeness)\n- Never express certainty about inferred user state in mood output \u2014 that belongs to user_state.py\n- Recent emotional context is a fixed-size ring buffer of the last 10 turn summaries\n- All methods are synchronous (called from async turn pipeline, but the mood engine has no I/O)\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- This task document (task k.1)\n- Any existing files under chatbot/soul/ that define personality or state contracts\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/soul/mood.py exists and defines MoodState and MoodEngine",
+    "python -m py_compile chatbot/soul/mood.py passes",
+    "MoodState has mood, energy, closeness, last_updated, recent_emotional_context fields",
+    "MoodEngine.update() returns MoodState with deltas bounded to max 0.05 per turn",
+    "MoodEngine.to_prompt_hints() returns a non-empty string",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/soul/mood.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/soul/mood.py",
+    "add new third-party dependencies",
+    "write to the database or file system from the mood engine",
+    "introduce async I/O in mood.py"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "task_id": "l.8",
+  "phase": "L",
+  "phase_id": "l",
+  "title": "Extend frontend API client with identity config methods",
+  "description": "Extend react_ui/src/api/client.ts with TypeScript methods for the new identity configuration API endpoints created in task l.7.\n\nRead the existing API client first to understand the established patterns (requestJson helper, error handling, type imports).\n\nAdd TypeScript types to react_ui/src/types.ts (OR define them inline in client.ts if the existing pattern prefers that):\n- RelationshipConfig: { type, tone, directness, warmth, initiative_level, content_level }\n- CharacterProfile: { name, backstory, personality_sliders, humor_style, communication_style, favorite_topics }\n- IdentityState: { fixed, slow, mood }\n\nAdd API client methods:\n- getRelationshipConfig(sessionId: string): Promise<RelationshipConfig>\n- updateRelationshipConfig(sessionId: string, config: Partial<RelationshipConfig>): Promise<RelationshipConfig>\n- getCharacterProfile(sessionId: string): Promise<CharacterProfile>\n- updateCharacterProfile(sessionId: string, profile: Partial<CharacterProfile>): Promise<CharacterProfile>\n- getIdentityState(sessionId: string): Promise<IdentityState>\n- evolveIdentity(sessionId: string, context?: Record<string, unknown>): Promise<IdentityState>\n- resetIdentityMood(sessionId: string): Promise<IdentityState>\n\nEach method calls the corresponding /api/config/* endpoint with proper HTTP methods and JSON bodies. Follow the existing error handling pattern (ApiError class, status code checking). Do not change existing methods.\n\nIf types.ts is in the allowed_write_paths, add the new type definitions there. Otherwise define them alongside the methods in client.ts. Match the existing code style.\n\nExpected files: react_ui/src/api/client.ts (modified), possibly react_ui/src/types.ts (modified)\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- react_ui/src/api/client.ts (existing API client, requestJson helper, error handling, type import patterns)\n- react_ui/src/types.ts (existing type definitions, export style)\n- chatbot/api/config.py (endpoint paths, request/response shapes)\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "react_ui/src/api/client.ts contains getRelationshipConfig and updateRelationshipConfig methods",
+    "react_ui/src/api/client.ts contains getCharacterProfile and updateCharacterProfile methods",
+    "react_ui/src/api/client.ts contains getIdentityState, evolveIdentity, and resetIdentityMood methods",
+    "All new methods use the existing requestJson helper and error handling pattern",
+    "TypeScript type definitions for RelationshipConfig, CharacterProfile, IdentityState are accessible to the methods",
+    "cd react_ui && npx tsc --noEmit passes (typecheck)",
+    "No existing API client methods are deleted or modified",
+    "No file outside react_ui/src/api/client.ts and react_ui/src/types.ts is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/api/client.ts",
+    "react_ui/src/types.ts"
+  ],
+  "forbidden_changes": [
+    "modify any file outside react_ui/src/api/client.ts and react_ui/src/types.ts",
+    "delete or rename existing API client methods",
+    "add new third-party npm dependencies",
+    "modify react_ui/package.json",
+    "create or modify React component files",
+    "create or modify documentation files"
+  ],
+  "allowed_symbols": [
+    "getRelationshipConfig",
+    "updateRelationshipConfig",
+    "getCharacterProfile",
+    "updateCharacterProfile",
+    "getIdentityState",
+    "evolveIdentity",
+    "resetIdentityMood"
+  ],
+  "dependencies": [
+    "l.7"
+  ],
+  "task_timeout_seconds": 600
+}

@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "task_id": "a.4",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Create ChatMessage and MessageList components",
+  "description": "Create react_ui/src/components/ChatMessage.tsx and react_ui/src/components/MessageList.tsx.\n\nChatMessage.tsx:\n- Props: { message: Message } imported from ../types\n- Renders a message bubble with role-based alignment: user messages right-aligned, assistant messages left-aligned\n- Shows the message content in a rounded container with role-based background colors (user: indigo-600, assistant: gray-700)\n- Shows an optional timestamp below the bubble if message.timestamp is present\n- Uses Tailwind classes only; no custom CSS or inline styles\n\nMessageList.tsx:\n- Props: { messages: Message[]; isLoading: boolean }\n- Renders a scrollable div container (Tailwind overflow-y-auto, flex-col)\n- Maps messages to ChatMessage components with a key derived from index and role\n- When isLoading is true, shows a typing indicator at the bottom: three animated dots (Tailwind animate-bounce) in a stylized assistant bubble\n- Auto-scrolls to bottom when messages change: use a useEffect + ref that sets container.scrollTop = container.scrollHeight\n- Renders an empty state when messages is empty and not loading: a subtle 'Start a conversation' prompt\n\nImport Message type from ../types.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- react_ui/src/types.ts\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "react_ui/src/components/ChatMessage.tsx exists",
+    "react_ui/src/components/MessageList.tsx exists",
+    "ChatMessage renders user messages right-aligned with indigo background",
+    "ChatMessage renders assistant messages left-aligned with gray background",
+    "ChatMessage shows timestamp when message.timestamp is present",
+    "MessageList scrolls to bottom on new messages",
+    "MessageList shows typing indicator with animated dots when isLoading is true",
+    "MessageList shows empty state when messages is empty and not loading",
+    "Both components import Message from ../types",
+    "Only Tailwind classes are used for styling; no custom CSS",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/components/ChatMessage.tsx",
+    "react_ui/src/components/MessageList.tsx"
+  ],
+  "forbidden_changes": [
+    "modify react_ui/src/types.ts",
+    "modify any file outside the listed allowed_write_paths",
+    "add custom CSS or inline styles; use Tailwind classes only"
+  ],
+  "dependencies": [
+    "a.2"
+  ],
+  "task_timeout_seconds": 300
+}

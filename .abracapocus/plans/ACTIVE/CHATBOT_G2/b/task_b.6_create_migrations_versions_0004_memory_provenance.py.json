@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "task_id": "b.6",
+  "phase": "M",
+  "phase_id": "b",
+  "title": "Create migrations/versions/0004_memory_provenance.py",
+  "description": "Create the Alembic migration at migrations/versions/0004_memory_provenance.py that adds provenance and privacy columns to the memory table.\n\nThis migration must:\n1. Use the correct Alembic revision chain \u2014 inspect the real head revision number before generating (do not assume 0003 exists; check migrations/versions/).\n2. Add columns for source_type, source_turn_id, confidence, privacy_level, and pinned.\n3. Be reversible: the downgrade() must drop the added columns.\n4. Not alter or drop the pgvector embedding column.\n5. Use safe defaults that match the ORM model defaults from task b.5.\n6. Run without locking the table for extended periods (use ALTER TABLE ... ADD COLUMN with defaults, not table rebuilds).\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- migrations/versions/ to find the current head revision and migration patterns\n- chatbot/db/models.py (after b.5 modifications) for the exact column definitions\n- migrations/env.py for Alembic configuration\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "migrations/versions/0004_memory_provenance.py exists",
+    "Migration has correct up_revision pointing to the actual head revision",
+    "upgrade() adds source_type, source_turn_id, confidence, privacy_level, and pinned columns",
+    "downgrade() reverses all changes (drops added columns)",
+    "pgvector column is not modified or dropped",
+    "python -m py_compile migrations/versions/0004_memory_provenance.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "migrations/versions/0004_memory_provenance.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside migrations/versions/0004_memory_provenance.py",
+    "modify existing migration files",
+    "alter the pgvector column",
+    "add new third-party dependencies"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use Alembic op.add_column and op.drop_column",
+      "use batch mode if needed"
+    ],
+    "forbidden": [
+      "modify migrations/env.py",
+      "regenerate other migrations",
+      "use ALTER TYPE"
+    ]
+  },
+  "dependencies": [
+    "b.5"
+  ],
+  "task_timeout_seconds": 600
+}

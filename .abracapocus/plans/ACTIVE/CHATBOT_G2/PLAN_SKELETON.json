@@ -1,0 +1,77 @@
+{
+  "plan_name": "CHATBOT",
+  "purpose": "Group 2 of the companion buildout, run after Group 1 (phases i, j, k) is accepted. This group makes the companion's identity user-shapable and its memory trustworthy and continuous. Phase L adds relationship configuration (relationship type, tone, directness, warmth, initiative level, and content level as a configurable runtime setting), character creation/customization (name, backstory, personality sliders feeding the soul core, humor style, favorite topics), and slow controlled identity evolution that distinguishes fixed identity, slowly-changing identity, and temporary mood so the companion grows familiar over time without random drift. Phase M makes memory controllable and transparent: a memory control API (view, pin, delete, edit, mark private/temporary/permanent, do-not-remember, remember-forever, correct-a-misunderstanding), explainable memory with provenance (explicit vs inferred, source turn, confidence), searchable conversation history with date/topic filtering and export, and per-memory privacy levels. Phase N adds continuity and narrative: a relationship timeline of milestones, emotional events, promises, and running projects; a narrative threading engine that produces grounded callbacks beyond naive top-k retrieval; and rituals and shared routines including named recurring activities and inside jokes. All new logic lands inside the existing chatbot package and the react_ui frontend; the FastAPI + Postgres/pgvector + Redis stack is unchanged.",
+  "async_strategy": "Phases are dependency-ordered synchronous boundaries; a phase advances only when all tasks are accepted. Phase L must precede M and N because relationship/character config and the persona-prompt seam it finalizes are consumed downstream. Within each phase, new domain modules form wave 1 on disjoint allowed_write_paths; database model edits are also wave 1 but their migration is wave 2; modules that consume the new domain code (persona_prompt.py, context_compiler.py, api routers) run in wave 2; and the single shared fan-in files that already exist and must be extended (chatbot/core/turn.py, chatbot/soul/persona_prompt.py, chatbot/memory/context_compiler.py, chatbot/api/app.py, react_ui/src/api/client.ts) are each owned by exactly one task to prevent write-path collisions. React feature components run in parallel in a later wave after the client extension lands.",
+  "cost_estimate": "balanced, default model openrouter/deepseek/deepseek-v4-pro via opencode_cli. Domain modules and endpoint wiring route to deepseek v4 pro with narrow allowed_write_paths. Quality-driving logic — chatbot/soul/evolution.py, chatbot/continuity/narrative.py, and the chatbot/memory/context_compiler.py extension in phase N — may route to a stronger profile if review warrants. After materialization, edit documentation tasks to openrouter/google/gemma-4-31b-it and test-only tasks to openrouter/moonshotai/kimi-k2.5.",
+  "operator_questions": [
+    "Identity evolution rate: should the companion's slowly-changing traits update per-conversation, per-N-conversations, or only via an explicit consolidation pass, and what is the maximum drift allowed from the fixed baseline?",
+    "Memory privacy default: are newly extracted memories permanent by default with opt-out, or temporary by default with opt-in to permanence?",
+    "Provenance retroactivity: memories created before phase M have no provenance; should they be labeled 'unknown source' or backfilled with a best-effort inferred flag?",
+    "Narrative callbacks: should the narrative engine surface callbacks automatically inside responses, or only when relevance crosses a threshold to avoid forced or creepy references?",
+    "Rituals: operator-defined only for v1, or should the companion be allowed to propose and name new recurring rituals on its own?"
+  ],
+  "phases": [
+    {
+      "phase_id": "phase_l",
+      "goal": "Relationship configuration and identity evolution. A relationship config model (type, tone, directness, warmth, initiative level, content level as a configurable setting). Character creation/customization feeding the soul core (name, backstory, personality sliders, humor style, communication style, favorite topics). Slow controlled identity evolution distinguishing fixed identity, slowly-changing identity, and temporary mood. UI surfaces for character creation and relationship settings. Extends the persona prompt assembly finalized in phase J.",
+      "expected_changed_files": [
+        "chatbot/soul/relationship.py",
+        "chatbot/soul/character.py",
+        "chatbot/soul/evolution.py",
+        "chatbot/db/models.py",
+        "migrations/versions/0003_relationship_character.py",
+        "chatbot/soul/persona_prompt.py",
+        "chatbot/api/config.py",
+        "chatbot/api/app.py",
+        "react_ui/src/api/client.ts",
+        "react_ui/src/components/CharacterCreator.tsx",
+        "react_ui/src/components/RelationshipSettings.tsx",
+        "tests/test_identity_config.py"
+      ],
+      "async_notes": "Wave 1 (disjoint): relationship.py, character.py, evolution.py, and db/models.py field additions. Wave 2: the 0003 migration (depends on models.py), persona_prompt.py extension to consume relationship/character/evolution (depends on the three soul modules), api/config.py endpoints (depends on relationship.py and character.py), and react_ui/src/api/client.ts extension. Wave 3: api/app.py registering the config router (depends on config.py), and the two React components CharacterCreator and RelationshipSettings in parallel (depend on client.ts). The test is the final fan-in.",
+      "risk_notes": "persona_prompt.py is extended again after phase J; it is owned by exactly one task here and phase J must be accepted first. db/models.py and api/app.py are each single-owner. The 0003 migration must be reversible and its real revision number verified against the current Alembic head at materialize time, since earlier groups may have advanced it. Evolution logic must bound drift from the fixed baseline per the operator answer.",
+      "estimated_task_count": 10
+    },
+    {
+      "phase_id": "phase_m",
+      "goal": "Memory management and transparency. A memory control API (view, pin, delete, edit, mark private/temporary/permanent, do-not-remember, remember-forever, correct-a-misunderstanding). Explainable memory via provenance tracking (explicit vs inferred, source turn, confidence). Searchable conversation history with date/topic filtering and export. Per-memory privacy levels. UI panels for memory review and history search. Operates over the schema and extraction produced in earlier phases.",
+      "expected_changed_files": [
+        "chatbot/memory/provenance.py",
+        "chatbot/memory/controls.py",
+        "chatbot/memory/search.py",
+        "chatbot/memory/export.py",
+        "chatbot/db/models.py",
+        "migrations/versions/0004_memory_provenance.py",
+        "chatbot/api/memory.py",
+        "chatbot/api/app.py",
+        "react_ui/src/api/client.ts",
+        "react_ui/src/components/MemoryPanel.tsx",
+        "react_ui/src/components/HistorySearch.tsx",
+        "tests/test_memory_management.py"
+      ],
+      "async_notes": "Wave 1 (disjoint): provenance.py, controls.py, search.py, export.py, and db/models.py provenance/privacy field additions. Wave 2: the 0004 migration (depends on models.py), api/memory.py endpoints (depends on controls/search/export/provenance), and client.ts extension. Wave 3: api/app.py registering the memory router (depends on memory.py), and the React MemoryPanel and HistorySearch components in parallel (depend on client.ts). Test fan-in last.",
+      "risk_notes": "Memories created before this phase have no provenance; handle null provenance per the operator answer rather than crashing. db/models.py and api/app.py single-owner. The 0004 migration must be reversible and add columns without breaking the 0001 schema or pgvector column; verify the real head revision number at materialize time. Delete and privacy operations must be transactional and must not corrupt vector retrieval state.",
+      "estimated_task_count": 10
+    },
+    {
+      "phase_id": "phase_n",
+      "goal": "Continuity and narrative. A relationship timeline of milestones, emotional events, promises, and running projects. A narrative threading engine producing grounded callbacks (\"last week you were worried about your dad\", \"that sounds like the same problem from the other night\") beyond naive top-k retrieval. Rituals and shared routines including morning check-in, nightly recap, weekly planning, named recurring activities, and inside jokes. The timeline and narrative threads feed the context compiler so continuity shapes every turn.",
+      "expected_changed_files": [
+        "chatbot/continuity/__init__.py",
+        "chatbot/continuity/timeline.py",
+        "chatbot/continuity/narrative.py",
+        "chatbot/continuity/rituals.py",
+        "chatbot/db/models.py",
+        "migrations/versions/0005_continuity.py",
+        "chatbot/memory/context_compiler.py",
+        "chatbot/core/turn.py",
+        "react_ui/src/api/client.ts",
+        "react_ui/src/components/TimelinePanel.tsx",
+        "tests/test_continuity.py"
+      ],
+      "async_notes": "Wave 1 (disjoint): continuity/__init__.py + timeline.py as one package task, narrative.py, rituals.py, and db/models.py continuity tables. Wave 2: the 0005 migration (depends on models.py), context_compiler.py extension to incorporate timeline and narrative threads into ranked context (depends on timeline.py and narrative.py), and client.ts extension. Wave 3: chatbot/core/turn.py adding a timeline-update step (depends on timeline.py, rituals.py, and the context_compiler task), and the TimelinePanel React component (depends on client.ts). Test fan-in last.",
+      "risk_notes": "context_compiler.py was a phase-d differentiator; the extension is owned by one task and must not regress existing retrieval ranking — keep the change additive. turn.py and db/models.py single-owner. The 0005 migration must be reversible with its real head revision verified at materialize time. Narrative callbacks must respect the relevance threshold from the operator answer to avoid forced references.",
+      "estimated_task_count": 9
+    }
+  ]
+}

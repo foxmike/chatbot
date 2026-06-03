@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "task_id": "b.4",
+  "phase": "M",
+  "phase_id": "b",
+  "title": "Create chatbot/memory/export.py",
+  "description": "Create chatbot/memory/export.py \u2014 the memory and conversation export module.\n\nImplement export functionality that serializes memories and conversation turns into structured formats (JSON and plain text at minimum). Support filtering by date range, topic, and privacy level. Include provenance metadata in exports. Generate complete, self-contained export files suitable for user download.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- chatbot/memory/ (any existing modules) for patterns\n- chatbot/db/models.py for the memory and turn schemas\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/memory/export.py exists and is a valid Python module",
+    "python -m py_compile chatbot/memory/export.py passes",
+    "Module exports a function that generates JSON exports with filtering support",
+    "Module also supports plain-text export format",
+    "Exports include provenance metadata on memory entries",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/memory/export.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/memory/export.py",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add async functions",
+      "use Python json module",
+      "add date/topic filter parameters"
+    ],
+    "forbidden": [
+      "introduce new serialization framework",
+      "modify existing database schema"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}
