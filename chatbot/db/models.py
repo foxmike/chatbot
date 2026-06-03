@@ -547,6 +547,89 @@ class Notification(Base):
     )
 
 
+class Room(Base):
+    __tablename__ = "rooms"
+
+    room_id: Mapped[str] = mapped_column(
+        sa.String(64),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+    user_id: Mapped[str] = mapped_column(sa.String(64), nullable=False, index=True)
+    companion_id: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    room_type: Mapped[str] = mapped_column(sa.String(20), nullable=False)
+    display_name: Mapped[str] = mapped_column(sa.String(255), nullable=False)
+    memory_persist_to_durable: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, default=True
+    )
+    memory_scope: Mapped[str] = mapped_column(
+        sa.String(20), nullable=False, default="room"
+    )
+    memory_max_context_turns: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, default=50
+    )
+    memory_include_embeddings: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, default=True
+    )
+    scene_id: Mapped[str | None] = mapped_column(
+        sa.ForeignKey("scenes.scene_id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.sql.func.now(),
+    )
+    metadata: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
+
+    scenes: Mapped[list[Scene]] = relationship(back_populates="room")
+    scene: Mapped[Scene | None] = relationship(foreign_keys=[scene_id])
+
+
+class Scene(Base):
+    __tablename__ = "scenes"
+
+    scene_id: Mapped[str] = mapped_column(
+        sa.String(64),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+    room_id: Mapped[str] = mapped_column(
+        sa.ForeignKey("rooms.room_id"), nullable=False, index=True
+    )
+    location: Mapped[str] = mapped_column(
+        sa.String(255), nullable=False, default=""
+    )
+    activity: Mapped[str] = mapped_column(
+        sa.String(255), nullable=False, default=""
+    )
+    tone: Mapped[str] = mapped_column(
+        sa.String(20), nullable=False, default="neutral"
+    )
+    intensity: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=5)
+    is_paused: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, default=False
+    )
+    started_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.sql.func.now(),
+    )
+    paused_at: Mapped[datetime | None] = mapped_column(
+        sa.DateTime(timezone=True), nullable=True
+    )
+    resumed_at: Mapped[datetime | None] = mapped_column(
+        sa.DateTime(timezone=True), nullable=True
+    )
+    ended_at: Mapped[datetime | None] = mapped_column(
+        sa.DateTime(timezone=True), nullable=True
+    )
+    participants: Mapped[list | None] = mapped_column(sa.JSON, nullable=True)
+    scene_context: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    metadata: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
+
+    room: Mapped[Room] = relationship(back_populates="scenes", foreign_keys=[room_id])
+
+
 __all__ = [
     "AgencyRitual",
     "AgencyTimeline",
@@ -562,6 +645,8 @@ __all__ = [
     "Notification",
     "RelationshipConfigModel",
     "Ritual",
+    "Room",
+    "Scene",
     "SemanticFact",
     "Session",
     "TimelineEntry",
