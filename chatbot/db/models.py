@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 import sqlalchemy as sa
@@ -32,6 +32,10 @@ def _embedding_vector_type() -> Vector:
 
 class Base(DeclarativeBase):
     pass
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class User(Base):
@@ -389,6 +393,79 @@ class Entity(Base):
     )
 
 
+class TimelineEntry(Base):
+    __tablename__ = "timeline_entries"
+
+    id: Mapped[str] = mapped_column(sa.String(64), primary_key=True)
+    session_id: Mapped[str] = mapped_column(sa.String(64), index=True, nullable=False)
+    entry_type: Mapped[str] = mapped_column(sa.String(20), nullable=False)
+    title: Mapped[str] = mapped_column(sa.String(255), nullable=False)
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    content: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    turn_id: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    status: Mapped[str] = mapped_column(sa.String(20), nullable=False, default="active")
+    tags: Mapped[list[str] | None] = mapped_column(sa.JSON, nullable=True)
+    metadata_: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+    )
+
+
+class NarrativeThread(Base):
+    __tablename__ = "narrative_threads"
+
+    id: Mapped[str] = mapped_column(sa.String(64), primary_key=True)
+    session_id: Mapped[str] = mapped_column(sa.String(64), index=True, nullable=False)
+    label: Mapped[str] = mapped_column(sa.String(255), nullable=False)
+    turns: Mapped[list[str]] = mapped_column(sa.JSON, nullable=False)
+    summary: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    relevance_score: Mapped[float] = mapped_column(sa.Float, nullable=False, default=0.0)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+    )
+    last_referenced_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+    )
+
+
+class Ritual(Base):
+    __tablename__ = "rituals"
+
+    id: Mapped[str] = mapped_column(sa.String(64), primary_key=True)
+    session_id: Mapped[str] = mapped_column(sa.String(64), index=True, nullable=False)
+    name: Mapped[str] = mapped_column(sa.String(255), nullable=False)
+    ritual_type: Mapped[str] = mapped_column(sa.String(20), nullable=False)
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    schedule_description: Mapped[str] = mapped_column(sa.String(255), nullable=False)
+    last_triggered_at: Mapped[datetime | None] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=True,
+    )
+    next_trigger_at: Mapped[datetime | None] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=True,
+    )
+    is_active: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
+    trigger_prompt: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    metadata_: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+    )
+
+
 __all__ = [
     "Base",
     "BotMoodLog",
@@ -397,9 +474,12 @@ __all__ = [
     "Episode",
     "IdentityStateModel",
     "Message",
+    "NarrativeThread",
     "RelationshipConfigModel",
+    "Ritual",
     "SemanticFact",
     "Session",
+    "TimelineEntry",
     "User",
     "UserStateLog",
 ]
