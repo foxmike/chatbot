@@ -34,7 +34,7 @@ def upgrade() -> None:
             server_default=sa.text("true"),
             nullable=False,
         ),
-        sa.Column("metadata", sa.JSON(), nullable=True),
+        sa.Column("ritual_metadata", sa.JSON(), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -125,7 +125,7 @@ def upgrade() -> None:
             server_default=sa.text("false"),
             nullable=False,
         ),
-        sa.Column("metadata", sa.JSON(), nullable=True),
+        sa.Column("ritual_metadata", sa.JSON(), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),

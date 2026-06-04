@@ -58,7 +58,7 @@ def upgrade() -> None:
             server_default=sa.text("now()"),
             nullable=False,
         ),
-        sa.Column("metadata", sa.JSON(), nullable=True),
+        sa.Column("ritual_metadata", sa.JSON(), nullable=True),
         sa.PrimaryKeyConstraint("room_id"),
     )
     op.create_index("ix_rooms_user_id", "rooms", ["user_id"], unique=False)
@@ -109,7 +109,7 @@ def upgrade() -> None:
         sa.Column("ended_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("participants", sa.JSON(), nullable=True),
         sa.Column("scene_context", sa.Text(), nullable=True),
-        sa.Column("metadata", sa.JSON(), nullable=True),
+        sa.Column("ritual_metadata", sa.JSON(), nullable=True),
         sa.ForeignKeyConstraint(["room_id"], ["rooms.room_id"]),
         sa.PrimaryKeyConstraint("scene_id"),
     )
