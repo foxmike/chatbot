@@ -254,7 +254,7 @@ class Session(Base):
         server_default=sa.text("gen_random_uuid()"),
     )
     user_id: Mapped[uuid.UUID] = mapped_column(sa.ForeignKey("users.id"), nullable=False)
-    companion_id: Mapped[str | None] = mapped_column(sa.String(36), index=True, nullable=True)
+    companion_id: Mapped[str | None] = mapped_column(sa.String(36), sa.ForeignKey("companions.companion_id"), index=True, nullable=True)
     title: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     is_active: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
     mood_state: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
@@ -447,7 +447,7 @@ class Message(Base):
     )
     session_id: Mapped[uuid.UUID] = mapped_column(sa.ForeignKey("sessions.id"), nullable=False)
     user_id: Mapped[uuid.UUID | None] = mapped_column(sa.ForeignKey("users.id"), index=True, nullable=True)
-    companion_id: Mapped[str | None] = mapped_column(sa.String(36), index=True, nullable=True)
+    companion_id: Mapped[str | None] = mapped_column(sa.String(36), sa.ForeignKey("companions.companion_id"), index=True, nullable=True)
     role: Mapped[str] = mapped_column(sa.String, nullable=False)
     content: Mapped[str] = mapped_column(sa.Text, nullable=False)
     embedding: Mapped[list[float] | None] = mapped_column(_embedding_vector_type(), nullable=True)
