@@ -1129,3 +1129,171 @@ export async function deleteCompanion(companionId: string): Promise<void> {
   });
   await assertOk(response);
 }
+
+// ---------------------------------------------------------------------------
+// Admin dashboard types
+// ---------------------------------------------------------------------------
+
+export interface TraceSummary {
+  traceId: string;
+  sessionId: string;
+  turnId: string;
+  modelId: string | null;
+  taskClass: string | null;
+  totalLatencyMs: number;
+  promptTokens: number;
+  completionTokens: number;
+  costUsdMicros: number;
+  createdAt: string;
+}
+
+export interface TraceDetail {
+  traceId: string;
+  sessionId: string;
+  turnId: string;
+  modelId: string | null;
+  taskClass: string | null;
+  totalLatencyMs: number;
+  promptTokens: number;
+  completionTokens: number;
+  costUsdMicros: number;
+  createdAt: string;
+  userId: string | null;
+  modelProvider: string | null;
+  prompt: string;
+  routingDecision: Record<string, unknown>;
+  retrievalSnippets: string[];
+  steps: Record<string, unknown>[];
+  retrieveLatencyMs: number;
+  startedAt: string;
+  completedAt: string;
+}
+
+export interface TraceListResponse {
+  traces: TraceSummary[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface MetricsGlobal {
+  totalRequests: number;
+  totalTokens: number;
+  totalCostUsdMicros: number;
+  avgLatencyMs: number;
+  modelsUsed: number;
+}
+
+export interface ModelMetricSummary {
+  modelId: string;
+  provider: string;
+  requestCount: number;
+  totalPromptTokens: number;
+  totalCompletionTokens: number;
+  totalCostUsdMicros: number;
+  avgLatencyMs: number;
+  p50LatencyMs: number;
+  p95LatencyMs: number;
+  p99LatencyMs: number;
+}
+
+export interface ModelMetricsListResponse {
+  models: ModelMetricSummary[];
+}
+
+export interface LogEvent {
+  eventId: string;
+  eventType: string;
+  timestamp: string;
+  sessionId: string | null;
+  turnId: string | null;
+  details: Record<string, unknown>;
+  severity: string;
+}
+
+export interface LogEventsListResponse {
+  events: LogEvent[];
+  total: number;
+}
+
+export interface UsageReport {
+  totalSessions: number;
+  totalTurns: number;
+  totalTokens: number;
+  totalCostUsdMicros: number;
+  perModel: ModelMetricSummary[];
+}
+
+export interface AdminHealth {
+  status: string;
+  tracesStored: number;
+  eventsStored: number;
+}
+
+// ---------------------------------------------------------------------------
+// Admin dashboard API functions
+// ---------------------------------------------------------------------------
+
+export function fetchTraces(
+  sessionId?: string,
+  page?: number,
+  pageSize?: number,
+): Promise<TraceListResponse> {
+  const params = new URLSearchParams();
+  if (sessionId !== undefined) params.set("session_id", sessionId);
+  if (page !== undefined) params.set("page", String(page));
+  if (pageSize !== undefined) params.set("page_size", String(pageSize));
+  const qs = params.toString();
+  return requestJson<TraceListResponse>(`/admin/traces${qs ? `?${qs}` : ""}`, {
+    method: "GET",
+  });
+}
+
+export function fetchTraceDetail(traceId: string): Promise<TraceDetail> {
+  return requestJson<TraceDetail>(`/admin/traces/${traceId}`, {
+    method: "GET",
+  });
+}
+
+export function fetchMetricsGlobal(): Promise<MetricsGlobal> {
+  return requestJson<MetricsGlobal>("/admin/metrics/global", {
+    method: "GET",
+  });
+}
+
+export function fetchModelMetrics(): Promise<ModelMetricsListResponse> {
+  return requestJson<ModelMetricsListResponse>("/admin/metrics/models", {
+    method: "GET",
+  });
+}
+
+export function fetchLogEvents(
+  eventType?: string,
+  sessionId?: string,
+  since?: string,
+  limit?: number,
+  offset?: number,
+): Promise<LogEventsListResponse> {
+  const params = new URLSearchParams();
+  if (eventType !== undefined) params.set("event_type", eventType);
+  if (sessionId !== undefined) params.set("session_id", sessionId);
+  if (since !== undefined) params.set("since", since);
+  if (limit !== undefined) params.set("limit", String(limit));
+  if (offset !== undefined) params.set("offset", String(offset));
+  const qs = params.toString();
+  return requestJson<LogEventsListResponse>(`/admin/logs${qs ? `?${qs}` : ""}`, {
+    method: "GET",
+  });
+}
+
+export function fetchUsageReport(): Promise<UsageReport> {
+  return requestJson<UsageReport>("/admin/usage", {
+    method: "GET",
+  });
+}
+
+export function fetchAdminHealth(): Promise<AdminHealth> {
+  return requestJson<AdminHealth>("/admin/health", {
+    method: "GET",
+  });
+}
