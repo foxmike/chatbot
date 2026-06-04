@@ -1,0 +1,1 @@
+"""Authentication package — user accounts, credential storage, token management."""
