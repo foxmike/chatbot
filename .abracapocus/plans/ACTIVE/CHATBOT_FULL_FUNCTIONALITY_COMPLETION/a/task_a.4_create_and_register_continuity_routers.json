@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "task_id": "a.4",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Create and register continuity routers",
+  "description": "Implement continuity router for '/timeline', '/narrative', '/rituals' routes\n\nBefore editing, inspect:\n- Existing route patterns in app.py\n- Frontend route expectations in React components",
+  "acceptance_criteria": [
+    "chatbot/api/continuity.py exists with properly prefixed routes",
+    "chatbot/api/app.py imports and includes continuity router",
+    "python -m py_compile chatbot/api/*.py passes",
+    "Routes match frontend client paths"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/continuity.py",
+    "chatbot/api/app.py"
+  ],
+  "forbidden_changes": [
+    "modify existing route implementations",
+    "change unrelated files"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

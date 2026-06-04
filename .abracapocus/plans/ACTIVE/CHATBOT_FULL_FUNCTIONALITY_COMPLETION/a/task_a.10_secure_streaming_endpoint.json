@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "task_id": "a.10",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Secure streaming endpoint",
+  "description": "Add auth dependency, session ownership checks, and DB history loading\n\nBefore editing, inspect:\n- Current streaming endpoint implementation\n- Message persistence patterns\n- Existing session verification code",
+  "acceptance_criteria": [
+    "streaming.py has auth dependency for all endpoints",
+    "Session ownership verification implemented",
+    "Message persistence logic functional",
+    "python -m py_compile chatbot/api/streaming.py passes"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/streaming.py"
+  ],
+  "forbidden_changes": [
+    "change streaming protocol",
+    "modify core message handling"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

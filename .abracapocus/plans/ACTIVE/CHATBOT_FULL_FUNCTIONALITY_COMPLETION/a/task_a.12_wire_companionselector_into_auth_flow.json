@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "task_id": "a.12",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Wire CompanionSelector into auth flow",
+  "description": "Integrate CompanionSelector into authenticated App.tsx flow\n\nBefore editing, inspect:\n- Current authentication flow in App.tsx\n- CompanionSelector component API\n- Dependencies from task a.3 (companions router)",
+  "acceptance_criteria": [
+    "CompanionSelector integrated post-auth in App.tsx",
+    "Companion creation/selection workflow functional",
+    "npm run build --prefix react_ui completes successfully"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/App.tsx"
+  ],
+  "forbidden_changes": [
+    "modify auth core logic",
+    "change unrelated components"
+  ],
+  "dependencies": [
+    "a.3",
+    "a.11"
+  ],
+  "task_timeout_seconds": 900
+}

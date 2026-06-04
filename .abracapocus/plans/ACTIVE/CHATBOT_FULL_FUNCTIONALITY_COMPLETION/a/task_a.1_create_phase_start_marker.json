@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "task_id": "a.1",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Create phase start marker",
+  "description": "Create a phase start marker file to begin Phase A. Before editing, inspect: repository structure to ensure correct location.\n\nMark work beginning without modifying existing logic.",
+  "acceptance_criteria": [
+    "Phase A marker file exists at runtime/phase_start_A.log",
+    "File contains exact text 'Phase A started'"
+  ],
+  "selected_backend": "pi_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "runtime/phase_start_A.log"
+  ],
+  "forbidden_changes": [
+    "modify existing application files",
+    "change functionality or architecture"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 300
+}

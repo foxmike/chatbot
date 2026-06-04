@@ -2,20 +2,21 @@
   "verification": {
     "checks": [
       {
-        "name": "retrieval_engine_test",
+        "name": "run_memory_tests",
         "command": [
           "pytest",
-          "runtime/test_retrieval.py"
+          "tests/test_memory_integration.py"
         ]
       },
       {
-        "name": "ui_compilation_check",
+        "name": "check_app_compilation",
         "command": [
-          "npm",
-          "run",
-          "type-check",
-          "--prefix",
-          "frontend"
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/api/app.py",
+          "chatbot/core/turn.py",
+          "chatbot/config.py"
         ]
       }
     ]

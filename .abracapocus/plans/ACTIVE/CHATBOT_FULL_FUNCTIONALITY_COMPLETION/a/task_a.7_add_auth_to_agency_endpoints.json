@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "task_id": "a.7",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Add auth to agency endpoints",
+  "description": "Add get_current_user dependency and remove arbitrary user_id params\n\nBefore editing, inspect:\n- Existing user_id parameter usage in agency.py\n- Current user session patterns",
+  "acceptance_criteria": [
+    "All endpoints in agency.py have get_current_user dependency",
+    "Removed user_id parameters from endpoint signatures",
+    "Queries use current user from session",
+    "python -m py_compile chatbot/api/agency.py passes"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/moonshotai/kimi-k2-0905",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/agency.py"
+  ],
+  "forbidden_changes": [
+    "change core agency functionality",
+    "modify unrelated authentication logic"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

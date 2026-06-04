@@ -2,19 +2,21 @@
   "verification": {
     "checks": [
       {
-        "name": "full_python_compile",
+        "name": "api_compile_check",
         "command": [
-          "python",
-          "-m",
-          "py_compile",
-          "routers/*.py"
+          "bash",
+          "-c",
+          "find chatbot/api -name '*.py' -exec python -m py_compile {} +"
         ]
       },
       {
-        "name": "router_tests",
+        "name": "frontend_build",
         "command": [
-          "pytest",
-          "routers/test_*.py"
+          "npm",
+          "run",
+          "build",
+          "--prefix",
+          "react_ui"
         ]
       }
     ]

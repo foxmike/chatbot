@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "task_id": "a.6",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Add auth to memory endpoints",
+  "description": "Add get_current_user dependency and user-scoping to memory endpoints\n\nBefore editing, inspect:\n- Existing query patterns in memory.py\n- User session handling in other authenticated endpoints",
+  "acceptance_criteria": [
+    "All endpoints in memory.py have get_current_user dependency",
+    "Queries filter by current user ID",
+    "python -m py_compile chatbot/api/memory.py passes"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/moonshotai/kimi-k2-0905",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/memory.py"
+  ],
+  "forbidden_changes": [
+    "modify memory storage logic",
+    "change unrelated endpoints"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

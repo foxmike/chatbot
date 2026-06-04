@@ -2,7 +2,7 @@
   "plan_name": "CHATBOT_FULL_FUNCTIONALITY_COMPLETION",
   "summary": "Activate all built-but-inactive chatbot features across 10 phases. The chatbot has complete backend code, DB models, API routers, and React components from plans CHATBOT a-h and G1-G4, but most features are not mounted in the UI, have broken route wiring, lack auth scoping, or depend on missing runtime workers/providers. This plan systematically activates each feature area in dependency order: visibility first, then runtime, then memory, then progressively deeper feature areas, finishing with integration verification.",
   "async_strategy": "Phases are sequential because each phase depends on prior phase outputs. Within phases, tasks that touch disjoint files can run in parallel. Tasks modifying App.tsx, app.py, config.py, or models.py must be serialized via dependencies.",
-  "backend_recommendations": "Use codex_cli for complex multi-file wiring tasks. Use opencode_cli with a capable model for simpler single-file fixes. React component mounting tasks benefit from codex_cli because they require coordinating App.tsx, component imports, and navigation state.",
+  "backend_recommendations": "Use codex_cli for complex multi-file wiring tasks (no model field). Use pi_cli with openrouter/deepseek/deepseek-v4-pro for medium complexity tasks. Use pi_cli with openrouter/qwen/qwen3-235b-a22b-thinking-2507 for reasoning/verification tasks. Use pi_cli with openrouter/moonshotai/kimi-k2-0905 for simple focused fixes. Use antigravity_cli for docs, audits, and investigations (no model field). Each task below specifies its backend and model explicitly.",
   "risks": [
     "Route prefix mismatches between Vite proxy and backend routers are a recurring pattern — every phase touching API routes must verify the full proxy path.",
     "Auth ownership checks must be added before any UI exposure — the assessment found memory, config, agency, rooms, admin, and streaming endpoints without auth.",
@@ -14,196 +14,92 @@
     {
       "phase_id": "phase_a",
       "title": "Feature Visibility, Route Fixes, and App Shell",
-      "description": "Fix frontend/backend route mismatches, register missing routers, add auth ownership to unsafe endpoints, and build a navigable app shell that mounts existing React components. This phase does NOT activate runtime features — it makes the UI reachable and the API routes correct and safe.\n\nRoute fixes needed:\n- Memory router prefix: change from /api/memories to /memories (Vite strips /api)\n- Voice router prefix: change from /api/voice to /voice\n- Register companion router in app.py using existing CompanionManager\n- Register continuity routers for /timeline, /narrative, /rituals matching frontend client paths\n\nAuth fixes needed before UI exposure:\n- config endpoints: verify session belongs to current user\n- memory endpoints: add get_current_user dependency\n- agency endpoints: add get_current_user, remove arbitrary user_id params\n- rooms endpoints: add get_current_user, remove arbitrary user_id params\n- admin endpoints: add admin auth gate\n- streaming endpoint: add auth and session ownership\n\nApp shell work:\n- Add tabbed/panel navigation to App.tsx for settings, memory, timeline, etc.\n- Mount CompanionSelector in authenticated app flow\n- Mount panels conditionally based on active session",
-      "expected_files": [
-        "chatbot/api/app.py",
-        "chatbot/api/memory.py",
-        "chatbot/api/voice.py",
-        "chatbot/api/config.py",
-        "chatbot/api/agency.py",
-        "chatbot/api/rooms.py",
-        "chatbot/api/admin.py",
-        "chatbot/api/streaming.py",
-        "chatbot/api/companions.py",
-        "chatbot/api/continuity.py",
-        "react_ui/src/App.tsx",
-        "react_ui/src/components/AppShell.tsx",
-        "react_ui/src/components/SettingsPanel.tsx"
-      ],
+      "description": "Fix frontend/backend route mismatches, register missing routers, add auth ownership to unsafe endpoints, and build a navigable app shell that mounts existing React components.\n\nThis phase MUST produce exactly 12 tasks as specified below:\n\nTask a.1: Fix memory router prefix — change from /api/memories to /memories in chatbot/api/memory.py. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905\n\nTask a.2: Fix voice router prefix — change from /api/voice to /voice in chatbot/api/voice.py. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905\n\nTask a.3: Register companion router — create chatbot/api/companions.py using existing CompanionManager, register in app.py. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask a.4: Register continuity routers — create chatbot/api/continuity.py with /timeline, /narrative, /rituals routes matching frontend client paths, register in app.py. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask a.5: Add auth ownership to config endpoints — add get_current_user dependency to chatbot/api/config.py, verify session belongs to current user. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905\n\nTask a.6: Add auth to memory endpoints — add get_current_user dependency to chatbot/api/memory.py, scope queries by user. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905\n\nTask a.7: Add auth to agency endpoints — add get_current_user dependency to chatbot/api/agency.py, remove arbitrary user_id params. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905\n\nTask a.8: Add auth to rooms endpoints — add get_current_user dependency to chatbot/api/rooms.py, remove arbitrary user_id params. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905\n\nTask a.9: Add admin auth gate — add admin authorization check to chatbot/api/admin.py endpoints. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905\n\nTask a.10: Add auth to streaming endpoint — add auth dependency, session ownership check, DB history loading, and message persistence to chatbot/api/streaming.py. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask a.11: Build navigable app shell — add tabbed/panel navigation to react_ui/src/App.tsx for settings, memory, timeline, rooms, voice, admin panels. Create AppShell.tsx and SettingsPanel.tsx. selected_backend: codex_cli\n\nTask a.12: Mount CompanionSelector in auth flow — wire CompanionSelector into the authenticated app flow in App.tsx so users can create/select companions. Depends on a.3 and a.11. selected_backend: codex_cli",
+      "expected_files": ["chatbot/api/app.py", "chatbot/api/memory.py", "chatbot/api/voice.py", "chatbot/api/config.py", "chatbot/api/agency.py", "chatbot/api/rooms.py", "chatbot/api/admin.py", "chatbot/api/streaming.py", "chatbot/api/companions.py", "chatbot/api/continuity.py", "react_ui/src/App.tsx", "react_ui/src/components/AppShell.tsx", "react_ui/src/components/SettingsPanel.tsx"],
       "task_count": 12,
-      "async_notes": "Route prefix fixes and auth additions are independent per router file and can run in parallel. App.tsx shell work depends on all route fixes completing first. Companion and continuity router creation can run in parallel.",
+      "async_notes": "Tasks a.1 through a.9 are independent and can run in parallel (disjoint files). a.10 is independent. a.11 depends on route fixes. a.12 depends on a.3 and a.11.",
       "risks": "Exposing UI for endpoints that still lack auth is a data isolation risk. Verify auth is applied before mounting any panel."
     },
     {
       "phase_id": "phase_b",
       "title": "Background Worker and Deferred Runtime",
-      "description": "Make the BackgroundQueue actually consume deferred tasks. Currently chatbot/api/chat.py creates a BackgroundQueue and enqueues memory_extract and consolidate tasks after each turn, but no worker processes them.\n\nWork items:\n- Create a background worker that runs in FastAPI lifespan (startup/shutdown)\n- Define task handlers for memory_extract and consolidate task types\n- Add worker health check endpoint\n- Optionally add a Docker Compose worker service for production\n- Decide whether Redis should back the queue (currently in-process only, lost on restart)\n- Add graceful shutdown behavior\n- Ensure worker logs task execution and errors",
-      "expected_files": [
-        "chatbot/perf/background.py",
-        "chatbot/perf/worker.py",
-        "chatbot/perf/handlers.py",
-        "chatbot/api/app.py",
-        "docker-compose.yml",
-        "tests/test_background_worker.py"
-      ],
+      "description": "Make the BackgroundQueue actually consume deferred tasks.\n\nThis phase MUST produce exactly 7 tasks as specified below:\n\nTask b.1: Create background worker module — implement worker loop in chatbot/perf/worker.py that consumes from BackgroundQueue. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask b.2: Define memory_extract task handler — create chatbot/perf/handlers.py with handler that calls memory extraction modules. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask b.3: Define consolidate task handler — add consolidation handler to chatbot/perf/handlers.py. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask b.4: Wire worker into FastAPI lifespan — start worker on startup, graceful shutdown in chatbot/api/app.py. selected_backend: codex_cli\n\nTask b.5: Add worker health check endpoint — add /worker/health endpoint. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905\n\nTask b.6: Add Docker Compose worker service — add worker service to docker-compose.yml. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905\n\nTask b.7: Write background worker tests — create tests/test_background_worker.py. selected_backend: pi_cli, model: openrouter/qwen/qwen3-235b-a22b-thinking-2507",
+      "expected_files": ["chatbot/perf/background.py", "chatbot/perf/worker.py", "chatbot/perf/handlers.py", "chatbot/api/app.py", "docker-compose.yml", "tests/test_background_worker.py"],
       "task_count": 7,
-      "async_notes": "Worker implementation and handler definitions can run in parallel. Lifespan wiring depends on both. Docker Compose worker service is independent.",
+      "async_notes": "b.1, b.2, b.3 can run in parallel. b.4 depends on b.1, b.2, b.3. b.5 and b.6 are independent. b.7 depends on b.4.",
       "risks": "In-process workers can duplicate work under multi-process deployment. Queue contents lost on restart if not using Redis."
     },
     {
       "phase_id": "phase_c",
       "title": "Memory Activation and Configuration",
-      "description": "Wire embeddings, semantic retrieval, extraction, consolidation, and memory controls into the active runtime.\n\nWork items:\n- Add embedding provider/model settings to chatbot/config.py\n- Initialize retrieval_engine in FastAPI app lifespan and inject into app state\n- Wire pgvector retrieval into the pipeline retrieve step\n- Ensure memory extraction runs via background worker (Phase 2)\n- Ensure consolidation runs via background worker\n- Mount MemoryPanel and HistorySearch components in the app shell\n- Verify provenance tracking, pin/delete/correct controls work end-to-end\n- Verify memory search and export with auth scoping\n\nDependencies: Phase 1 (route/auth fixes for memory) and Phase 2 (worker for extraction/consolidation).",
-      "expected_files": [
-        "chatbot/config.py",
-        "chatbot/api/app.py",
-        "chatbot/memory/retrieval.py",
-        "chatbot/memory/extraction.py",
-        "chatbot/memory/pgvector_store.py",
-        "chatbot/core/turn.py",
-        "react_ui/src/App.tsx",
-        "react_ui/src/components/MemoryPanel.tsx",
-        "tests/test_memory_integration.py"
-      ],
+      "description": "Wire embeddings, semantic retrieval, extraction, consolidation, and memory controls into the active runtime.\n\nThis phase MUST produce exactly 9 tasks as specified below:\n\nTask c.1: Add embedding provider config — add embedding_provider and embedding_model settings to chatbot/config.py. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905\n\nTask c.2: Initialize retrieval_engine in app lifespan — create and inject retrieval engine into FastAPI app state. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask c.3: Wire pgvector retrieval into pipeline — connect retrieval_engine to retrieve step in chatbot/core/turn.py. selected_backend: codex_cli\n\nTask c.4: Verify extraction runs via background worker — ensure memory_extract handler processes extraction. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask c.5: Verify consolidation runs via worker — ensure consolidate handler runs summarization, contradiction, decay. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask c.6: Mount MemoryPanel in app shell — wire MemoryPanel component into settings/panel area. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask c.7: Mount HistorySearch in app shell — wire HistorySearch component. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905\n\nTask c.8: Verify provenance and memory controls — test pin/delete/correct/privacy controls end-to-end. selected_backend: pi_cli, model: openrouter/qwen/qwen3-235b-a22b-thinking-2507\n\nTask c.9: Write memory integration tests — create tests/test_memory_integration.py. selected_backend: pi_cli, model: openrouter/qwen/qwen3-235b-a22b-thinking-2507",
+      "expected_files": ["chatbot/config.py", "chatbot/api/app.py", "chatbot/memory/retrieval.py", "chatbot/memory/extraction.py", "chatbot/memory/pgvector_store.py", "chatbot/core/turn.py", "react_ui/src/App.tsx", "react_ui/src/components/MemoryPanel.tsx", "tests/test_memory_integration.py"],
       "task_count": 9,
-      "async_notes": "Embedding config, retrieval engine init, and UI mounting are independent. Extraction/consolidation verification depends on worker from Phase 2.",
+      "async_notes": "c.1, c.2, c.6, c.7 can run in parallel. c.3 depends on c.2. c.4 and c.5 depend on phase_b. c.8 and c.9 depend on c.3.",
       "risks": "Incorrect embedding config silently degrades retrieval. Missing scoping can leak semantic facts between users."
     },
     {
       "phase_id": "phase_d",
       "title": "Persona, Identity, Relationship, and Character Usability",
-      "description": "Make personality/identity/relationship/character configuration visible and usable from the UI.\n\nWork items:\n- Secure config endpoints: verify session belongs to current user before allowing reads/writes\n- Mount RelationshipSettings component in settings panel\n- Mount CharacterCreator component in settings panel\n- Expose identity state and evolution controls\n- Add persona cache invalidation when config updates occur\n- Verify that relationship/character changes affect subsequent persona prompts\n\nDependencies: Phase 1 (auth on config endpoints, app shell).",
-      "expected_files": [
-        "chatbot/api/config.py",
-        "chatbot/perf/cache.py",
-        "react_ui/src/App.tsx",
-        "react_ui/src/components/RelationshipSettings.tsx",
-        "react_ui/src/components/CharacterCreator.tsx",
-        "tests/test_config_integration.py"
-      ],
+      "description": "Make personality/identity/relationship/character configuration visible and usable from the UI.\n\nThis phase MUST produce exactly 7 tasks as specified below:\n\nTask d.1: Secure config endpoints with session ownership — verify session belongs to current user in chatbot/api/config.py. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask d.2: Mount RelationshipSettings in settings panel. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask d.3: Mount CharacterCreator in settings panel. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask d.4: Expose identity state and evolution controls — add identity UI. selected_backend: codex_cli\n\nTask d.5: Add persona cache invalidation — invalidate PersonaCache on config updates. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask d.6: Verify config changes affect prompts. selected_backend: pi_cli, model: openrouter/qwen/qwen3-235b-a22b-thinking-2507\n\nTask d.7: Write config integration tests. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905",
+      "expected_files": ["chatbot/api/config.py", "chatbot/perf/cache.py", "react_ui/src/App.tsx", "react_ui/src/components/RelationshipSettings.tsx", "react_ui/src/components/CharacterCreator.tsx", "tests/test_config_integration.py"],
       "task_count": 7,
-      "async_notes": "Relationship and character component mounting are independent. Cache invalidation depends on config endpoint security being in place.",
-      "risks": "Stale persona cache makes UI changes appear ignored. Identity evolution can drift without clear controls."
+      "async_notes": "d.1 is independent. d.2 and d.3 can run in parallel. d.4 depends on d.1. d.5 is independent. d.6 depends on d.1-d.5. d.7 depends on d.6.",
+      "risks": "Stale persona cache makes UI changes appear ignored."
     },
     {
       "phase_id": "phase_e",
       "title": "Continuity, Rituals, Agency, and Notifications",
-      "description": "Activate timeline, narrative threads, rituals, proactive check-ins, notifications, and initiative controls.\n\nWork items:\n- Reconcile continuity table/model name mismatches (module models use relationship_timeline_entries and companion_rituals, migrations create timeline_entries, narrative_threads, and rituals)\n- Create migration if schema reconciliation changes column/table names\n- Wire timeline update step into actual runtime (currently not in FAST_PATH_STEPS or DEFERRED_STEPS)\n- Convert agency API from in-memory to durable DB-backed state using existing agency tables\n- Add scheduler runtime (background loop or worker task)\n- Mount TimelinePanel, NotificationFeed, and InitiativeSettings in app shell\n- Verify timeline and notifications survive restart and are user-scoped\n\nDependencies: Phase 1 (continuity routers registered, agency auth), Phase 2 (worker for deferred timeline/agency tasks).",
-      "expected_files": [
-        "chatbot/continuity/timeline.py",
-        "chatbot/continuity/narrative.py",
-        "chatbot/continuity/rituals.py",
-        "chatbot/api/continuity.py",
-        "chatbot/api/agency.py",
-        "chatbot/agency/scheduler.py",
-        "chatbot/agency/notifications.py",
-        "chatbot/core/turn.py",
-        "migrations/versions/0010_continuity_reconciliation.py",
-        "react_ui/src/App.tsx",
-        "react_ui/src/components/TimelinePanel.tsx",
-        "react_ui/src/components/NotificationFeed.tsx",
-        "react_ui/src/components/InitiativeSettings.tsx",
-        "tests/test_continuity_integration.py"
-      ],
+      "description": "Activate timeline, narrative threads, rituals, proactive check-ins, notifications, and initiative controls.\n\nThis phase MUST produce exactly 11 tasks as specified below:\n\nTask e.1: Reconcile continuity table/model name mismatches. selected_backend: codex_cli\n\nTask e.2: Create reconciliation migration if needed. selected_backend: codex_cli\n\nTask e.3: Wire timeline update step into runtime. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask e.4: Convert agency API to durable DB-backed state. selected_backend: codex_cli\n\nTask e.5: Add scheduler runtime loop. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask e.6: Mount TimelinePanel in app shell. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask e.7: Mount NotificationFeed in app shell. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask e.8: Mount InitiativeSettings in app shell. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905\n\nTask e.9: Verify timeline survives restart. selected_backend: pi_cli, model: openrouter/qwen/qwen3-235b-a22b-thinking-2507\n\nTask e.10: Verify notifications are user-scoped. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905\n\nTask e.11: Write continuity/agency integration tests. selected_backend: pi_cli, model: openrouter/qwen/qwen3-235b-a22b-thinking-2507",
+      "expected_files": ["chatbot/continuity/timeline.py", "chatbot/continuity/narrative.py", "chatbot/continuity/rituals.py", "chatbot/api/continuity.py", "chatbot/api/agency.py", "chatbot/agency/scheduler.py", "chatbot/agency/notifications.py", "chatbot/core/turn.py", "migrations/versions/0010_continuity_reconciliation.py", "react_ui/src/App.tsx", "react_ui/src/components/TimelinePanel.tsx", "react_ui/src/components/NotificationFeed.tsx", "react_ui/src/components/InitiativeSettings.tsx", "tests/test_continuity_integration.py"],
       "task_count": 11,
-      "async_notes": "Schema reconciliation must complete before any runtime wiring. Agency durable conversion and continuity router work are independent. UI mounting depends on both backend pieces.",
-      "risks": "Table/model name mismatch may require careful migration. Proactive features can annoy users without strong controls."
+      "async_notes": "e.1 must complete before e.2 and e.3. e.4 and e.5 are independent of e.1-e.3. e.6-e.8 run after backend work. e.9-e.11 depend on all prior.",
+      "risks": "Table/model name mismatch may require careful migration."
     },
     {
       "phase_id": "phase_f",
       "title": "Rooms, Scenes, and Roleplay Isolation",
-      "description": "Make room/scene controls and room-scoped memory usable from the UI.\n\nWork items:\n- Pass room_id through ChatRequest from frontend to backend\n- Add active room state tracking in React app\n- Mount RoomSwitcher and SceneControls in app shell\n- Ensure RoomContextStep, SceneAwareRetrievalStep, and SceneMemoryGateStep run when room_id is present\n- Verify room-scoped memory isolation (scene-only memory does not leak to global)\n- Verify scene persona prompt integration\n\nDependencies: Phase 1 (rooms auth), Phase 3 (memory/retrieval active for room-scoped retrieval).",
-      "expected_files": [
-        "chatbot/api/chat.py",
-        "chatbot/api/rooms.py",
-        "chatbot/core/turn.py",
-        "react_ui/src/App.tsx",
-        "react_ui/src/api/client.ts",
-        "react_ui/src/components/RoomSwitcher.tsx",
-        "react_ui/src/components/SceneControls.tsx",
-        "tests/test_rooms_integration.py"
-      ],
+      "description": "Make room/scene controls and room-scoped memory usable from the UI.\n\nThis phase MUST produce exactly 8 tasks as specified below:\n\nTask f.1: Pass room_id through ChatRequest. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask f.2: Add active room state tracking in React. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask f.3: Mount RoomSwitcher in app shell. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask f.4: Mount SceneControls in app shell. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905\n\nTask f.5: Ensure room pipeline steps run when room_id present. selected_backend: codex_cli\n\nTask f.6: Verify room-scoped memory isolation. selected_backend: pi_cli, model: openrouter/qwen/qwen3-235b-a22b-thinking-2507\n\nTask f.7: Verify scene persona prompt integration. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask f.8: Write rooms integration tests. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905",
+      "expected_files": ["chatbot/api/chat.py", "chatbot/api/rooms.py", "chatbot/core/turn.py", "react_ui/src/App.tsx", "react_ui/src/api/client.ts", "react_ui/src/components/RoomSwitcher.tsx", "react_ui/src/components/SceneControls.tsx", "tests/test_rooms_integration.py"],
       "task_count": 8,
-      "async_notes": "Backend room_id wiring and frontend room state are independent. UI mounting depends on both.",
-      "risks": "Without clear active-room state, messages can be sent to wrong context. Room-scoped retrieval needs memory system active."
+      "async_notes": "f.1 and f.2 in parallel. f.3 and f.4 in parallel after f.2. f.5 depends on f.1. f.6-f.8 depend on f.5.",
+      "risks": "Room-scoped retrieval needs memory system active from Phase 3."
     },
     {
       "phase_id": "phase_g",
       "title": "Voice and Call Mode",
-      "description": "Make voice features operational or explicitly configurable.\n\nWork items:\n- Add TTS/STT provider settings to chatbot/config.py\n- Implement actual TTS provider call (currently raises NotImplementedError)\n- Implement actual STT provider call (currently raises NotImplementedError)\n- Create voice_preferences migration if the table does not exist\n- Secure synthesize/transcribe endpoints with auth\n- Mount VoiceControls and CallMode components\n- Verify cadence mapping affects TTS output\n- Handle disabled/unconfigured voice gracefully in UI\n\nDependencies: Phase 1 (voice route prefix fix).",
-      "expected_files": [
-        "chatbot/config.py",
-        "chatbot/voice/tts.py",
-        "chatbot/voice/stt.py",
-        "chatbot/api/voice.py",
-        "migrations/versions/0011_voice_preferences.py",
-        "react_ui/src/App.tsx",
-        "react_ui/src/components/VoiceControls.tsx",
-        "react_ui/src/components/CallMode.tsx",
-        "tests/test_voice_integration.py"
-      ],
+      "description": "Make voice features operational or explicitly configurable.\n\nThis phase MUST produce exactly 9 tasks as specified below:\n\nTask g.1: Add TTS/STT provider config to chatbot/config.py. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905\n\nTask g.2: Implement TTS provider call — replace NotImplementedError in chatbot/voice/tts.py. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask g.3: Implement STT provider call — replace NotImplementedError in chatbot/voice/stt.py. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask g.4: Create voice_preferences migration. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905\n\nTask g.5: Secure synthesize/transcribe endpoints with auth. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905\n\nTask g.6: Mount VoiceControls in app shell. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask g.7: Mount CallMode in app shell. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask g.8: Verify cadence mapping affects TTS. selected_backend: pi_cli, model: openrouter/qwen/qwen3-235b-a22b-thinking-2507\n\nTask g.9: Write voice integration tests. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905",
+      "expected_files": ["chatbot/config.py", "chatbot/voice/tts.py", "chatbot/voice/stt.py", "chatbot/api/voice.py", "migrations/versions/0011_voice_preferences.py", "react_ui/src/App.tsx", "react_ui/src/components/VoiceControls.tsx", "react_ui/src/components/CallMode.tsx", "tests/test_voice_integration.py"],
       "task_count": 9,
-      "async_notes": "TTS and STT implementations are independent. Config, migration, and UI work can proceed in parallel with provider implementation.",
-      "risks": "Provider latency/cost and browser audio permission errors need clear UI handling. Voice features should be hidden when unconfigured."
+      "async_notes": "g.1-g.5 can run in parallel. g.6 and g.7 depend on g.1 and g.5. g.8 depends on g.2. g.9 depends on all.",
+      "risks": "Voice features should be hidden when unconfigured."
     },
     {
       "phase_id": "phase_h",
       "title": "Visual Identity and Image Features",
-      "description": "Make avatar, appearance, image messages, and visual provider behavior usable.\n\nWork items:\n- Create migration for appearances, outfit_records, and image_memories tables if not covered by existing migrations\n- Register image/visual API router in app.py\n- Configure image generation provider settings\n- Configure image understanding provider settings\n- Wire appearance/outfit continuity into companion display\n- Mount AvatarDisplay and ImageMessage components\n- Verify provider failure is explicit and graceful\n\nDependencies: Phase 1 (app shell for mounting).",
-      "expected_files": [
-        "chatbot/config.py",
-        "chatbot/api/visual.py",
-        "chatbot/api/app.py",
-        "chatbot/visual/generation.py",
-        "chatbot/visual/understanding.py",
-        "chatbot/visual/appearance.py",
-        "migrations/versions/0012_visual_tables.py",
-        "react_ui/src/App.tsx",
-        "react_ui/src/components/AvatarDisplay.tsx",
-        "react_ui/src/components/ImageMessage.tsx",
-        "tests/test_visual_integration.py"
-      ],
+      "description": "Make avatar, appearance, image messages, and visual provider behavior usable.\n\nThis phase MUST produce exactly 9 tasks as specified below:\n\nTask h.1: Create visual tables migration. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask h.2: Register visual API router — create chatbot/api/visual.py, register in app.py. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask h.3: Configure image generation provider settings. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905\n\nTask h.4: Configure image understanding provider settings. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905\n\nTask h.5: Wire appearance/outfit continuity into companion display. selected_backend: codex_cli\n\nTask h.6: Mount AvatarDisplay component. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask h.7: Mount ImageMessage component. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905\n\nTask h.8: Verify graceful provider failure. selected_backend: antigravity_cli\n\nTask h.9: Write visual integration tests. selected_backend: pi_cli, model: openrouter/qwen/qwen3-235b-a22b-thinking-2507",
+      "expected_files": ["chatbot/config.py", "chatbot/api/visual.py", "chatbot/api/app.py", "chatbot/visual/generation.py", "chatbot/visual/understanding.py", "chatbot/visual/appearance.py", "migrations/versions/0012_visual_tables.py", "react_ui/src/App.tsx", "react_ui/src/components/AvatarDisplay.tsx", "react_ui/src/components/ImageMessage.tsx", "tests/test_visual_integration.py"],
       "task_count": 9,
-      "async_notes": "Migration, router registration, and provider config are independent. UI mounting depends on router. Provider wiring depends on config.",
-      "risks": "Binary image storage and provider costs need operational limits. Visual features should degrade gracefully when providers are unconfigured."
+      "async_notes": "h.1-h.4 in parallel. h.5 depends on h.2. h.6 and h.7 depend on h.2. h.8 depends on h.2-h.4. h.9 depends on all.",
+      "risks": "Visual features should degrade gracefully when providers are unconfigured."
     },
     {
       "phase_id": "phase_i",
       "title": "Observability, Admin, Streaming, and Performance",
-      "description": "Make admin dashboard, traces, usage tracking, model routing, streaming chat, cache, and performance controls usable.\n\nWork items:\n- Gate admin routes with admin authorization\n- Decide whether observability data persists to DB (tables exist) or stays in-memory\n- If persisting: wire TraceCollector and MetricsCollector to write to DB tables\n- Configure task-class model routing in provider router settings\n- Secure streaming endpoint with auth, session ownership, history loading, and message persistence\n- Mount streaming chat option in App.tsx (MessageList already supports streamRequest prop)\n- Mount AdminDashboard component behind admin gate\n- Decide Redis use for persona cache and/or background queue\n- Add operational health/readiness endpoints\n\nDependencies: Phase 1 (admin auth, streaming auth), Phase 2 (worker/queue decisions).",
-      "expected_files": [
-        "chatbot/api/admin.py",
-        "chatbot/api/streaming.py",
-        "chatbot/api/app.py",
-        "chatbot/observability/tracing.py",
-        "chatbot/observability/metrics.py",
-        "chatbot/providers/router.py",
-        "chatbot/config.py",
-        "chatbot/perf/cache.py",
-        "react_ui/src/App.tsx",
-        "react_ui/src/components/AdminDashboard.tsx",
-        "tests/test_streaming_integration.py",
-        "tests/test_admin_integration.py"
-      ],
+      "description": "Make admin dashboard, traces, usage tracking, model routing, streaming chat, cache, and performance controls usable.\n\nThis phase MUST produce exactly 11 tasks as specified below:\n\nTask i.1: Gate admin routes with admin auth. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask i.2: Decide and implement observability persistence to DB. selected_backend: codex_cli\n\nTask i.3: Wire collectors to DB tables. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask i.4: Configure task-class model routing. selected_backend: codex_cli\n\nTask i.5: Secure streaming endpoint with auth. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask i.6: Add history and persistence to streaming. selected_backend: codex_cli\n\nTask i.7: Mount streaming chat option in App.tsx. selected_backend: codex_cli\n\nTask i.8: Mount AdminDashboard behind admin gate. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask i.9: Decide Redis use for cache/queue. selected_backend: antigravity_cli\n\nTask i.10: Add health/readiness endpoints. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905\n\nTask i.11: Write streaming and admin integration tests. selected_backend: pi_cli, model: openrouter/qwen/qwen3-235b-a22b-thinking-2507",
+      "expected_files": ["chatbot/api/admin.py", "chatbot/api/streaming.py", "chatbot/api/app.py", "chatbot/observability/tracing.py", "chatbot/observability/metrics.py", "chatbot/providers/router.py", "chatbot/config.py", "chatbot/perf/cache.py", "react_ui/src/App.tsx", "react_ui/src/components/AdminDashboard.tsx", "tests/test_streaming_integration.py", "tests/test_admin_integration.py"],
       "task_count": 11,
-      "async_notes": "Admin auth, streaming fixes, observability persistence, and model routing config are all independent. UI mounting depends on backend fixes.",
+      "async_notes": "i.1, i.4, i.5, i.9, i.10 in parallel. i.2 then i.3. i.6 depends on i.5. i.7 depends on i.6. i.8 depends on i.1. i.11 depends on i.6 and i.8.",
       "risks": "Public admin endpoints are a security issue. Streaming without persistence diverges from durable chat history."
     },
     {
       "phase_id": "phase_j",
       "title": "Full Integration Verification and Documentation",
-      "description": "End-to-end verification of all activated features, multi-user isolation, persistence/restart behavior, and documentation updates.\n\nWork items:\n- Multi-user E2E tests: two users cannot see each other's sessions, messages, memory, companions, rooms, or config\n- Restart persistence tests: docker compose down/up preserves all durable state\n- Route inventory: verify every registered route is reachable from the UI or documented as API-only\n- Migration audit: verify alembic upgrade head works clean from empty DB\n- Update docs/ARCHITECTURE.md to reflect actual active architecture\n- Update docs/OPERATIONS.md with current operational procedures\n- Create README.md at repo root\n- Verify OpenRouter provider works with configured API key\n- Verify graceful degradation when optional providers are unconfigured\n\nDependencies: All prior phases should be substantially complete.",
-      "expected_files": [
-        "tests/integration/test_multi_user_isolation.py",
-        "tests/integration/test_restart_persistence.py",
-        "tests/integration/test_route_inventory.py",
-        "docs/ARCHITECTURE.md",
-        "docs/OPERATIONS.md",
-        "README.md"
-      ],
+      "description": "End-to-end verification of all activated features, multi-user isolation, persistence/restart behavior, and documentation updates.\n\nThis phase MUST produce exactly 9 tasks as specified below:\n\nTask j.1: Multi-user E2E isolation tests. selected_backend: codex_cli\n\nTask j.2: Restart persistence tests. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro\n\nTask j.3: Route inventory verification. selected_backend: antigravity_cli\n\nTask j.4: Migration audit — verify clean alembic upgrade head. selected_backend: antigravity_cli\n\nTask j.5: Update ARCHITECTURE.md. selected_backend: antigravity_cli\n\nTask j.6: Update OPERATIONS.md. selected_backend: antigravity_cli\n\nTask j.7: Create README.md at repo root. selected_backend: antigravity_cli\n\nTask j.8: Verify provider graceful degradation. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905\n\nTask j.9: Final E2E smoke test. selected_backend: pi_cli, model: openrouter/qwen/qwen3-235b-a22b-thinking-2507",
+      "expected_files": ["tests/integration/test_multi_user_isolation.py", "tests/integration/test_restart_persistence.py", "tests/integration/test_route_inventory.py", "docs/ARCHITECTURE.md", "docs/OPERATIONS.md", "README.md"],
       "task_count": 9,
-      "async_notes": "Test suites are independent and can run in parallel. Doc updates are independent of tests.",
-      "risks": "Stale docs reappear if source and documentation are not verified together. Integration tests may reveal issues requiring fixes in earlier phases."
+      "async_notes": "j.1-j.4 in parallel. j.5-j.7 in parallel. j.8 independent. j.9 depends on all.",
+      "risks": "Integration tests may reveal issues requiring fixes in earlier phases."
     }
   ]
 }

@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "task_id": "c.2",
+  "phase": "c",
+  "phase_id": "c",
+  "title": "Initialize retrieval_engine in app lifespan",
+  "description": "Create and inject retrieval_engine instance into FastAPI app state during app lifespan events.\n\nBefore editing, inspect:\n- Lifespan event handlers in `chatbot/api/app.py`",
+  "acceptance_criteria": [
+    "`chatbot/api/app.py` initializes `retrieval_engine` during startup",
+    "`chatbot/api/app.py` cleans up `retrieval_engine` during shutdown",
+    "`app.state` contains `retrieval_engine` property"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/app.py"
+  ],
+  "forbidden_changes": [
+    "modify unrelated lifespan handlers",
+    "change route definitions"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

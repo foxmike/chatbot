@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "task_id": "b.2",
+  "phase": "CHATBOT_FULL_FUNCTIONALITY_COMPLETION",
+  "phase_id": "b",
+  "title": "Define memory_extract task handler",
+  "description": "Create chatbot/perf/handlers.py with memory_extract task handler that calls extraction modules.\n\nBefore editing: Inspect memory extraction modules in chatbot/memory/extract/.",
+  "acceptance_criteria": [
+    "chatbot/perf/handlers.py exists with memory_extract definition",
+    "Function references extraction modules correctly",
+    "No syntax errors (python -m py_compile chatbot/perf/handlers.py)"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/perf/handlers.py"
+  ],
+  "forbidden_changes": [
+    "modify extraction module implementations",
+    "write files outside handlers.py"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "task_id": "a.5",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Add auth to config endpoints",
+  "description": "Add get_current_user dependency to all config endpoints\n\nBefore editing, inspect:\n- Existing auth mechanisms in config.py\n- Session verification patterns in other files",
+  "acceptance_criteria": [
+    "All endpoints in config.py have get_current_user dependency",
+    "Session ownership verification logic works",
+    "python -m py_compile chatbot/api/config.py passes"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/moonshotai/kimi-k2-0905",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/config.py"
+  ],
+  "forbidden_changes": [
+    "modify auth core mechanisms",
+    "change endpoint functionality"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "task_id": "a.3",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Create and register companion router",
+  "description": "Implement companion router using CompanionManager and register in app.py \n\nBefore editing, inspect:\n- CompanionManager implementation location and API\n- app.py router registration pattern\n- Existing route prefix conventions",
+  "acceptance_criteria": [
+    "chatbot/api/companions.py exists with valid APIRouter",
+    "chatbot/api/app.py imports and includes companion router",
+    "Routes follow '/companions/' prefix convention",
+    "python -m py_compile chatbot/api/*.py passes"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/companions.py",
+    "chatbot/api/app.py"
+  ],
+  "forbidden_changes": [
+    "modify companion implementation logic",
+    "change unrelated routers in app.py"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

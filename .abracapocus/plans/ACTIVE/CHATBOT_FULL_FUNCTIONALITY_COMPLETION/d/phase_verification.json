@@ -2,21 +2,12 @@
   "verification": {
     "checks": [
       {
-        "name": "phase_tests",
-        "command": [
-          "pytest",
-          "tests/phase_d/"
-        ]
-      },
-      {
-        "name": "core_compile",
+        "name": "compile_target",
         "command": [
           "python",
           "-m",
           "py_compile",
-          "agents/characters.py",
-          "agents/relationship.py",
-          "backends/config.py"
+          "target_file.py"
         ]
       }
     ]

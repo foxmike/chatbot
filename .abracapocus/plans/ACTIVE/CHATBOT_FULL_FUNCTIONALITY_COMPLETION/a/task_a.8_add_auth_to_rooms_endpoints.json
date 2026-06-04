@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "task_id": "a.8",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Add auth to rooms endpoints",
+  "description": "Add get_current_user dependency and scope room queries by user\n\nBefore editing, inspect:\n- Existing room query patterns\n- Session handling in other authenticated endpoints",
+  "acceptance_criteria": [
+    "All endpoints in rooms.py have get_current_user dependency",
+    "Room queries filter by current user",
+    "python -m py_compile chatbot/api/rooms.py passes"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/moonshotai/kimi-k2-0905",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/rooms.py"
+  ],
+  "forbidden_changes": [
+    "change room management logic",
+    "modify unrelated files"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

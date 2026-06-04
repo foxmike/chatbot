@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "task_id": "c.6",
+  "phase": "c",
+  "phase_id": "c",
+  "title": "Mount MemoryPanel in app shell",
+  "description": "Integrate MemoryPanel component into main application UI.\n\nBefore editing, inspect:\n- Settings panel structure in `react_ui/src/App.tsx`\n- Existing panel mounting patterns",
+  "acceptance_criteria": [
+    "MemoryPanel appears in settings/panel area",
+    "UI renders without errors",
+    "Component responds to base props"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/App.tsx"
+  ],
+  "forbidden_changes": [
+    "modify MemoryPanel component itself",
+    "change unrelated UI elements"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

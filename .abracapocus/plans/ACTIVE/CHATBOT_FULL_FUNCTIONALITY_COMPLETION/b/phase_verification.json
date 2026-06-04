@@ -2,11 +2,22 @@
   "verification": {
     "checks": [
       {
-        "name": "compile_backend_files",
+        "name": "pytest_background_worker",
         "command": [
-          "bash",
-          "-c",
-          "find backends -name '*.py' -exec python -m py_compile {} +"
+          "python",
+          "-m",
+          "pytest",
+          "tests/test_background_worker.py",
+          "-x"
+        ]
+      },
+      {
+        "name": "app_compilation",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/api/app.py"
         ]
       }
     ]

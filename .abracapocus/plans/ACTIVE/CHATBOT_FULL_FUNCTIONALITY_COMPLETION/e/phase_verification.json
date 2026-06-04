@@ -2,17 +2,13 @@
   "verification": {
     "checks": [
       {
-        "name": "phase_integration",
-        "command": [
-          "pytest",
-          "tests/integration/test_phase_e.py"
-        ]
-      },
-      {
-        "name": "schema_consistency",
+        "name": "pytest_phase_verifier",
         "command": [
           "python",
-          "scripts/validate_schemas.py"
+          "-m",
+          "pytest",
+          "-x",
+          "tests/test_phase_verifier.py::test_phase_e"
         ]
       }
     ]
