@@ -16,6 +16,8 @@ from time import perf_counter
 from typing import Any
 
 from chatbot.core.steps import StepResult, TurnContext, TurnStep
+from chatbot.perf.background import BackgroundQueue, BackgroundTask
+from chatbot.perf.cache import PersonaCache
 from chatbot.providers.base import ProviderConfig
 
 try:
@@ -112,6 +114,15 @@ except ImportError:
     build_room_context = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
+
+FAST_PATH_STEPS: list[str] = [
+    "receive",
+    "retrieve",
+    "compile_context",
+    "call_provider",
+    "respond",
+]
+DEFERRED_STEPS: list[str] = ["extract_memory", "consolidate"]
 
 _MILESTONE_KEYWORDS: tuple[str, ...] = (
     "accepted",
@@ -401,23 +412,26 @@ class SelectConversationModeStep(TurnStep):
 class CompileContextStep(TurnStep):
     name = "compile_context"
 
-    def __init__(self, assembler: Any | None = None) -> None:
+    def __init__(
+        self,
+        assembler: Any | None = None,
+        persona_cache: PersonaCache | None = None,
+    ) -> None:
         if assembler is not None:
             self._assembler = assembler
         elif PersonaPromptAssembler is not None:
             self._assembler = PersonaPromptAssembler()
         else:
             self._assembler = None
+        self._persona_cache = persona_cache
+
+    def set_persona_cache(self, persona_cache: PersonaCache | None) -> None:
+        self._persona_cache = persona_cache
 
     async def run(self, ctx: TurnContext) -> TurnContext:
         mood_state = _current_mood_state(ctx) if _emotional_intelligence_ready(ctx) else None
         mode = _current_conversation_mode(ctx) if _emotional_intelligence_ready(ctx) else None
-        persona_prompt = _assemble_persona_prompt(
-            self._assembler,
-            ctx.persona,
-            mood=mood_state,
-            mode=mode,
-        )
+        persona_prompt = await self._persona_prompt(ctx, mood=mood_state, mode=mode)
         ctx.compiled_context = _compile_context_text(
             persona_prompt=persona_prompt,
             history=ctx.history,
@@ -426,6 +440,36 @@ class CompileContextStep(TurnStep):
         ctx.metadata["persona_prompt"] = persona_prompt
         ctx.metadata["compiled_context"] = ctx.compiled_context
         return ctx
+
+    async def _persona_prompt(
+        self,
+        ctx: TurnContext,
+        *,
+        mood: Any | None = None,
+        mode: Any | None = None,
+    ) -> str:
+        if self._persona_cache is None:
+            return _assemble_persona_prompt(self._assembler, ctx.persona, mood=mood, mode=mode)
+
+        user_id = _persona_cache_user_id(ctx)
+        companion_id = _persona_cache_companion_id(ctx)
+        if user_id is None:
+            return _assemble_persona_prompt(self._assembler, ctx.persona, mood=mood, mode=mode)
+
+        cached_prompt = await self._persona_cache.get(user_id, companion_id)
+        if cached_prompt is not None:
+            ctx.metadata["persona_prompt_cache_hit"] = True
+            return cached_prompt
+
+        persona_prompt = _assemble_persona_prompt(
+            self._assembler,
+            ctx.persona,
+            mood=mood,
+            mode=mode,
+        )
+        await self._persona_cache.set(user_id, companion_id, persona_prompt)
+        ctx.metadata["persona_prompt_cache_hit"] = False
+        return persona_prompt
 
 
 class CallProviderStep(TurnStep):
@@ -750,17 +794,55 @@ class SceneMemoryGateStep(TurnStep):
 
 
 class TurnPipeline:
-    def __init__(self, steps: list[TurnStep]) -> None:
+    def __init__(
+        self,
+        steps: list[TurnStep],
+        persona_cache: PersonaCache | None = None,
+        background_queue: BackgroundQueue | None = None,
+    ) -> None:
         self._steps = list(steps)
+        self._persona_cache = persona_cache
+        self._background_queue = background_queue
         self._last_ctx: TurnContext | None = None
+        if persona_cache is not None:
+            self._configure_persona_cache(persona_cache)
 
     async def run(self, ctx: TurnContext) -> TurnContext:
+        if self._background_queue is not None:
+            ctx = await self.run_fast(ctx)
+            await self.enqueue_deferred(ctx)
+            return ctx
+
+        return await self._run_steps(ctx, self._steps)
+
+    async def run_fast(self, ctx: TurnContext) -> TurnContext:
+        return await self._run_steps(ctx, self._selected_steps(FAST_PATH_STEPS))
+
+    async def enqueue_deferred(self, ctx: TurnContext) -> None:
+        if self._background_queue is None:
+            return
+
+        for step_name in DEFERRED_STEPS:
+            await self._background_queue.enqueue(
+                BackgroundTask(
+                    task_id=str(uuid.uuid4()),
+                    task_type=_background_task_type(step_name),
+                    payload=_deferred_turn_payload(ctx),
+                    created_at=datetime.now(timezone.utc).isoformat(),
+                )
+            )
+
+    async def _run_steps(
+        self,
+        ctx: TurnContext,
+        steps: Sequence[TurnStep],
+    ) -> TurnContext:
         step_results: list[StepResult] = []
         ctx.metadata["step_results"] = step_results
         self._last_ctx = ctx
         trace_id = await _start_turn_trace(ctx)
 
-        for step in self._steps:
+        for step in steps:
             step_name = _step_name(step)
             started_at = perf_counter()
             trace_step = _new_trace_step(step_name)
@@ -815,6 +897,24 @@ class TurnPipeline:
         await _complete_turn_trace(ctx, trace_id)
         return ctx
 
+    def _selected_steps(self, step_names: Sequence[str]) -> list[TurnStep]:
+        selected: list[TurnStep] = []
+        wanted = set(step_names)
+        for step in self._steps:
+            if _step_name(step) in wanted:
+                selected.append(step)
+
+        selected_by_name = {_step_name(step): step for step in selected}
+        return [selected_by_name[name] for name in step_names if name in selected_by_name]
+
+    def _configure_persona_cache(self, persona_cache: PersonaCache) -> None:
+        for step in self._steps:
+            if _step_name(step) != "compile_context":
+                continue
+            set_cache = getattr(step, "set_persona_cache", None)
+            if callable(set_cache):
+                set_cache(persona_cache)
+
     @property
     def step_results(self) -> list[StepResult]:
         if self._last_ctx is None:
@@ -832,7 +932,10 @@ class _IdentityTurnStep(TurnStep):
         return ctx
 
 
-def build_default_pipeline() -> TurnPipeline:
+def build_default_pipeline(
+    persona_cache: PersonaCache | None = None,
+    background_queue: BackgroundQueue | None = None,
+) -> TurnPipeline:
     if WorkingMemoryLoader is None:
         logger.warning("WorkingMemoryLoader import failed; RetrieveStep will use fallback")
     if PersonaPromptAssembler is None:
@@ -857,7 +960,7 @@ def build_default_pipeline() -> TurnPipeline:
             SceneAwareRetrievalStep(WorkingMemoryLoader),
             InferUserStateStep(UserStateEngine, MoodEngine),
             SelectConversationModeStep(ModeSelector),
-            CompileContextStep(),
+            CompileContextStep(persona_cache=persona_cache),
             CallProviderStep(),
             UpdateMoodStep(MoodEngine),
             PersistEmotionalStateStep(),
@@ -865,7 +968,9 @@ def build_default_pipeline() -> TurnPipeline:
             SceneMemoryGateStep(),
             TimelineUpdateStep(),
             RespondStep(),
-        ]
+        ],
+        persona_cache=persona_cache,
+        background_queue=background_queue,
     )
 
 
@@ -1396,6 +1501,48 @@ def _first_metadata_value(ctx: TurnContext, *keys: str) -> Any | None:
         if value is not None:
             return value
     return None
+
+
+def _persona_cache_user_id(ctx: TurnContext) -> str | None:
+    return _trace_user_id(ctx) or str(ctx.session_id)
+
+
+def _persona_cache_companion_id(ctx: TurnContext) -> str | None:
+    value = _first_metadata_value(ctx, "companion_id", "current_companion_id")
+    if value is None:
+        value = _read_session_field(ctx, "companion_id")
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _deferred_turn_payload(ctx: TurnContext) -> dict[str, Any]:
+    user_id = _trace_user_id(ctx)
+    companion_id = _persona_cache_companion_id(ctx)
+    turn_context = {
+        "session_id": ctx.session_id,
+        "user_message": ctx.user_message,
+        "provider_response": ctx.provider_response,
+        "user_id": user_id,
+        "companion_id": companion_id,
+    }
+    return {
+        "session_id": ctx.session_id,
+        "user_id": user_id,
+        "companion_id": companion_id,
+        "user_message": ctx.user_message,
+        "provider_response": ctx.provider_response,
+        "turn_context": turn_context,
+    }
+
+
+def _background_task_type(step_name: str) -> str:
+    if step_name == "extract_memory":
+        return "memory_extract"
+    if step_name == "consolidate":
+        return "consolidate"
+    return "custom"
 
 
 async def _trigger_due_rituals(ctx: TurnContext) -> None:
@@ -2488,4 +2635,9 @@ def _optional_stop(value: Any) -> Sequence[str] | None:
     return [str(item) for item in value]
 
 
-__all__ = ["TurnPipeline", "build_default_pipeline"]
+__all__ = [
+    "DEFERRED_STEPS",
+    "FAST_PATH_STEPS",
+    "TurnPipeline",
+    "build_default_pipeline",
+]
