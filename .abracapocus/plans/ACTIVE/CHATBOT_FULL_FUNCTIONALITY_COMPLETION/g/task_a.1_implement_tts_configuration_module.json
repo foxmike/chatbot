@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "task_id": "a.1",
+  "phase": "g",
+  "phase_id": "g",
+  "title": "Implement TTS configuration module",
+  "description": "Create TTS configuration module in backends. Before editing, inspect: existing config structure in backends/*.py. Create backends/tts_config.py with: PROVIDER_SETTINGS dict mapping providers to config params. Handle experimental API flag logic. Add comments explaining TTL and experimental settings.",
+  "acceptance_criteria": [
+    "focused verification passes",
+    "tts_config.py has py_compile validation",
+    "PROVIDER_SETTINGS dict contains at least openai, azure, coqui keys"
+  ],
+  "selected_backend": "pi_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "backends/tts_config.py"
+  ],
+  "forbidden_changes": [
+    "modify existing core logic",
+    "change STT-related code"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "model": "openrouter/moonshotai/kimi-k2-0905"
+}

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "task_id": "a.2",
+  "phase": "CHATBOT_FULL_FUNCTIONALITY_COMPLETION",
+  "phase_id": "b",
+  "title": "Define message handlers",
+  "description": "Implement handlers in backends/handlers.py:\n- text_message_handler\n- image_processing_handler\n- metadata_extractor\nAll must accept message dicts and return processed output\n\nBefore editing, inspect:\n- Existing message type definitions\n- Response format expectations\n- Shared utility functions",
+  "acceptance_criteria": [
+    "python -m py_compile backends/handlers.py"
+  ],
+  "selected_backend": "pi_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "backends/handlers.py"
+  ],
+  "forbidden_changes": [
+    "modify gpt4v_worker.py",
+    "modify runner.py"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "model": "openrouter/moonshotai/kimi-k2-0905"
+}

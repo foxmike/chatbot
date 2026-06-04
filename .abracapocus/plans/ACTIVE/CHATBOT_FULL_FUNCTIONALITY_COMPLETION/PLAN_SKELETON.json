@@ -1,0 +1,209 @@
+{
+  "plan_name": "CHATBOT_FULL_FUNCTIONALITY_COMPLETION",
+  "summary": "Activate all built-but-inactive chatbot features across 10 phases. The chatbot has complete backend code, DB models, API routers, and React components from plans CHATBOT a-h and G1-G4, but most features are not mounted in the UI, have broken route wiring, lack auth scoping, or depend on missing runtime workers/providers. This plan systematically activates each feature area in dependency order: visibility first, then runtime, then memory, then progressively deeper feature areas, finishing with integration verification.",
+  "async_strategy": "Phases are sequential because each phase depends on prior phase outputs. Within phases, tasks that touch disjoint files can run in parallel. Tasks modifying App.tsx, app.py, config.py, or models.py must be serialized via dependencies.",
+  "backend_recommendations": "Use codex_cli for complex multi-file wiring tasks. Use opencode_cli with a capable model for simpler single-file fixes. React component mounting tasks benefit from codex_cli because they require coordinating App.tsx, component imports, and navigation state.",
+  "risks": [
+    "Route prefix mismatches between Vite proxy and backend routers are a recurring pattern — every phase touching API routes must verify the full proxy path.",
+    "Auth ownership checks must be added before any UI exposure — the assessment found memory, config, agency, rooms, admin, and streaming endpoints without auth.",
+    "Continuity table/model name mismatches may require migration reconciliation before continuity features can work.",
+    "Voice and visual features depend on external provider APIs that may not be available — tasks must fail clearly when unconfigured.",
+    "Background worker design affects memory, continuity, and agency — Phase 2 must be solid before Phases 3 and 5."
+  ],
+  "phases": [
+    {
+      "phase_id": "phase_a",
+      "title": "Feature Visibility, Route Fixes, and App Shell",
+      "description": "Fix frontend/backend route mismatches, register missing routers, add auth ownership to unsafe endpoints, and build a navigable app shell that mounts existing React components. This phase does NOT activate runtime features — it makes the UI reachable and the API routes correct and safe.\n\nRoute fixes needed:\n- Memory router prefix: change from /api/memories to /memories (Vite strips /api)\n- Voice router prefix: change from /api/voice to /voice\n- Register companion router in app.py using existing CompanionManager\n- Register continuity routers for /timeline, /narrative, /rituals matching frontend client paths\n\nAuth fixes needed before UI exposure:\n- config endpoints: verify session belongs to current user\n- memory endpoints: add get_current_user dependency\n- agency endpoints: add get_current_user, remove arbitrary user_id params\n- rooms endpoints: add get_current_user, remove arbitrary user_id params\n- admin endpoints: add admin auth gate\n- streaming endpoint: add auth and session ownership\n\nApp shell work:\n- Add tabbed/panel navigation to App.tsx for settings, memory, timeline, etc.\n- Mount CompanionSelector in authenticated app flow\n- Mount panels conditionally based on active session",
+      "expected_files": [
+        "chatbot/api/app.py",
+        "chatbot/api/memory.py",
+        "chatbot/api/voice.py",
+        "chatbot/api/config.py",
+        "chatbot/api/agency.py",
+        "chatbot/api/rooms.py",
+        "chatbot/api/admin.py",
+        "chatbot/api/streaming.py",
+        "chatbot/api/companions.py",
+        "chatbot/api/continuity.py",
+        "react_ui/src/App.tsx",
+        "react_ui/src/components/AppShell.tsx",
+        "react_ui/src/components/SettingsPanel.tsx"
+      ],
+      "task_count": 12,
+      "async_notes": "Route prefix fixes and auth additions are independent per router file and can run in parallel. App.tsx shell work depends on all route fixes completing first. Companion and continuity router creation can run in parallel.",
+      "risks": "Exposing UI for endpoints that still lack auth is a data isolation risk. Verify auth is applied before mounting any panel."
+    },
+    {
+      "phase_id": "phase_b",
+      "title": "Background Worker and Deferred Runtime",
+      "description": "Make the BackgroundQueue actually consume deferred tasks. Currently chatbot/api/chat.py creates a BackgroundQueue and enqueues memory_extract and consolidate tasks after each turn, but no worker processes them.\n\nWork items:\n- Create a background worker that runs in FastAPI lifespan (startup/shutdown)\n- Define task handlers for memory_extract and consolidate task types\n- Add worker health check endpoint\n- Optionally add a Docker Compose worker service for production\n- Decide whether Redis should back the queue (currently in-process only, lost on restart)\n- Add graceful shutdown behavior\n- Ensure worker logs task execution and errors",
+      "expected_files": [
+        "chatbot/perf/background.py",
+        "chatbot/perf/worker.py",
+        "chatbot/perf/handlers.py",
+        "chatbot/api/app.py",
+        "docker-compose.yml",
+        "tests/test_background_worker.py"
+      ],
+      "task_count": 7,
+      "async_notes": "Worker implementation and handler definitions can run in parallel. Lifespan wiring depends on both. Docker Compose worker service is independent.",
+      "risks": "In-process workers can duplicate work under multi-process deployment. Queue contents lost on restart if not using Redis."
+    },
+    {
+      "phase_id": "phase_c",
+      "title": "Memory Activation and Configuration",
+      "description": "Wire embeddings, semantic retrieval, extraction, consolidation, and memory controls into the active runtime.\n\nWork items:\n- Add embedding provider/model settings to chatbot/config.py\n- Initialize retrieval_engine in FastAPI app lifespan and inject into app state\n- Wire pgvector retrieval into the pipeline retrieve step\n- Ensure memory extraction runs via background worker (Phase 2)\n- Ensure consolidation runs via background worker\n- Mount MemoryPanel and HistorySearch components in the app shell\n- Verify provenance tracking, pin/delete/correct controls work end-to-end\n- Verify memory search and export with auth scoping\n\nDependencies: Phase 1 (route/auth fixes for memory) and Phase 2 (worker for extraction/consolidation).",
+      "expected_files": [
+        "chatbot/config.py",
+        "chatbot/api/app.py",
+        "chatbot/memory/retrieval.py",
+        "chatbot/memory/extraction.py",
+        "chatbot/memory/pgvector_store.py",
+        "chatbot/core/turn.py",
+        "react_ui/src/App.tsx",
+        "react_ui/src/components/MemoryPanel.tsx",
+        "tests/test_memory_integration.py"
+      ],
+      "task_count": 9,
+      "async_notes": "Embedding config, retrieval engine init, and UI mounting are independent. Extraction/consolidation verification depends on worker from Phase 2.",
+      "risks": "Incorrect embedding config silently degrades retrieval. Missing scoping can leak semantic facts between users."
+    },
+    {
+      "phase_id": "phase_d",
+      "title": "Persona, Identity, Relationship, and Character Usability",
+      "description": "Make personality/identity/relationship/character configuration visible and usable from the UI.\n\nWork items:\n- Secure config endpoints: verify session belongs to current user before allowing reads/writes\n- Mount RelationshipSettings component in settings panel\n- Mount CharacterCreator component in settings panel\n- Expose identity state and evolution controls\n- Add persona cache invalidation when config updates occur\n- Verify that relationship/character changes affect subsequent persona prompts\n\nDependencies: Phase 1 (auth on config endpoints, app shell).",
+      "expected_files": [
+        "chatbot/api/config.py",
+        "chatbot/perf/cache.py",
+        "react_ui/src/App.tsx",
+        "react_ui/src/components/RelationshipSettings.tsx",
+        "react_ui/src/components/CharacterCreator.tsx",
+        "tests/test_config_integration.py"
+      ],
+      "task_count": 7,
+      "async_notes": "Relationship and character component mounting are independent. Cache invalidation depends on config endpoint security being in place.",
+      "risks": "Stale persona cache makes UI changes appear ignored. Identity evolution can drift without clear controls."
+    },
+    {
+      "phase_id": "phase_e",
+      "title": "Continuity, Rituals, Agency, and Notifications",
+      "description": "Activate timeline, narrative threads, rituals, proactive check-ins, notifications, and initiative controls.\n\nWork items:\n- Reconcile continuity table/model name mismatches (module models use relationship_timeline_entries and companion_rituals, migrations create timeline_entries, narrative_threads, and rituals)\n- Create migration if schema reconciliation changes column/table names\n- Wire timeline update step into actual runtime (currently not in FAST_PATH_STEPS or DEFERRED_STEPS)\n- Convert agency API from in-memory to durable DB-backed state using existing agency tables\n- Add scheduler runtime (background loop or worker task)\n- Mount TimelinePanel, NotificationFeed, and InitiativeSettings in app shell\n- Verify timeline and notifications survive restart and are user-scoped\n\nDependencies: Phase 1 (continuity routers registered, agency auth), Phase 2 (worker for deferred timeline/agency tasks).",
+      "expected_files": [
+        "chatbot/continuity/timeline.py",
+        "chatbot/continuity/narrative.py",
+        "chatbot/continuity/rituals.py",
+        "chatbot/api/continuity.py",
+        "chatbot/api/agency.py",
+        "chatbot/agency/scheduler.py",
+        "chatbot/agency/notifications.py",
+        "chatbot/core/turn.py",
+        "migrations/versions/0010_continuity_reconciliation.py",
+        "react_ui/src/App.tsx",
+        "react_ui/src/components/TimelinePanel.tsx",
+        "react_ui/src/components/NotificationFeed.tsx",
+        "react_ui/src/components/InitiativeSettings.tsx",
+        "tests/test_continuity_integration.py"
+      ],
+      "task_count": 11,
+      "async_notes": "Schema reconciliation must complete before any runtime wiring. Agency durable conversion and continuity router work are independent. UI mounting depends on both backend pieces.",
+      "risks": "Table/model name mismatch may require careful migration. Proactive features can annoy users without strong controls."
+    },
+    {
+      "phase_id": "phase_f",
+      "title": "Rooms, Scenes, and Roleplay Isolation",
+      "description": "Make room/scene controls and room-scoped memory usable from the UI.\n\nWork items:\n- Pass room_id through ChatRequest from frontend to backend\n- Add active room state tracking in React app\n- Mount RoomSwitcher and SceneControls in app shell\n- Ensure RoomContextStep, SceneAwareRetrievalStep, and SceneMemoryGateStep run when room_id is present\n- Verify room-scoped memory isolation (scene-only memory does not leak to global)\n- Verify scene persona prompt integration\n\nDependencies: Phase 1 (rooms auth), Phase 3 (memory/retrieval active for room-scoped retrieval).",
+      "expected_files": [
+        "chatbot/api/chat.py",
+        "chatbot/api/rooms.py",
+        "chatbot/core/turn.py",
+        "react_ui/src/App.tsx",
+        "react_ui/src/api/client.ts",
+        "react_ui/src/components/RoomSwitcher.tsx",
+        "react_ui/src/components/SceneControls.tsx",
+        "tests/test_rooms_integration.py"
+      ],
+      "task_count": 8,
+      "async_notes": "Backend room_id wiring and frontend room state are independent. UI mounting depends on both.",
+      "risks": "Without clear active-room state, messages can be sent to wrong context. Room-scoped retrieval needs memory system active."
+    },
+    {
+      "phase_id": "phase_g",
+      "title": "Voice and Call Mode",
+      "description": "Make voice features operational or explicitly configurable.\n\nWork items:\n- Add TTS/STT provider settings to chatbot/config.py\n- Implement actual TTS provider call (currently raises NotImplementedError)\n- Implement actual STT provider call (currently raises NotImplementedError)\n- Create voice_preferences migration if the table does not exist\n- Secure synthesize/transcribe endpoints with auth\n- Mount VoiceControls and CallMode components\n- Verify cadence mapping affects TTS output\n- Handle disabled/unconfigured voice gracefully in UI\n\nDependencies: Phase 1 (voice route prefix fix).",
+      "expected_files": [
+        "chatbot/config.py",
+        "chatbot/voice/tts.py",
+        "chatbot/voice/stt.py",
+        "chatbot/api/voice.py",
+        "migrations/versions/0011_voice_preferences.py",
+        "react_ui/src/App.tsx",
+        "react_ui/src/components/VoiceControls.tsx",
+        "react_ui/src/components/CallMode.tsx",
+        "tests/test_voice_integration.py"
+      ],
+      "task_count": 9,
+      "async_notes": "TTS and STT implementations are independent. Config, migration, and UI work can proceed in parallel with provider implementation.",
+      "risks": "Provider latency/cost and browser audio permission errors need clear UI handling. Voice features should be hidden when unconfigured."
+    },
+    {
+      "phase_id": "phase_h",
+      "title": "Visual Identity and Image Features",
+      "description": "Make avatar, appearance, image messages, and visual provider behavior usable.\n\nWork items:\n- Create migration for appearances, outfit_records, and image_memories tables if not covered by existing migrations\n- Register image/visual API router in app.py\n- Configure image generation provider settings\n- Configure image understanding provider settings\n- Wire appearance/outfit continuity into companion display\n- Mount AvatarDisplay and ImageMessage components\n- Verify provider failure is explicit and graceful\n\nDependencies: Phase 1 (app shell for mounting).",
+      "expected_files": [
+        "chatbot/config.py",
+        "chatbot/api/visual.py",
+        "chatbot/api/app.py",
+        "chatbot/visual/generation.py",
+        "chatbot/visual/understanding.py",
+        "chatbot/visual/appearance.py",
+        "migrations/versions/0012_visual_tables.py",
+        "react_ui/src/App.tsx",
+        "react_ui/src/components/AvatarDisplay.tsx",
+        "react_ui/src/components/ImageMessage.tsx",
+        "tests/test_visual_integration.py"
+      ],
+      "task_count": 9,
+      "async_notes": "Migration, router registration, and provider config are independent. UI mounting depends on router. Provider wiring depends on config.",
+      "risks": "Binary image storage and provider costs need operational limits. Visual features should degrade gracefully when providers are unconfigured."
+    },
+    {
+      "phase_id": "phase_i",
+      "title": "Observability, Admin, Streaming, and Performance",
+      "description": "Make admin dashboard, traces, usage tracking, model routing, streaming chat, cache, and performance controls usable.\n\nWork items:\n- Gate admin routes with admin authorization\n- Decide whether observability data persists to DB (tables exist) or stays in-memory\n- If persisting: wire TraceCollector and MetricsCollector to write to DB tables\n- Configure task-class model routing in provider router settings\n- Secure streaming endpoint with auth, session ownership, history loading, and message persistence\n- Mount streaming chat option in App.tsx (MessageList already supports streamRequest prop)\n- Mount AdminDashboard component behind admin gate\n- Decide Redis use for persona cache and/or background queue\n- Add operational health/readiness endpoints\n\nDependencies: Phase 1 (admin auth, streaming auth), Phase 2 (worker/queue decisions).",
+      "expected_files": [
+        "chatbot/api/admin.py",
+        "chatbot/api/streaming.py",
+        "chatbot/api/app.py",
+        "chatbot/observability/tracing.py",
+        "chatbot/observability/metrics.py",
+        "chatbot/providers/router.py",
+        "chatbot/config.py",
+        "chatbot/perf/cache.py",
+        "react_ui/src/App.tsx",
+        "react_ui/src/components/AdminDashboard.tsx",
+        "tests/test_streaming_integration.py",
+        "tests/test_admin_integration.py"
+      ],
+      "task_count": 11,
+      "async_notes": "Admin auth, streaming fixes, observability persistence, and model routing config are all independent. UI mounting depends on backend fixes.",
+      "risks": "Public admin endpoints are a security issue. Streaming without persistence diverges from durable chat history."
+    },
+    {
+      "phase_id": "phase_j",
+      "title": "Full Integration Verification and Documentation",
+      "description": "End-to-end verification of all activated features, multi-user isolation, persistence/restart behavior, and documentation updates.\n\nWork items:\n- Multi-user E2E tests: two users cannot see each other's sessions, messages, memory, companions, rooms, or config\n- Restart persistence tests: docker compose down/up preserves all durable state\n- Route inventory: verify every registered route is reachable from the UI or documented as API-only\n- Migration audit: verify alembic upgrade head works clean from empty DB\n- Update docs/ARCHITECTURE.md to reflect actual active architecture\n- Update docs/OPERATIONS.md with current operational procedures\n- Create README.md at repo root\n- Verify OpenRouter provider works with configured API key\n- Verify graceful degradation when optional providers are unconfigured\n\nDependencies: All prior phases should be substantially complete.",
+      "expected_files": [
+        "tests/integration/test_multi_user_isolation.py",
+        "tests/integration/test_restart_persistence.py",
+        "tests/integration/test_route_inventory.py",
+        "docs/ARCHITECTURE.md",
+        "docs/OPERATIONS.md",
+        "README.md"
+      ],
+      "task_count": 9,
+      "async_notes": "Test suites are independent and can run in parallel. Doc updates are independent of tests.",
+      "risks": "Stale docs reappear if source and documentation are not verified together. Integration tests may reveal issues requiring fixes in earlier phases."
+    }
+  ]
+}

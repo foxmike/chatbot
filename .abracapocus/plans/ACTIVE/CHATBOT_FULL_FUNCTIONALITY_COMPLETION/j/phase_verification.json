@@ -1,0 +1,24 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "no_unverified_changes",
+        "command": [
+          "grep",
+          "-q",
+          "\"verified\": true",
+          "state/runtime_state.json"
+        ]
+      },
+      {
+        "name": "phase_completion",
+        "command": [
+          "grep",
+          "-q",
+          "\"phase_j\": \"complete\"",
+          "state/runtime_state.json"
+        ]
+      }
+    ]
+  }
+}

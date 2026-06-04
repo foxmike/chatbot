@@ -2,9 +2,11 @@ export interface Session {
   session_id: string;
   title: string;
   created_at: string;
+  message_count?: number;
 }
 
 export interface Message {
+  message_id?: string;
   role: "user" | "assistant";
   content: string;
   timestamp?: string;
@@ -32,6 +34,8 @@ export interface StreamEvent {
 
 export interface CreateSessionResponse {
   session_id: string;
+  title?: string | null;
+  created_at?: string | null;
 }
 
 export interface RelationshipConfig {

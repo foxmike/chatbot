@@ -1,0 +1,23 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "tts_config_validation",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "backends/tts_config.py"
+        ]
+      },
+      {
+        "name": "import_check",
+        "command": [
+          "python",
+          "-c",
+          "\"from backends.tts_config import PROVIDER_SETTINGS; assert 'openai' in PROVIDER_SETTINGS\""
+        ]
+      }
+    ]
+  }
+}

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import asdict, is_dataclass
+from datetime import datetime, timezone
 from time import perf_counter
 from typing import Any
 import uuid
@@ -18,7 +19,7 @@ from chatbot.auth.dependencies import CurrentUser, get_current_user
 from chatbot.companions.companion import CompanionManager
 from chatbot.core.steps import StepResult, TurnContext
 from chatbot.db import get_db
-from chatbot.db.models import Session
+from chatbot.db.models import Message, Session
 
 try:
     from chatbot.core.turn import build_default_pipeline as _core_build_default_pipeline
@@ -104,7 +105,9 @@ async def chat(
             )
 
     session = sessions_store.get(body.session_id, {})
-    history = _load_session_history(request, body.session_id, session)
+    history = await _load_db_session_history(db, sid)
+    if not history:
+        history = _load_session_history(request, body.session_id, session)
     persona = _load_persona(request, body.session_id, session)
     ctx = TurnContext(
         session_id=body.session_id,
@@ -125,6 +128,27 @@ async def chat(
     response = ctx.final_response
     if response is None:
         response = str(ctx.metadata.get("pipeline_error", "No response"))
+
+    db.add(
+        Message(
+            session_id=sid,
+            user_id=user_uuid,
+            companion_id=db_session.companion_id or companion_id,
+            role="user",
+            content=body.message,
+        )
+    )
+    db.add(
+        Message(
+            session_id=sid,
+            user_id=user_uuid,
+            companion_id=db_session.companion_id or companion_id,
+            role="assistant",
+            content=response,
+        )
+    )
+    db_session.updated_at = datetime.now(timezone.utc)
+    await db.commit()
 
     return ChatResponse(
         session_id=ctx.session_id,
@@ -229,6 +253,25 @@ def _load_session_history(
         return _coerce_history(histories.get(session_id))
 
     return []
+
+
+async def _load_db_session_history(
+    db: AsyncSession,
+    session_id: uuid.UUID,
+) -> list[dict[str, Any]]:
+    result = await db.execute(
+        select(Message)
+        .where(Message.session_id == session_id)
+        .where(Message.role.in_(("user", "assistant", "system", "tool")))
+        .order_by(Message.created_at.asc(), Message.id.asc())
+    )
+    return [
+        {
+            "role": message.role,
+            "content": message.content,
+        }
+        for message in result.scalars().all()
+    ]
 
 
 def _load_persona(

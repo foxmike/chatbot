@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "task_id": "a.4",
+  "phase": "CHATBOT_FULL_FUNCTIONALITY_COMPLETION",
+  "phase_id": "b",
+  "title": "Wire lifespan events",
+  "description": "Modify backends/runner.py to:\n- Start background worker on app startup\n- Stop worker on graceful shutdown\n\nBefore editing, inspect:\n- Existing lifespan handler implementation\n- Background thread management pattern\n- Shutdown signal handling",
+  "acceptance_criteria": [
+    "python -m py_compile backends/runner.py"
+  ],
+  "selected_backend": "pi_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "backends/runner.py"
+  ],
+  "forbidden_changes": [
+    "modify gpt4v_worker.py internals",
+    "change existing core logic"
+  ],
+  "dependencies": [
+    "b.1",
+    "b.2"
+  ],
+  "task_timeout_seconds": 900,
+  "model": "openrouter/deepseek/deepseek-v4-pro"
+}

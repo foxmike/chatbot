@@ -6,28 +6,39 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from chatbot.auth.dependencies import CurrentUser, get_current_user
 from chatbot.companions.companion import CompanionManager
 from chatbot.db import get_db
-from chatbot.db.models import Session
+from chatbot.db.models import Message, Session
 
 
 class SessionCreateRequest(BaseModel):
     companion_id: str | None = None
+    title: str | None = None
 
 
 class SessionCreateResponse(BaseModel):
     session_id: str
+    title: str | None = None
+    created_at: str | None = None
 
 
 class SessionInfo(BaseModel):
     session_id: str
+    title: str | None = None
     created_at: str
     message_count: int
+
+
+class SessionMessageInfo(BaseModel):
+    message_id: str
+    session_id: str
+    role: str
+    content: str
+    created_at: str
 
 
 class SessionDeleteResponse(BaseModel):
@@ -60,11 +71,16 @@ async def create_session(
     session = Session(
         user_id=uuid.UUID(current_user.user_id),
         companion_id=companion_id,
+        title=body.title or "New Chat",
     )
     db.add(session)
     await db.commit()
     await db.refresh(session)
-    return SessionCreateResponse(session_id=str(session.id))
+    return SessionCreateResponse(
+        session_id=str(session.id),
+        title=session.title,
+        created_at=session.created_at.isoformat(),
+    )
 
 
 @sessions_router.get("/", response_model=list[SessionInfo])
@@ -74,23 +90,24 @@ async def list_sessions(
     db: AsyncSession = Depends(get_db),
 ) -> list[SessionInfo]:
     stmt = (
-        select(Session)
+        select(Session, func.count(Message.id).label("message_count"))
+        .outerjoin(Message, Message.session_id == Session.id)
         .where(Session.user_id == uuid.UUID(current_user.user_id))
-        .options(selectinload(Session.messages))
-        .order_by(Session.created_at.desc())
+        .group_by(Session.id)
+        .order_by(Session.updated_at.desc(), Session.created_at.desc())
     )
     if companion_id is not None:
         stmt = stmt.where(Session.companion_id == companion_id)
 
     result = await db.execute(stmt)
-    sessions = result.scalars().all()
     return [
         SessionInfo(
             session_id=str(s.id),
+            title=s.title,
             created_at=s.created_at.isoformat(),
-            message_count=len(s.messages),
+            message_count=int(message_count or 0),
         )
-        for s in sessions
+        for s, message_count in result.all()
     ]
 
 
@@ -109,23 +126,64 @@ async def get_session(
         )
 
     stmt = (
-        select(Session)
+        select(Session, func.count(Message.id).label("message_count"))
+        .outerjoin(Message, Message.session_id == Session.id)
         .where(Session.id == sid, Session.user_id == uuid.UUID(current_user.user_id))
-        .options(selectinload(Session.messages))
+        .group_by(Session.id)
     )
     result = await db.execute(stmt)
-    session = result.scalar_one_or_none()
+    row = result.one_or_none()
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        )
+    session, message_count = row
+
+    return SessionInfo(
+        session_id=str(session.id),
+        title=session.title,
+        created_at=session.created_at.isoformat(),
+        message_count=int(message_count or 0),
+    )
+
+
+@sessions_router.get("/{session_id}/messages", response_model=list[SessionMessageInfo])
+async def list_session_messages(
+    session_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[SessionMessageInfo]:
+    try:
+        sid = uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        )
+
+    session = await _get_owned_session(db, sid, uuid.UUID(current_user.user_id))
     if session is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found",
         )
 
-    return SessionInfo(
-        session_id=str(session.id),
-        created_at=session.created_at.isoformat(),
-        message_count=len(session.messages),
+    result = await db.execute(
+        select(Message)
+        .where(Message.session_id == sid)
+        .order_by(Message.created_at.asc(), Message.id.asc())
     )
+    return [
+        SessionMessageInfo(
+            message_id=str(message.id),
+            session_id=str(message.session_id),
+            role=message.role,
+            content=message.content,
+            created_at=message.created_at.isoformat(),
+        )
+        for message in result.scalars().all()
+    ]
 
 
 @sessions_router.delete("/{session_id}", response_model=SessionDeleteResponse)
@@ -154,6 +212,20 @@ async def delete_session(
             detail="Session not found",
         )
 
+    messages_result = await db.execute(select(Message).where(Message.session_id == sid))
+    for message in messages_result.scalars().all():
+        await db.delete(message)
     await db.delete(session)
     await db.commit()
     return SessionDeleteResponse(session_id=session_id, deleted=True)
+
+
+async def _get_owned_session(
+    db: AsyncSession,
+    session_id: uuid.UUID,
+    user_id: uuid.UUID,
+) -> Session | None:
+    result = await db.execute(
+        select(Session).where(Session.id == session_id, Session.user_id == user_id)
+    )
+    return result.scalar_one_or_none()

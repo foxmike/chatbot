@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "task_id": "a.1",
+  "phase": "F",
+  "phase_id": "f",
+  "title": "Integrate room_id backend wiring and frontend room state",
+  "description": "Connect backend room_id functionality to frontend UI state. Before editing, inspect:\n- backend/api.py for room_id creation and management\n- frontend/src/App.tsx for room state initialization\nImplementation:\n1. Modify backend handler to include room_id in API responses\n2. Update frontend App.tsx to store room_id in room state context\n3. Handle UI mounting logic based on room state availability\n4. Add TypeScript interfaces for room state object",
+  "acceptance_criteria": [
+    "python -m py_compile backend/api.py",
+    "cd frontend && npx tsc --noEmit"
+  ],
+  "selected_backend": "pi_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "backend/api.py",
+    "frontend/src/App.tsx"
+  ],
+  "forbidden_changes": [
+    "modify Python model definitions",
+    "change non-room related state logic"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "model": "openrouter/moonshotai/kimi-k2-0905"
+}

@@ -1,0 +1,14 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "compile_backend_files",
+        "command": [
+          "bash",
+          "-c",
+          "find backends -name '*.py' -exec python -m py_compile {} +"
+        ]
+      }
+    ]
+  }
+}

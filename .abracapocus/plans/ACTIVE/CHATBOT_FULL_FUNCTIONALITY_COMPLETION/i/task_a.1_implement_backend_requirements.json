@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "task_id": "a.1",
+  "phase": "i",
+  "phase_id": "i",
+  "title": "Implement backend requirements",
+  "description": "1. Admin auth: Integrate middleware for administrator token authentication.\n2. Streaming fixes: Ensure streaming backend handlers properly buffer/stream responses.\n3. Observability persistence: Write observability data to persistent storage (e.g., SQLite).\n4. Model routing: Configure routing logic to direct requests to correct backend adapters.\n\nBefore editing, inspect:\n- runtime/authentication.py\n- backends/streaming.py\n- runtime/observability.py\n- runtime/routing.py",
+  "acceptance_criteria": [
+    "python -m py_compile runtime/authentication.py",
+    "python -m py_compile backends/streaming.py",
+    "python -m py_compile runtime/observability.py",
+    "python -m py_compile runtime/routing.py",
+    "pytest -k 'auth|streaming|observability|routing'"
+  ],
+  "selected_backend": "pi_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "runtime/authentication.py",
+    "backends/streaming.py",
+    "runtime/observability.py",
+    "runtime/routing.py"
+  ],
+  "forbidden_changes": [
+    "Modify UI components",
+    "Alter other backend adapters",
+    "Change core orchestration logic"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "model": "openrouter/moonshotai/kimi-k2-0905"
+}

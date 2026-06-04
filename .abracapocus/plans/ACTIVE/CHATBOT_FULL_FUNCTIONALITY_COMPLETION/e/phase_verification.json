@@ -1,0 +1,20 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "phase_integration",
+        "command": [
+          "pytest",
+          "tests/integration/test_phase_e.py"
+        ]
+      },
+      {
+        "name": "schema_consistency",
+        "command": [
+          "python",
+          "scripts/validate_schemas.py"
+        ]
+      }
+    ]
+  }
+}

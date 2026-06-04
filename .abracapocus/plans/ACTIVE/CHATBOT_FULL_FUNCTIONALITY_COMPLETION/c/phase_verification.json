@@ -1,0 +1,23 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "retrieval_engine_test",
+        "command": [
+          "pytest",
+          "runtime/test_retrieval.py"
+        ]
+      },
+      {
+        "name": "ui_compilation_check",
+        "command": [
+          "npm",
+          "run",
+          "type-check",
+          "--prefix",
+          "frontend"
+        ]
+      }
+    ]
+  }
+}

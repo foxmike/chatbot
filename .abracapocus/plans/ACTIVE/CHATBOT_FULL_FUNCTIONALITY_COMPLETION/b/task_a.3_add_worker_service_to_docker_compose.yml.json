@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "task_id": "a.3",
+  "phase": "CHATBOT_FULL_FUNCTIONALITY_COMPLETION",
+  "phase_id": "b",
+  "title": "Add worker service to docker-compose.yml",
+  "description": "Add new service to docker-compose.yml:\n- Service name: gpt4v_worker\n- Uses app image/base\n- Command: python -m backends.gpt4v_worker\n- Shares required volumes/networks\n\nBefore editing, inspect:\n- Existing app service definition\n- Required environment variables\n- Volume/network dependencies",
+  "acceptance_criteria": [
+    "docker-compose config"
+  ],
+  "selected_backend": "pi_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "docker-compose.yml"
+  ],
+  "forbidden_changes": [
+    "modify Dockerfile",
+    "modify Python files"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "model": "openrouter/deepseek/deepseek-v4-pro"
+}

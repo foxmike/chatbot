@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "task_id": "a.1",
+  "phase": "CHATBOT_FULL_FUNCTIONALITY_COMPLETION",
+  "phase_id": "h",
+  "title": "Implement router registration and provider wiring",
+  "description": "Complete router registration and provider wiring according to phase requirements. Before editing, inspect:\n- runtime/router.py for route registration patterns\n- runtime/config.py for provider configuration schema\n- agents/provider.py for provider interface.\n\nPerform these steps:\n1. Register new routes in router.py using existing patterns\n2. Update config.py with provider-specific settings\n3. Implement provider wiring in provider.py using dependency injection patterns\n\nFollow existing architectural patterns precisely.",
+  "acceptance_criteria": [
+    "python -m py_compile runtime/router.py",
+    "python -m py_compile runtime/config.py",
+    "python -m py_compile agents/provider.py"
+  ],
+  "selected_backend": "pi_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "runtime/router.py",
+    "runtime/config.py",
+    "agents/provider.py"
+  ],
+  "forbidden_changes": [
+    "Modify files outside allowed_write_paths",
+    "Change existing authentication mechanisms",
+    "Alter database connection patterns"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "model": "openrouter/moonshotai/kimi-k2-0905"
+}

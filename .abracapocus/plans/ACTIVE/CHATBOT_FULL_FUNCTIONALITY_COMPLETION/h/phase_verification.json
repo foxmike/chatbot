@@ -1,0 +1,41 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "router_syntax",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "runtime/router.py"
+        ]
+      },
+      {
+        "name": "config_syntax",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "runtime/config.py"
+        ]
+      },
+      {
+        "name": "provider_syntax",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "agents/provider.py"
+        ]
+      },
+      {
+        "name": "app_start_check",
+        "command": [
+          "python",
+          "-c",
+          "\"import runtime.router; print('Router initialized successfully')\""
+        ]
+      }
+    ]
+  }
+}

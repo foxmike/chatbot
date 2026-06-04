@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "task_id": "a.1",
+  "phase": "CHATBOT_FULL_FUNCTIONALITY_COMPLETION",
+  "phase_id": "b",
+  "title": "Implement background worker",
+  "description": "Create backends/gpt4v_worker.py with a BackgroundWorker class that:\n- Listens to Redis for messages\n- Processes each message via routing\n- Handles errors/retries\n- Runs in background thread until stopped\n\nBefore editing, inspect:\n- Existing Redis configuration\n- Message formats/destinations\n- Error logging requirements",
+  "acceptance_criteria": [
+    "python -m py_compile backends/gpt4v_worker.py"
+  ],
+  "selected_backend": "pi_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "backends/gpt4v_worker.py"
+  ],
+  "forbidden_changes": [
+    "modify redis_config.py",
+    "modify handler.py"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "model": "openrouter/moonshotai/kimi-k2-0905"
+}

@@ -1,0 +1,26 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "compile_backend",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "backend/api.py"
+        ]
+      },
+      {
+        "name": "typecheck_frontend",
+        "command": [
+          "cd",
+          "frontend",
+          "&&",
+          "npx",
+          "tsc",
+          "--noEmit"
+        ]
+      }
+    ]
+  }
+}
