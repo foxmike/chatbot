@@ -864,6 +864,103 @@ class VoicePreferences(Base):
     )
 
 
+class TraceRecord(Base):
+    __tablename__ = "observability_traces"
+
+    id: Mapped[int] = mapped_column(sa.Integer, primary_key=True, autoincrement=True)
+    trace_id: Mapped[str] = mapped_column(
+        sa.String(36), unique=True, nullable=False, index=True
+    )
+    turn_id: Mapped[str] = mapped_column(
+        sa.String(36), nullable=False, index=True
+    )
+    session_id: Mapped[str] = mapped_column(
+        sa.String(36), nullable=False, index=True
+    )
+    user_id: Mapped[str | None] = mapped_column(
+        sa.String(36), nullable=True, index=True
+    )
+    model_provider: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    model_id: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    task_class: Mapped[str | None] = mapped_column(sa.String(32), nullable=True)
+    prompt_tokens: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, default=0
+    )
+    completion_tokens: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, default=0
+    )
+    cost_usd_micros: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, default=0
+    )
+    total_latency_ms: Mapped[float] = mapped_column(
+        sa.Float, nullable=False, default=0
+    )
+    retrieve_latency_ms: Mapped[float] = mapped_column(
+        sa.Float, nullable=False, default=0
+    )
+    prompt: Mapped[str] = mapped_column(
+        sa.Text, nullable=False, default=""
+    )
+    routing_decision: Mapped[dict[str, object]] = mapped_column(
+        sa.JSON, nullable=False, default=dict
+    )
+    retrieval_snippets: Mapped[list[object]] = mapped_column(
+        sa.JSON, nullable=False, default=list
+    )
+    steps: Mapped[list[object]] = mapped_column(
+        sa.JSON, nullable=False, default=list
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.sql.func.now(),
+    )
+
+
+class UsageRecord(Base):
+    __tablename__ = "observability_usage"
+    __table_args__ = (
+        sa.UniqueConstraint("session_id", "model_provider", "model_id"),
+    )
+
+    id: Mapped[int] = mapped_column(sa.Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[str] = mapped_column(
+        sa.String(36), nullable=False, index=True
+    )
+    model_provider: Mapped[str] = mapped_column(
+        sa.String(64), nullable=False, index=True
+    )
+    model_id: Mapped[str] = mapped_column(
+        sa.String(128), nullable=False, index=True
+    )
+    turn_count: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, default=1
+    )
+    prompt_tokens: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, default=0
+    )
+    completion_tokens: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, default=0
+    )
+    cost_usd_micros: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, default=0
+    )
+    avg_latency_ms: Mapped[float] = mapped_column(
+        sa.Float, nullable=False, default=0
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.sql.func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.sql.func.now(),
+        onupdate=sa.sql.func.now(),
+    )
+
+
 __all__ = [
     "AgencyRitual",
     "AgencyTimeline",
@@ -888,6 +985,8 @@ __all__ = [
     "SemanticFact",
     "Session",
     "TimelineEntry",
+    "TraceRecord",
+    "UsageRecord",
     "User",
     "UserSession",
     "UserStateLog",
