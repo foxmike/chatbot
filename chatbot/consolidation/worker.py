@@ -5,14 +5,33 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import asyncio
 import inspect
-from collections.abc import AsyncIterator, Iterable, Mapping, Sequence
+import logging
+from collections.abc import (
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Iterable,
+    Mapping,
+    Sequence,
+)
 from typing import Any
 import uuid
 
 from chatbot.consolidation.contradiction import ContradictionResolver, ContradictionResult
 from chatbot.consolidation.decay import MemoryDecayEngine
 from chatbot.consolidation.summarizer import Summarizer
+from chatbot.perf.background import BackgroundQueue, BackgroundTask, run_background_worker
 from chatbot.providers import Provider
+
+try:
+    from chatbot.memory.extraction import MemoryExtractor
+except ImportError:
+    MemoryExtractor = None  # type: ignore[assignment]
+
+
+logger = logging.getLogger(__name__)
+
+CustomBackgroundHandler = Callable[[BackgroundTask], Awaitable[Any] | Any]
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,6 +50,8 @@ class ConsolidationWorker:
         provider: Provider,
         memory_store: Any,
         *,
+        background_queue: BackgroundQueue | None = None,
+        custom_handlers: Mapping[str, CustomBackgroundHandler] | None = None,
         coalescing_window_seconds: float = 60.0,
         recent_entry_limit: int = 50,
         summarizer: Summarizer | None = None,
@@ -44,6 +65,8 @@ class ConsolidationWorker:
 
         self.provider = provider
         self.memory_store = memory_store
+        self.background_queue = background_queue
+        self.custom_handlers = dict(custom_handlers or {})
         self.coalescing_window = timedelta(seconds=coalescing_window_seconds)
         self.recent_entry_limit = recent_entry_limit
         self.summarizer = summarizer or Summarizer(provider)
@@ -51,6 +74,45 @@ class ConsolidationWorker:
         self.decay_engine = decay_engine or MemoryDecayEngine()
         self._last_consolidation_runs: dict[str, datetime] = {}
         self._lock = asyncio.Lock()
+
+    async def run(
+        self,
+        stop_event: asyncio.Event | None = None,
+        *,
+        background_queue: BackgroundQueue | None = None,
+    ) -> None:
+        queue = background_queue or self.background_queue
+        if queue is None:
+            return
+
+        if stop_event is None:
+            stop_event = asyncio.Event()
+            stop_event.set()
+
+        await run_background_worker(
+            queue,
+            stop_event,
+            self.handle_background_task,
+        )
+
+    async def handle_background_task(self, task: BackgroundTask) -> None:
+        if task.task_type == "memory_extract":
+            await self._handle_memory_extract(task.payload)
+            return
+        if task.task_type == "consolidate":
+            await self._handle_consolidate(task.payload)
+            return
+        if task.task_type == "sentiment":
+            await self._handle_sentiment(task.payload)
+            return
+        if task.task_type == "index":
+            await self._handle_index(task.payload)
+            return
+        if task.task_type == "custom":
+            await self._handle_custom(task)
+            return
+
+        raise ValueError(f"Unsupported background task type: {task.task_type}")
 
     async def run_consolidation(self, session_id: str) -> ConsolidationResult:
         run_timestamp = datetime.now(timezone.utc)
@@ -93,6 +155,185 @@ class ConsolidationWorker:
                     entries_pruned=entries_pruned,
                     run_timestamp=run_timestamp,
                 )
+
+    async def _handle_memory_extract(self, payload: Mapping[str, Any]) -> None:
+        turn_context = payload.get("turn_context")
+        if not isinstance(turn_context, Mapping):
+            turn_context = {}
+        session_id = _payload_text(payload, "session_id") or _payload_text(
+            turn_context,
+            "session_id",
+        )
+        if session_id is None:
+            raise ValueError("Background task payload missing required field: session_id")
+        user_message = _payload_text(payload, "user_message") or _payload_text(
+            turn_context,
+            "user_message",
+        )
+        if user_message is None:
+            raise ValueError("Background task payload missing required field: user_message")
+        provider_response = payload.get("provider_response")
+        if provider_response is None:
+            provider_response = turn_context.get("provider_response")
+        provider_response = str(provider_response or "")
+        user_id = payload.get("user_id") or turn_context.get("user_id")
+
+        extracted = await self._call_store_method_with_keywords(
+            (
+                "extract_memory",
+                "run_memory_extraction",
+                "extract_turn_memory",
+                "memory_extract",
+            ),
+            session_id=session_id,
+            user_id=user_id,
+            user_message=user_message,
+            provider_response=provider_response,
+            turn_context=dict(turn_context),
+            payload=dict(payload),
+        )
+        if extracted is not _MISSING:
+            return
+
+        if MemoryExtractor is None:
+            raise RuntimeError("MemoryExtractor is unavailable")
+
+        database = _db_session(self.memory_store)
+        storage = (
+            self.memory_store
+            if callable(getattr(self.memory_store, "persist", None))
+            else None
+        )
+        if database is None and storage is None:
+            database = self.memory_store
+
+        extractor = MemoryExtractor(database=database, storage=storage)
+        await extractor.extract(
+            session_id=session_id,
+            user_message=user_message,
+            provider_response=provider_response,
+        )
+
+    async def _handle_consolidate(self, payload: Mapping[str, Any]) -> None:
+        session_ids = await self._payload_session_ids(payload)
+        if not session_ids:
+            user_id = _required_payload_text(payload, "user_id")
+            session_ids = [user_id]
+
+        for session_id in session_ids:
+            await self.run_consolidation(session_id)
+
+    async def _handle_sentiment(self, payload: Mapping[str, Any]) -> None:
+        text = _required_payload_text(payload, "text")
+        result = await self._call_store_method_with_keywords(
+            ("analyze_sentiment", "sentiment_analysis"),
+            text=text,
+            payload=dict(payload),
+        )
+        if result is _MISSING:
+            result = _analyze_sentiment(text)
+
+        saved = await self._call_store_method_with_keywords(
+            (
+                "persist_sentiment_result",
+                "save_sentiment_result",
+                "persist_sentiment",
+                "save_sentiment",
+                "store_sentiment",
+                "record_sentiment",
+            ),
+            user_id=payload.get("user_id"),
+            session_id=payload.get("session_id"),
+            text=text,
+            sentiment=result,
+            result=result,
+            payload=dict(payload),
+        )
+        if saved is _MISSING:
+            raise RuntimeError("memory_store does not support sentiment persistence")
+
+    async def _handle_index(self, payload: Mapping[str, Any]) -> None:
+        doc_id = _required_payload_text(payload, "doc_id")
+        indexed = await self._call_store_method_with_keywords(
+            (
+                "reindex_document",
+                "index_document",
+                "update_search_index",
+                "rebuild_document_index",
+                "rebuild_index",
+            ),
+            doc_id=doc_id,
+            user_id=payload.get("user_id"),
+            payload=dict(payload),
+        )
+        if indexed is _MISSING:
+            raise RuntimeError("memory_store does not support document indexing")
+
+    async def _handle_custom(self, task: BackgroundTask) -> None:
+        handler_key = task.payload.get("handler_key")
+        if not handler_key:
+            logger.warning("Dropping custom background task without handler_key")
+            return
+
+        handler = self.custom_handlers.get(str(handler_key))
+        if handler is None:
+            logger.warning(
+                "Dropping custom background task %s; handler %s is not registered",
+                task.task_id,
+                handler_key,
+            )
+            return
+
+        await self._call_custom_handler(handler, task)
+
+    async def _payload_session_ids(self, payload: Mapping[str, Any]) -> list[str]:
+        session_id = _payload_text(payload, "session_id")
+        if session_id:
+            return [session_id]
+
+        user_id = _payload_text(payload, "user_id")
+        if not user_id:
+            return []
+
+        session_ids = await self._call_store_method_with_keywords(
+            (
+                "fetch_consolidation_session_ids",
+                "get_consolidation_session_ids",
+                "fetch_session_ids_for_user",
+                "get_session_ids_for_user",
+                "session_ids_for_user",
+                "sessions_for_user",
+            ),
+            user_id=user_id,
+        )
+        if session_ids is not _MISSING:
+            return _normalize_session_ids(session_ids)
+
+        session = _db_session(self.memory_store)
+        if session is None:
+            return []
+
+        return await _fetch_db_session_ids_for_user(session, user_id)
+
+    async def _call_custom_handler(
+        self,
+        handler: CustomBackgroundHandler,
+        task: BackgroundTask,
+    ) -> None:
+        call = _method_call(
+            handler,
+            (),
+            {
+                "task": task,
+                "payload": task.payload,
+                "handler_key": task.payload.get("handler_key"),
+            },
+        )
+        if call is _MISSING:
+            call = _method_call(handler, (task,), {})
+        if call is _MISSING:
+            raise TypeError("custom background handler has an unsupported signature")
+        await _maybe_await(call())
 
     def _within_coalescing_window(
         self,
@@ -457,6 +698,23 @@ class ConsolidationWorker:
             return _MISSING
         return _MISSING
 
+    async def _call_store_method_with_keywords(
+        self,
+        names: Iterable[str],
+        **kwargs: Any,
+    ) -> Any:
+        for name in names:
+            method = getattr(self.memory_store, name, None)
+            if not callable(method):
+                continue
+
+            call = _method_call(method, (), kwargs)
+            if call is _MISSING:
+                continue
+            return await _maybe_await(call())
+
+        return _MISSING
+
 
 class _Missing:
     pass
@@ -704,6 +962,133 @@ def _coerce_uuid(value: Any) -> uuid.UUID | None:
         return uuid.UUID(str(value))
     except (TypeError, ValueError):
         return None
+
+
+def _payload_text(payload: Mapping[str, Any], key: str) -> str | None:
+    value = payload.get(key)
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _required_payload_text(payload: Mapping[str, Any], key: str) -> str:
+    value = _payload_text(payload, key)
+    if value is None:
+        raise ValueError(f"Background task payload missing required field: {key}")
+    return value
+
+
+def _normalize_session_ids(values: Any) -> list[str]:
+    if values is None:
+        return []
+    if isinstance(values, (str, uuid.UUID)):
+        return [str(values)]
+    if isinstance(values, Mapping):
+        return _normalize_session_ids([values])
+
+    session_ids: list[str] = []
+    try:
+        iterator = iter(values)
+    except TypeError:
+        iterator = iter((values,))
+
+    for value in iterator:
+        session_id = _session_id_value(value)
+        if session_id is not None:
+            session_ids.append(session_id)
+    return session_ids
+
+
+def _session_id_value(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, (str, uuid.UUID)):
+        text = str(value).strip()
+        return text or None
+    if isinstance(value, Mapping):
+        for key in ("session_id", "id"):
+            text = _payload_text(value, key)
+            if text is not None:
+                return text
+        return None
+
+    for attribute in ("session_id", "id"):
+        candidate = getattr(value, attribute, None)
+        if candidate is not None:
+            text = str(candidate).strip()
+            if text:
+                return text
+    return None
+
+
+async def _fetch_db_session_ids_for_user(session: Any, user_id: str) -> list[str]:
+    user_uuid = _coerce_uuid(user_id)
+    if user_uuid is None:
+        return []
+
+    import sqlalchemy as sa
+
+    from chatbot.db import models
+
+    stmt = sa.select(models.Session.id).where(models.Session.user_id == user_uuid)
+    result = await session.execute(stmt)
+    return [str(session_id) for session_id in result.scalars().all()]
+
+
+def _analyze_sentiment(text: str) -> dict[str, Any]:
+    lowered = text.lower()
+    positive = sum(1 for word in _POSITIVE_SENTIMENT_WORDS if word in lowered)
+    negative = sum(1 for word in _NEGATIVE_SENTIMENT_WORDS if word in lowered)
+    score = positive - negative
+    if score > 0:
+        label = "positive"
+    elif score < 0:
+        label = "negative"
+    else:
+        label = "neutral"
+
+    return {
+        "label": label,
+        "score": score,
+        "positive_matches": positive,
+        "negative_matches": negative,
+    }
+
+
+_POSITIVE_SENTIMENT_WORDS = (
+    "appreciate",
+    "calm",
+    "confident",
+    "delighted",
+    "excited",
+    "glad",
+    "grateful",
+    "happy",
+    "hopeful",
+    "love",
+    "proud",
+    "relieved",
+    "thrilled",
+)
+_NEGATIVE_SENTIMENT_WORDS = (
+    "afraid",
+    "angry",
+    "anxious",
+    "ashamed",
+    "depressed",
+    "frustrated",
+    "heartbroken",
+    "hurt",
+    "lonely",
+    "overwhelmed",
+    "panic",
+    "sad",
+    "scared",
+    "stressed",
+    "upset",
+    "worried",
+)
 
 
 __all__ = ["ConsolidationResult", "ConsolidationWorker"]
