@@ -4,7 +4,9 @@ import type {
   CharacterProfile,
   CreateSessionResponse,
   IdentityState,
+  Message,
   RelationshipConfig,
+  Session,
   StreamEvent,
 } from "../types";
 
@@ -445,10 +447,62 @@ function dispatchSseEvent(rawEvent: string, onEvent: (event: StreamEvent) => voi
   onEvent(event);
 }
 
-export function createSession(): Promise<CreateSessionResponse> {
+export function createSession(title?: string): Promise<CreateSessionResponse> {
   return requestJson<CreateSessionResponse>("/api/sessions/", {
     method: "POST",
+    body: JSON.stringify(title === undefined ? {} : { title }),
   });
+}
+
+export function listSessions(): Promise<Session[]> {
+  return requestJson<
+    Array<{
+      session_id: string;
+      title: string | null;
+      created_at: string;
+      message_count: number;
+    }>
+  >("/api/sessions/", {
+    method: "GET",
+  }).then((sessions) =>
+    sessions.map((session, index) => ({
+      session_id: session.session_id,
+      title: session.title || `Chat ${sessions.length - index}`,
+      created_at: session.created_at,
+      message_count: session.message_count,
+    })),
+  );
+}
+
+export function getSessionMessages(sessionId: string): Promise<Message[]> {
+  return requestJson<
+    Array<{
+      message_id: string;
+      role: string;
+      content: string;
+      created_at: string;
+    }>
+  >(`/api/sessions/${sessionId}/messages`, {
+    method: "GET",
+  }).then((messages) =>
+    messages
+      .filter((message) => message.role === "user" || message.role === "assistant")
+      .map((message) => ({
+        message_id: message.message_id,
+        role: message.role as Message["role"],
+        content: message.content,
+        timestamp: message.created_at,
+      })),
+  );
+}
+
+export async function deleteSession(sessionId: string): Promise<void> {
+  await requestJson<{ session_id: string; deleted: boolean }>(
+    `/api/sessions/${sessionId}`,
+    {
+      method: "DELETE",
+    },
+  );
 }
 
 export function sendMessage(

@@ -5,6 +5,7 @@ interface SessionSidebarProps {
   activeSessionId: string | null;
   onSelect: (sessionId: string) => void;
   onNewSession: () => void;
+  onDelete: (session: Session) => void;
 }
 
 function formatCreatedAt(createdAt: string) {
@@ -16,6 +17,7 @@ export function SessionSidebar({
   activeSessionId,
   onSelect,
   onNewSession,
+  onDelete,
 }: SessionSidebarProps) {
   return (
     <aside className="flex h-full w-64 shrink-0 flex-col border-r border-gray-700 bg-gray-800 text-gray-100">
@@ -63,8 +65,30 @@ export function SessionSidebar({
                   aria-current={isActive ? "page" : undefined}
                   onClick={() => onSelect(session.session_id)}
                 >
-                  <span className="block truncate text-sm font-medium text-gray-100">
-                    {session.title}
+                  <span className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-100">
+                      {session.title}
+                    </span>
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Delete ${session.title}`}
+                      title={`Delete ${session.title}`}
+                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-xs text-gray-500 opacity-70 transition hover:bg-red-950/60 hover:text-red-300 focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onDelete(session);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          onDelete(session);
+                        }
+                      }}
+                    >
+                      ×
+                    </span>
                   </span>
                   <time
                     className="mt-1 block truncate text-xs text-gray-400"

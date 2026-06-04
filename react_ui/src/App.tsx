@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
-import { createSession, sendMessage } from "./api/client";
+import {
+  createSession,
+  deleteSession,
+  getSessionMessages,
+  listSessions,
+  sendMessage,
+} from "./api/client";
 import ChatInput from "./components/ChatInput";
 import ChatMessage from "./components/ChatMessage";
 import MessageList from "./components/MessageList";
@@ -14,8 +20,8 @@ function buildSession(
 ): Session {
   return {
     session_id: response.session_id,
-    title,
-    created_at: new Date().toISOString(),
+    title: response.title || title,
+    created_at: response.created_at || new Date().toISOString(),
   };
 }
 
@@ -47,10 +53,11 @@ function createMessage(role: Message["role"], content: string): Message {
 export default function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messagesBySession, setMessagesBySession] = useState<Record<string, Message[]>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const messages = activeSessionId ? messagesBySession[activeSessionId] ?? [] : [];
 
   useEffect(() => {
     if (!user) {
@@ -61,15 +68,24 @@ export default function App() {
 
     async function initializeSession() {
       try {
-        const response = await createSession();
+        const existingSessions = await listSessions();
 
         if (!isMounted) {
           return;
         }
 
+        if (existingSessions.length > 0) {
+          setSessions(existingSessions);
+          setActiveSessionId(existingSessions[0].session_id);
+          setError(null);
+          return;
+        }
+
+        const response = await createSession("Chat 1");
         const session = buildSession(response, "Chat 1");
         setSessions([session]);
         setActiveSessionId(session.session_id);
+        setMessagesBySession({ [session.session_id]: [] });
         setError(null);
       } catch (sessionError) {
         console.error("Failed to create initial session", sessionError);
@@ -87,32 +103,81 @@ export default function App() {
     };
   }, [user]);
 
+  useEffect(() => {
+    if (!activeSessionId) {
+      return;
+    }
+
+    let isMounted = true;
+    const sessionId = activeSessionId;
+
+    async function loadMessages() {
+      try {
+        const loadedMessages = await getSessionMessages(sessionId);
+
+        if (isMounted) {
+          setMessagesBySession((currentMessages) => ({
+            ...currentMessages,
+            [sessionId]: loadedMessages,
+          }));
+          setError(null);
+        }
+      } catch (messageError) {
+        console.error("Failed to load session messages", messageError);
+
+        if (isMounted) {
+          setMessagesBySession((currentMessages) => ({
+            ...currentMessages,
+            [sessionId]: [],
+          }));
+          setError(getErrorDetail(messageError));
+        }
+      }
+    }
+
+    loadMessages();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeSessionId]);
+
   const handleSend = async (message: string) => {
     const trimmedMessage = message.trim();
+    const sessionId = activeSessionId;
 
-    if (!trimmedMessage || !activeSessionId) {
+    if (!trimmedMessage || !sessionId) {
       return;
     }
 
     setError(null);
-    setMessages((currentMessages) => [
+    setMessagesBySession((currentMessages) => ({
       ...currentMessages,
-      createMessage("user", trimmedMessage),
-    ]);
+      [sessionId]: [
+        ...(currentMessages[sessionId] ?? []),
+        createMessage("user", trimmedMessage),
+      ],
+    }));
     setIsLoading(true);
 
     try {
-      const response = await sendMessage(trimmedMessage, activeSessionId);
-      setMessages((currentMessages) => [
+      const response = await sendMessage(trimmedMessage, sessionId);
+      setMessagesBySession((currentMessages) => ({
         ...currentMessages,
-        createMessage("assistant", response.response),
-      ]);
+        [sessionId]: [
+          ...(currentMessages[sessionId] ?? []),
+          createMessage("assistant", response.response),
+        ],
+      }));
     } catch (messageError) {
       console.error("Failed to send message", messageError);
-      setMessages((currentMessages) => [
+      setMessagesBySession((currentMessages) => ({
         ...currentMessages,
-        createMessage("assistant", getErrorDetail(messageError)),
-      ]);
+        [sessionId]: [
+          ...(currentMessages[sessionId] ?? []),
+          createMessage("assistant", getErrorDetail(messageError)),
+        ],
+      }));
     } finally {
       setIsLoading(false);
     }
@@ -120,12 +185,16 @@ export default function App() {
 
   const handleNewSession = async () => {
     try {
-      const response = await createSession();
-      const session = buildSession(response, `Chat ${sessions.length + 1}`);
+      const title = `Chat ${sessions.length + 1}`;
+      const response = await createSession(title);
+      const session = buildSession(response, title);
 
       setSessions((currentSessions) => [...currentSessions, session]);
       setActiveSessionId(session.session_id);
-      setMessages([]);
+      setMessagesBySession((currentMessages) => ({
+        ...currentMessages,
+        [session.session_id]: [],
+      }));
       setError(null);
     } catch (sessionError) {
       console.error("Failed to create session", sessionError);
@@ -135,8 +204,54 @@ export default function App() {
 
   const handleSelectSession = (sessionId: string) => {
     setActiveSessionId(sessionId);
-    setMessages([]);
     setError(null);
+  };
+
+  const handleDeleteSession = async (session: Session) => {
+    const confirmed = window.confirm(
+      `Delete chat "${session.title}". Are you sure?`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await deleteSession(session.session_id);
+
+      const remainingSessions = sessions.filter(
+        (currentSession) => currentSession.session_id !== session.session_id,
+      );
+      setSessions(remainingSessions);
+      setMessagesBySession((currentMessages) => {
+        const nextMessages = { ...currentMessages };
+        delete nextMessages[session.session_id];
+        return nextMessages;
+      });
+
+      if (activeSessionId !== session.session_id) {
+        setError(null);
+        return;
+      }
+
+      if (remainingSessions.length > 0) {
+        setActiveSessionId(remainingSessions[0].session_id);
+        setError(null);
+        return;
+      }
+
+      const response = await createSession("Chat 1");
+      const nextSession = buildSession(response, "Chat 1");
+      setSessions([nextSession]);
+      setActiveSessionId(nextSession.session_id);
+      setMessagesBySession((currentMessages) => ({
+        ...currentMessages,
+        [nextSession.session_id]: [],
+      }));
+      setError(null);
+    } catch (deleteError) {
+      console.error("Failed to delete session", deleteError);
+      setError(getErrorDetail(deleteError));
+    }
   };
 
   if (!user) {
@@ -150,6 +265,7 @@ export default function App() {
         activeSessionId={activeSessionId}
         onSelect={handleSelectSession}
         onNewSession={handleNewSession}
+        onDelete={handleDeleteSession}
       />
 
       <main className="flex min-w-0 flex-1 flex-col bg-gray-900">
