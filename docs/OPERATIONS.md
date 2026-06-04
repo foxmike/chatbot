@@ -1,169 +1,157 @@
-## Chatbot Engine Operations
+# Chatbot Engine Operations
 
-### Local Development Setup
+## 1. Purpose of This Document
 
-Use this sequence from the repository root for a local chatbot engine environment:
+This document is for operating, administering, and using the chatbot system. It covers workflows for local setup, environment configuration, database administration, and basic user interactions.
 
-1. Install prerequisites:
-   - Python 3.12.
-   - `uv`.
-   - Docker with Docker Compose for local PostgreSQL and Redis.
-2. Start the local backing services:
+**Note**: For design and codebase structure details, refer to `docs/ARCHITECTURE.md`. Do not add architectural explanations to this file.
 
+## 2. Local Development Quick Start
+
+To launch the entire stack using Docker Compose:
+
+```bash
+# 1. Start the services (API, UI, Database, Redis)
+docker compose up -d
+
+# 2. Apply database migrations
+alembic upgrade head
+
+# 3. (Optional) Run the seed script to create an initial chat session
+python scripts/seed.py
+```
+
+Alternatively, to run the backend and frontend locally outside of Docker:
+```bash
+# Start backend
+uvicorn chatbot.api.app:app --host 0.0.0.0 --port 8000 --reload
+
+# Start frontend (in a new terminal)
+cd react_ui
+npm install
+npm run dev
+```
+
+## 3. Docker Compose Services
+
+- `api`: FastAPI backend service exposing host port `8000`.
+- `ui`: React/Vite frontend built via `react_ui/Dockerfile`, mapped to host port `3000`.
+- `db`: PostgreSQL 16 with `pgvector`, exposing host port `5432`. Data volume persists at `postgres-data`.
+- `redis`: Redis 7 Alpine, exposing host port `6379`.
+
+All services communicate over the `chatbot-net` bridge network.
+
+## 4. Environment Variables
+
+Operational settings are loaded via `.env` (overriding `chatbot/config.py` defaults):
+
+- `DATABASE_URL`: `postgresql+asyncpg://chatbot:chatbot@localhost:5432/chatbot`
+- `REDIS_URL`: `redis://localhost:6379/0`
+- `API_HOST`: `0.0.0.0`
+- `API_PORT`: `8000`
+- `LOG_LEVEL`: `INFO`
+- `OPENROUTER_API_KEY`: **Required** for LLM capabilities.
+- `OPENROUTER_BASE_URL`: `https://openrouter.ai/api/v1`
+- `DEFAULT_MODEL`: `google/gemma-4-31b-it`
+- `DEFAULT_PROVIDER`: `openrouter`
+
+## 5. Database and Migrations
+
+The application uses Alembic for database schema management.
+
+- **Apply all migrations**: `alembic upgrade head`
+- **Check current version**: `alembic current`
+
+Sessions and messages are fully durable and are stored in PostgreSQL.
+
+## 6. Running the Backend
+
+The exact command used by the Dockerfile is:
+```bash
+uvicorn chatbot.api.app:app --host 0.0.0.0 --port 8000
+```
+When running locally for development, append `--reload` for auto-reloading.
+
+## 7. Running the Frontend
+
+The exact command inside the `react_ui` directory is:
+```bash
+npm run dev
+```
+The Vite development server uses a proxy rule in `vite.config.ts` to rewrite requests starting with `/api` and forward them to `http://localhost:8000`.
+
+## 8. User Operations
+
+- **Sign up / Log in**: The frontend includes an Auth screen to negotiate JWT tokens against backend auth routes.
+- **Create Chat**: Click "New Chat" in the sidebar. This calls `POST /sessions` and navigates to the newly created session.
+- **Switch Chat**: Click an existing session in the sidebar. The frontend requests `GET /sessions/{id}/messages` and reloads the durable chat history.
+- **Delete Chat**: Click the `×` on a session in the sidebar. This triggers `DELETE /sessions/{id}`, removes related messages in Postgres, clears local UI cache, and auto-selects a different session.
+
+## 9. Admin / Developer Operations
+
+- **Start Stack**: `docker compose up -d`
+- **Stop Stack**: `docker compose down`
+- **View Logs**: `docker compose logs -f api` (or `db`, `redis`, `ui`)
+- **Run Migrations**: `alembic upgrade head`
+- **Seed Data**: Run `python scripts/seed.py`. This script targets the running API, creates a session, and sends a test message. Pass `--no-warm` to skip the test message.
+
+## 10. API Operational Reference
+
+Backend routes are mounted directly at the root, e.g., `http://localhost:8000/chat`. 
+
+Verified active endpoints:
+- `GET /health` (returns `{"status": "ok"}`)
+- `POST /sessions`
+- `DELETE /sessions/{session_id}`
+- `GET /sessions/{session_id}/messages`
+- `POST /chat`
+- `/auth`, `/streaming`, `/config`, `/memory`, `/voice`, `/rooms`, `/agency`, `/admin`
+
+## 11. Data Durability and Isolation
+
+- **Users/Auth Sessions**: Persisted in Postgres.
+- **Chat Sessions/Conversations**: Persisted durably in Postgres.
+- **Messages**: Persisted durably in Postgres.
+- **Deleted chats**: Triggering a delete permanently removes the session and cascades to all its messages in Postgres.
+- **Per-user isolation**: All chat and session endpoints enforce strict ownership boundaries by checking the authenticated `user_id`.
+- **Restarts**: All chat histories and configurations survive backend and database restarts.
+
+## 12. Provider / Model Operations
+
+- **Provider**: OpenRouter is the default.
+- **Model**: `google/gemma-4-31b-it`.
+- **Missing Provider Key**: If `OPENROUTER_API_KEY` is not set, the provider system logs a warning on startup (`openrouter provider registered but calls will fail`). When a chat is initiated, it will fail with an error string indicating the pipeline failed. 
+
+## 13. Common Failure Modes and Fixes
+
+- **Frontend cannot reach backend**: Verify `api` container is running and healthy on port 8000. Ensure `.env` is loaded properly.
+- **Chat returns provider/API errors**: Check that `OPENROUTER_API_KEY` is exported and valid. Check `docker compose logs api` for detailed traceback.
+- **Sessions/messages not persisting**: The Postgres connection is likely failing. Verify `DATABASE_URL` matches the exposed credentials. 
+- **Delete does not remove chat**: Verify user ownership; the backend refuses deletes if the `user_id` does not match the session owner. Check API logs for 403/404 errors.
+- **Database connection refused**: Ensure `docker compose up db` ran successfully.
+- **Redis connection refused**: Ensure `docker compose up redis` ran successfully.
+- **Migrations not applied**: An outdated schema will cause HTTP 500s. Run `alembic upgrade head`.
+
+## 14. Verification Checklist
+
+To verify a locally running stack:
+
+1. Check running containers:
    ```bash
-   docker compose up -d
+   docker compose ps
    ```
-
-3. Install Python dependencies:
-
+2. Verify migrations are up to date:
    ```bash
-   uv pip install -r requirements.txt
+   alembic current
    ```
-
-4. Run database migrations:
-
+3. Check backend health:
    ```bash
-   alembic upgrade head
+   curl http://localhost:8000/health
    ```
+4. Verify chat persistence: Create a chat in the UI at `http://localhost:3000`, send a message, and reload the page. The chat and message should persist.
 
-5. Populate local seed data:
+## 15. Operational Boundaries
 
-   ```bash
-   python scripts/seed.py
-   ```
-
-6. Start the API:
-
-   ```bash
-   uvicorn chatbot.api.app:app --reload
-   ```
-
-The repository entrypoint is `chatbot.api.app:app`. The current app factory mounts the
-health router; chat, streaming, and session routers exist under `chatbot/api/` and should
-be mounted before relying on `/chat`, `/chat/stream`, or `/sessions` through the running
-FastAPI app.
-
-### Docker Compose Service Layout
-
-- `api` (`chatbot-api` role): FastAPI service exposed on host port `8000`. The Dockerfile
-  starts `uvicorn chatbot.api.app:app --host 0.0.0.0 --port 8000`.
-- `db` (`postgres` role): PostgreSQL 16 with the pgvector extension image
-  (`pgvector/pgvector:pg16`) exposed on host port `5432`. The default database, user, and
-  password are all `chatbot`.
-- `redis`: Redis 7 Alpine exposed on host port `6379`.
-
-Compose attaches the services to the `chatbot-net` bridge network and stores PostgreSQL
-data in the `postgres-data` named volume.
-
-### Environment Variables
-
-- `DATABASE_URL`: PostgreSQL connection string. The application settings default to
-  `postgresql://chatbot:chatbot@localhost:5432/chatbot`; async SQLAlchemy database code
-  defaults to `postgresql+asyncpg://postgres:postgres@localhost:5432/chatbot` if this
-  variable is not set, so set it explicitly for consistent local behavior.
-- `REDIS_URL`: Redis connection string. Default: `redis://localhost:6379/0`.
-- `CHATBOT_PROVIDER`: LLM provider identifier. Default operational value: `openrouter`.
-- `CHATBOT_MODEL`: Model identifier. Default operational value:
-  `openrouter/deepseek/deepseek-v4-pro`.
-- `CHATBOT_API_KEY`: API key for the LLM provider. Required when provider-backed turn
-  steps are enabled.
-- `CHATBOT_LOG_LEVEL`: Chatbot logging level. Default operational value: `INFO`.
-- `LOG_LEVEL`: Logging level currently loaded by `chatbot.config.Settings`. Default:
-  `INFO`.
-- `API_HOST`: API bind host loaded by settings. Default: `0.0.0.0`.
-- `API_PORT`: API port loaded by settings. Default: `8000`.
-- `ENVIRONMENT`: Runtime environment label loaded by settings. Default: `development`.
-
-The `.env.example` file contains the currently wired local settings. Keep `.env` out of
-source control and use it for local overrides.
-
-### Health Checks
-
-- `GET /health` returns HTTP 200 with `{"status": "ok"}` when the API process is
-  reachable. In the current implementation this endpoint does not check the database.
-- `GET /health/ready` is the readiness target for all dependencies: database, Redis, and
-  provider. It should return HTTP 200 only when every dependency passes its readiness
-  check. If this route returns 404 in the current checkout, the readiness endpoint has not
-  been mounted yet.
-
-### Seed Script Usage
-
-The seed script targets the running HTTP API and creates a development session. By
-default it sends one warm-up chat message after session creation.
-
-- `python scripts/seed.py`: basic seed; creates a session and sends the warm-up message.
-- `python scripts/seed.py --no-warm`: creates a session and skips the warm-up message.
-- `python scripts/seed.py --base-url http://other-host:8000`: targets an alternative API
-  host.
-- `SEED_BASE_URL=http://other-host:8000 python scripts/seed.py`: uses the environment
-  variable instead of `--base-url`.
-
-The script calls `POST /sessions` and `POST /chat` using `httpx` with redirects enabled.
-If the application has not mounted the session and chat routers, the seed script will fail
-with an HTTP status error.
-
-### Common Failure Modes
-
-- Provider unreachable: check `CHATBOT_API_KEY`, the configured provider/model values,
-  and network access to the provider endpoint.
-- Database connection refused: verify `docker compose up -d` has started the `db`
-  service and that `DATABASE_URL` points at the expected host, port, user, password, and
-  database.
-- Redis connection refused: verify `docker compose up -d` has started the `redis` service
-  and that `REDIS_URL` is correct.
-- Memory retrieval returns empty: verify the pgvector extension is installed. The first
-  migration runs `CREATE EXTENSION IF NOT EXISTS vector`; rerun `alembic upgrade head` or
-  check the database manually if the extension is missing.
-- Session lost between restarts: sessions are in-memory by default in
-  `chatbot.api.sessions.sessions_store`; persistent session storage is a future
-  enhancement.
-- Chat or seed requests return 404: verify the FastAPI app has mounted the chat,
-  streaming, and session routers in addition to the health router.
-- Chat responses say `No response`: the current default turn pipeline uses identity
-  steps and only reports `ctx.final_response` or a pipeline error; provider-backed
-  response generation must be wired before conversational replies are produced.
-
-### Troubleshooting
-
-- Verify service status:
-
-  ```bash
-  docker compose ps
-  ```
-
-- Tail API logs:
-
-  ```bash
-  docker compose logs -f api
-  ```
-
-- Tail database logs:
-
-  ```bash
-  docker compose logs -f db
-  ```
-
-- Tail Redis logs:
-
-  ```bash
-  docker compose logs -f redis
-  ```
-
-- Check the health endpoint:
-
-  ```bash
-  curl http://localhost:8000/health
-  ```
-
-- Smoke-test the chat endpoint after the chat router is mounted:
-
-  ```bash
-  curl -X POST http://localhost:8000/chat -H 'Content-Type: application/json' -d '{"session_id":"test","message":"Hello"}'
-  ```
-
-- If the smoke test redirects or fails, retry the route form implemented by
-  `chatbot.api.chat`:
-
-  ```bash
-  curl -X POST http://localhost:8000/chat/ -H 'Content-Type: application/json' -d '{"session_id":"test","message":"Hello"}'
-  ```
+- `docs/OPERATIONS.md` is strictly for running, administering, using, and troubleshooting the system.
+- `docs/ARCHITECTURE.md` is strictly for outlining system design, codebase map, and runtime wiring. 
+- Future design decisions should be mapped in `ARCHITECTURE.md`, not here.
