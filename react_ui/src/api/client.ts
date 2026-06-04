@@ -8,6 +8,34 @@ import type {
   StreamEvent,
 } from "../types";
 
+export interface User {
+  user_id: string;
+  username: string;
+  email: string;
+}
+
+export interface AuthTokens {
+  access_token: string;
+  token_type: string;
+  user: User;
+}
+
+export interface Companion {
+  companion_id: string;
+  user_id: string;
+  name: string;
+  persona: string | null;
+  description: string | null;
+  avatar_url: string | null;
+}
+
+export interface CompanionCreate {
+  name: string;
+  persona: string | null;
+  description: string | null;
+  avatar_url: string | null;
+}
+
 export interface MemoryItem {
   id: string;
   content: string;
@@ -246,6 +274,22 @@ export interface ClassificationResponse {
 
 const BASE_URL = "";
 
+let accessToken: string | null = localStorage.getItem("auth_token");
+
+export function setAccessToken(token: string): void {
+  accessToken = token;
+  localStorage.setItem("auth_token", token);
+}
+
+export function getAccessToken(): string | null {
+  return accessToken;
+}
+
+export function clearAccessToken(): void {
+  accessToken = null;
+  localStorage.removeItem("auth_token");
+}
+
 async function parseErrorResponse(response: Response): Promise<ApiError> {
   try {
     const body = (await response.json()) as Partial<ApiError>;
@@ -270,12 +314,17 @@ async function assertOk(response: Response): Promise<void> {
 }
 
 async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(init.headers as Record<string, string>),
+  };
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
+  }
+
   const response = await fetch(`${BASE_URL}${path}`, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...init.headers,
-    },
+    headers,
   });
 
   await assertOk(response);
@@ -672,11 +721,15 @@ export function createRitual(
 }
 
 export async function deactivateRitual(ritualId: string): Promise<void> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
+  }
   const response = await fetch(`${BASE_URL}/api/rituals/${ritualId}`, {
     method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers,
   });
 
   await assertOk(response);
@@ -833,11 +886,15 @@ export function updateRoomMemoryPolicy(
 }
 
 export async function deleteRoom(roomId: string): Promise<void> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
+  }
   const response = await fetch(`${BASE_URL}/rooms/${roomId}`, {
     method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers,
   });
   await assertOk(response);
 }
@@ -917,4 +974,87 @@ export function classifySceneMemory(
       body: JSON.stringify({ text }),
     },
   );
+}
+
+export async function signup(
+  username: string,
+  email: string,
+  password: string,
+): Promise<AuthTokens> {
+  const tokens = await requestJson<AuthTokens>("/auth/signup", {
+    method: "POST",
+    body: JSON.stringify({ username, email, password }),
+  });
+  setAccessToken(tokens.access_token);
+  return tokens;
+}
+
+export async function login(
+  email: string,
+  password: string,
+): Promise<AuthTokens> {
+  const tokens = await requestJson<AuthTokens>("/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+  setAccessToken(tokens.access_token);
+  return tokens;
+}
+
+export async function logout(): Promise<void> {
+  await requestJson<{ detail: string }>("/auth/logout", {
+    method: "POST",
+  });
+  clearAccessToken();
+}
+
+export async function fetchMe(): Promise<User> {
+  return requestJson<User>("/auth/me", {
+    method: "GET",
+  });
+}
+
+export async function createCompanion(
+  data: CompanionCreate,
+): Promise<Companion> {
+  return requestJson<Companion>("/companions", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function listCompanions(): Promise<Companion[]> {
+  const result = await requestJson<{ companions: Companion[] }>("/companions", {
+    method: "GET",
+  });
+  return result.companions;
+}
+
+export async function getCompanion(companionId: string): Promise<Companion> {
+  return requestJson<Companion>(`/companions/${companionId}`, {
+    method: "GET",
+  });
+}
+
+export async function updateCompanion(
+  companionId: string,
+  data: Partial<CompanionCreate>,
+): Promise<Companion> {
+  return requestJson<Companion>(`/companions/${companionId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteCompanion(companionId: string): Promise<void> {
+  const response = await fetch(`${BASE_URL}/companions/${companionId}`, {
+    method: "DELETE",
+    headers: accessToken
+      ? {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        }
+      : { "Content-Type": "application/json" },
+  });
+  await assertOk(response);
 }
