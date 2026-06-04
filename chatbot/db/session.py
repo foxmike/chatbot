@@ -1,12 +1,11 @@
 from collections.abc import AsyncGenerator
-import os
 from types import SimpleNamespace
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from chatbot.config import get_settings
 
-DEFAULT_DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/chatbot"
-DATABASE_URL = os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL)
+DATABASE_URL = get_settings().database_url
 
 
 def _raise_missing_asyncpg(*_args: object, **_kwargs: object) -> None:

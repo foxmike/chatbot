@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import os
-import secrets
 from datetime import datetime, timedelta, timezone
 
 import jwt
 from passlib.context import CryptContext
 from jwt import PyJWTError
 
-SECRET_KEY: str = os.environ.get("CHATBOT_SECRET_KEY", secrets.token_hex(32))
+from chatbot.config import get_settings
+
+
+SECRET_KEY: str = get_settings().jwt_secret_key
 ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.environ.get("CHATBOT_TOKEN_EXPIRE_MINUTES", 60))
 ALGORITHM: str = "HS256"
 

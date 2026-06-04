@@ -5,6 +5,8 @@ import ChatMessage from "./components/ChatMessage";
 import MessageList from "./components/MessageList";
 import SessionSidebar from "./components/SessionSidebar";
 import type { ApiError, CreateSessionResponse, Message, Session } from "./types";
+import { AuthScreen } from "./components/AuthScreen";
+import type { User } from "./api/client";
 
 function buildSession(
   response: CreateSessionResponse,
@@ -48,6 +50,7 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -78,7 +81,7 @@ export default function App() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [user]);
 
   const handleSend = async (message: string) => {
     const trimmedMessage = message.trim();
@@ -131,6 +134,10 @@ export default function App() {
     setMessages([]);
     setError(null);
   };
+
+  if (!user) {
+    return <AuthScreen onAuthenticated={setUser} />;
+  }
 
   return (
     <div className="flex h-screen bg-gray-900 text-gray-100">
