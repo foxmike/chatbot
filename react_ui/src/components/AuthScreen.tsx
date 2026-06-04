@@ -106,16 +106,16 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
 
     try {
       if (mode === "login") {
-        const result = await login(email.trim(), password);
-        onAuthenticated(result.user);
+        await login(email.trim(), password);
       } else {
-        const result = await signup(
+        await signup(
           username.trim(),
           email.trim(),
           password,
         );
-        onAuthenticated(result.user);
       }
+      const authenticatedUser = await fetchMe();
+      onAuthenticated(authenticatedUser);
     } catch (err) {
       console.error("Authentication failed", err);
       setError(getErrorDetail(err));

@@ -1,14 +1,13 @@
 from functools import lru_cache
-import secrets
 
-from pydantic import Field, RedisDsn
+from pydantic import RedisDsn
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://chatbot:chatbot@localhost:5432/chatbot"
     redis_url: RedisDsn | str = "redis://localhost:6379/0"
-    jwt_secret_key: str = Field(default_factory=lambda: secrets.token_hex(32))
+    jwt_secret_key: str = "dev-jwt-secret-key-change-me"
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     log_level: str = "INFO"

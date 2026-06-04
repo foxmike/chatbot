@@ -53,6 +53,10 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
+    if (!user) {
+      return;
+    }
+
     let isMounted = true;
 
     async function initializeSession() {

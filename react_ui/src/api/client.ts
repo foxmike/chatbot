@@ -341,6 +341,7 @@ export interface StreamCallbacks {
 }
 
 const BASE_URL = "";
+const API_PREFIX = "/api";
 
 let accessToken: string | null = localStorage.getItem("auth_token");
 
@@ -381,6 +382,14 @@ async function assertOk(response: Response): Promise<void> {
   }
 }
 
+function backendPath(path: string): string {
+  if (path.startsWith(`${API_PREFIX}/`) || path === API_PREFIX) {
+    return path;
+  }
+
+  return `${API_PREFIX}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
 async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -390,7 +399,7 @@ async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
     headers["Authorization"] = `Bearer ${accessToken}`;
   }
 
-  const response = await fetch(`${BASE_URL}${path}`, {
+  const response = await fetch(`${BASE_URL}${backendPath(path)}`, {
     ...init,
     headers,
   });
@@ -467,7 +476,7 @@ export async function streamChat(
 
   let response: Response;
   try {
-    response = await fetch(`${BASE_URL}/chat/stream`, {
+    response = await fetch(`${BASE_URL}${backendPath("/chat/stream")}`, {
       method: "POST",
       headers,
       body: JSON.stringify({ session_id: sessionId, message }),
@@ -999,10 +1008,13 @@ export async function deactivateRitual(ritualId: string): Promise<void> {
   if (accessToken) {
     headers["Authorization"] = `Bearer ${accessToken}`;
   }
-  const response = await fetch(`${BASE_URL}/api/rituals/${ritualId}`, {
-    method: "DELETE",
-    headers,
-  });
+  const response = await fetch(
+    `${BASE_URL}${backendPath(`/api/rituals/${ritualId}`)}`,
+    {
+      method: "DELETE",
+      headers,
+    },
+  );
 
   await assertOk(response);
 }
@@ -1201,10 +1213,13 @@ export async function deleteRoom(roomId: string): Promise<void> {
   if (accessToken) {
     headers["Authorization"] = `Bearer ${accessToken}`;
   }
-  const response = await fetch(`${BASE_URL}/rooms/${roomId}`, {
-    method: "DELETE",
-    headers,
-  });
+  const response = await fetch(
+    `${BASE_URL}${backendPath(`/rooms/${roomId}`)}`,
+    {
+      method: "DELETE",
+      headers,
+    },
+  );
   await assertOk(response);
 }
 
@@ -1356,15 +1371,18 @@ export async function updateCompanion(
 }
 
 export async function deleteCompanion(companionId: string): Promise<void> {
-  const response = await fetch(`${BASE_URL}/companions/${companionId}`, {
-    method: "DELETE",
-    headers: accessToken
-      ? {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        }
-      : { "Content-Type": "application/json" },
-  });
+  const response = await fetch(
+    `${BASE_URL}${backendPath(`/companions/${companionId}`)}`,
+    {
+      method: "DELETE",
+      headers: accessToken
+        ? {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          }
+        : { "Content-Type": "application/json" },
+    },
+  );
   await assertOk(response);
 }
 
