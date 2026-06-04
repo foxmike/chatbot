@@ -178,6 +178,40 @@ export interface CreateRitualRequest {
   trigger_prompt: string | null;
 }
 
+export interface VoicePreferences {
+  ttsProviderId: string | null;
+  ttsModelId: string | null;
+  sttProviderId: string | null;
+  sttModelId: string | null;
+  voiceSpeed: number | null;
+  voicePitch: number | null;
+  voiceEnabled: boolean;
+}
+
+export interface SynthesizeRequest {
+  text: string;
+  mood: string | undefined;
+  mode: string | undefined;
+}
+
+export interface SynthesizeResponse {
+  audioUrl: string;
+  durationMs: number;
+  format: string;
+}
+
+export interface TranscribeRequest {
+  audioBase64: string;
+  format: string;
+  language: string | undefined;
+}
+
+export interface TranscribeResponse {
+  text: string;
+  confidence: number;
+  languageDetected: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Room & Scene types
 // ---------------------------------------------------------------------------
@@ -849,6 +883,43 @@ export function triggerCheckIn(
 export function fetchSchedule(userId: string): Promise<ScheduleResponse> {
   return requestJson<ScheduleResponse>(`/agency/schedule/${userId}`, {
     method: "GET",
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Voice API functions
+// ---------------------------------------------------------------------------
+
+export function fetchVoicePreferences(): Promise<VoicePreferences> {
+  return requestJson<VoicePreferences>("/api/voice/preferences", {
+    method: "GET",
+  });
+}
+
+export function updateVoicePreferences(
+  prefs: Partial<VoicePreferences>,
+): Promise<VoicePreferences> {
+  return requestJson<VoicePreferences>("/api/voice/preferences", {
+    method: "PUT",
+    body: JSON.stringify(prefs),
+  });
+}
+
+export function synthesizeSpeech(
+  req: SynthesizeRequest,
+): Promise<SynthesizeResponse> {
+  return requestJson<SynthesizeResponse>("/api/voice/synthesize", {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
+}
+
+export function transcribeAudio(
+  req: TranscribeRequest,
+): Promise<TranscribeResponse> {
+  return requestJson<TranscribeResponse>("/api/voice/transcribe", {
+    method: "POST",
+    body: JSON.stringify(req),
   });
 }
 
