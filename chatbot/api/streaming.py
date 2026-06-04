@@ -3,33 +3,50 @@
 from __future__ import annotations
 
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterable, Mapping
+import inspect
 from time import perf_counter
+from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from pydantic import BaseModel
 from starlette.responses import StreamingResponse
 
-from chatbot.core import TurnContext, TurnStep, build_default_pipeline
+from chatbot.core import TurnContext, TurnStep
+from chatbot.core.turn import (
+    _provider_config,
+    _provider_history,
+    _render_trace_prompt,
+    _select_provider,
+    _store_llm_trace_metadata,
+    build_default_pipeline,
+)
 
 
 class StreamRequest(BaseModel):
     session_id: str
     message: str
+    stream_tokens: bool = True
 
 
 streaming_router = APIRouter(prefix="/chat")
+_STREAM_METHOD_NAMES = ("stream_complete", "complete_stream", "stream_tokens", "stream")
 
 
 @streaming_router.post("/stream")
-async def stream_chat(request: StreamRequest) -> StreamingResponse:
+async def stream_chat(http_request: Request, request: StreamRequest) -> StreamingResponse:
     return StreamingResponse(
-        _stream_turn(request),
+        _stream_turn(request, http_request=http_request),
         media_type="text/event-stream",
     )
 
 
-async def _stream_turn(request: StreamRequest) -> AsyncIterator[str]:
+async def _stream_turn(
+    request: StreamRequest,
+    *,
+    http_request: Request | None = None,
+) -> AsyncIterator[str]:
+    typing_active = False
     try:
         ctx = TurnContext(
             session_id=request.session_id,
@@ -41,12 +58,53 @@ async def _stream_turn(request: StreamRequest) -> AsyncIterator[str]:
             provider_response=None,
             extracted_memories=[],
             final_response=None,
-            metadata={},
+            metadata=_stream_metadata(http_request),
         )
         pipeline = build_default_pipeline()
 
+        yield _sse_data({"type": "typing", "status": "started"})
+        typing_active = True
+
+        provider_seen = False
         for step in getattr(pipeline, "_steps", []):
             step_name = _step_name(step)
+            if step_name == "call_provider":
+                provider_seen = True
+                yield _sse_data({"step": step_name, "status": "streaming"})
+
+                started_at = perf_counter()
+                stream_attempted = False
+                token_emitted = False
+                if request.stream_tokens:
+                    async for token in _stream_provider_tokens(ctx):
+                        stream_attempted = True
+                        token_emitted = True
+                        yield _sse_data({"type": "token", "text": token})
+                    stream_attempted = stream_attempted or bool(
+                        ctx.metadata.pop("_stream_provider_attempted", False)
+                    )
+
+                if not stream_attempted:
+                    ctx = await step.run(ctx)
+                    for token in _provider_text_chunks(ctx):
+                        yield _sse_data({"type": "token", "text": token})
+                elif not token_emitted:
+                    for token in _provider_text_chunks(ctx):
+                        yield _sse_data({"type": "token", "text": token})
+
+                duration_ms = (perf_counter() - started_at) * 1000
+
+                yield _sse_data(
+                    {
+                        "step": step_name,
+                        "status": "done",
+                        "duration_ms": duration_ms,
+                    }
+                )
+                yield _sse_data({"type": "typing", "status": "stopped"})
+                typing_active = False
+                continue
+
             yield _sse_data({"step": step_name, "status": "running"})
 
             started_at = perf_counter()
@@ -61,6 +119,10 @@ async def _stream_turn(request: StreamRequest) -> AsyncIterator[str]:
                 }
             )
 
+        if not provider_seen and typing_active:
+            yield _sse_data({"type": "typing", "status": "stopped"})
+            typing_active = False
+
         response = ctx.final_response
         if response is None:
             response = str(ctx.metadata.get("pipeline_error", "No response"))
@@ -68,8 +130,192 @@ async def _stream_turn(request: StreamRequest) -> AsyncIterator[str]:
         yield _sse_data({"type": "response", "text": response})
         yield "data: [DONE]\n\n"
     except Exception as exc:
+        if typing_active:
+            yield _sse_data({"type": "typing", "status": "stopped"})
         yield _sse_data({"type": "error", "error": str(exc)})
         yield "data: [DONE]\n\n"
+
+
+async def _stream_provider_tokens(ctx: TurnContext) -> AsyncIterator[str]:
+    provider = _select_provider(ctx)
+    if provider is None:
+        return
+
+    stream_method = _provider_stream_method(provider)
+    if stream_method is None:
+        return
+    ctx.metadata["_stream_provider_attempted"] = True
+
+    config = _provider_config(ctx)
+    history = _provider_history(ctx)
+    ctx.metadata["llm_history"] = history
+    ctx.metadata["llm_prompt"] = _render_trace_prompt(ctx.user_message, history)
+
+    result_for_metadata: Any | None = None
+    streamed_text_parts: list[str] = []
+    try:
+        stream_result = stream_method(
+            prompt=ctx.user_message,
+            history=history,
+            config=config,
+        )
+        async for chunk in _iter_stream_result(stream_result):
+            if _looks_like_provider_response(chunk):
+                result_for_metadata = chunk
+                text = getattr(chunk, "text", "")
+            else:
+                text = _chunk_text(chunk)
+            if text:
+                streamed_text_parts.append(text)
+                yield text
+    except Exception as exc:
+        ctx.provider_response = f"Provider error: {exc}"
+        _store_llm_trace_metadata(ctx, provider=provider, config=config, result=None)
+        return
+
+    streamed_text = "".join(streamed_text_parts)
+    if not streamed_text and result_for_metadata is not None:
+        streamed_text = str(getattr(result_for_metadata, "text", "") or "")
+    ctx.provider_response = streamed_text
+    _store_llm_trace_metadata(
+        ctx,
+        provider=provider,
+        config=config,
+        result=result_for_metadata,
+    )
+
+
+def _provider_stream_method(provider: Any) -> Any | None:
+    for name in _STREAM_METHOD_NAMES:
+        method = getattr(provider, name, None)
+        if callable(method):
+            return method
+    return None
+
+
+async def _iter_stream_result(stream_result: Any) -> AsyncIterator[Any]:
+    if inspect.isawaitable(stream_result):
+        stream_result = await stream_result
+
+    if hasattr(stream_result, "__aiter__"):
+        async for item in stream_result:
+            yield item
+        return
+
+    if _is_sync_iterable(stream_result):
+        for item in stream_result:
+            yield item
+        return
+
+    if stream_result is not None:
+        yield stream_result
+
+
+def _is_sync_iterable(value: Any) -> bool:
+    return isinstance(value, Iterable) and not isinstance(value, (str, bytes, Mapping))
+
+
+def _looks_like_provider_response(value: Any) -> bool:
+    return hasattr(value, "text") and hasattr(value, "finish_reason")
+
+
+def _chunk_text(chunk: Any) -> str:
+    if chunk is None:
+        return ""
+    if isinstance(chunk, str):
+        return chunk
+    if isinstance(chunk, bytes):
+        return chunk.decode(errors="replace")
+    if isinstance(chunk, Mapping):
+        return _mapping_chunk_text(chunk)
+
+    for attribute in ("text", "token", "content", "delta"):
+        value = getattr(chunk, attribute, None)
+        if isinstance(value, str):
+            return value
+        if isinstance(value, Mapping):
+            text = _mapping_chunk_text(value)
+            if text:
+                return text
+    return str(chunk)
+
+
+def _mapping_chunk_text(chunk: Mapping[str, Any]) -> str:
+    for key in ("text", "token", "content"):
+        value = chunk.get(key)
+        if isinstance(value, str):
+            return value
+
+    delta = chunk.get("delta")
+    if isinstance(delta, str):
+        return delta
+    if isinstance(delta, Mapping):
+        text = _mapping_chunk_text(delta)
+        if text:
+            return text
+
+    choices = chunk.get("choices")
+    if isinstance(choices, list) and choices:
+        first_choice = choices[0]
+        if isinstance(first_choice, Mapping):
+            text = _mapping_chunk_text(first_choice)
+            if text:
+                return text
+
+    return ""
+
+
+def _provider_text_chunks(ctx: TurnContext) -> list[str]:
+    if ctx.provider_response is None:
+        return []
+
+    text = str(ctx.provider_response)
+    return [text] if text else []
+
+
+def _stream_metadata(http_request: Request | None) -> dict[str, Any]:
+    metadata: dict[str, Any] = {}
+    if http_request is None:
+        return metadata
+
+    for metadata_key, state_names in {
+        "provider_registry": ("provider_registry",),
+        "provider_router": ("provider_router",),
+        "provider_config": ("provider_config",),
+        "provider_policy": ("provider_policy",),
+        "provider_name": ("provider_name", "default_provider"),
+        "default_provider": ("default_provider",),
+        "model": ("model", "default_model"),
+        "default_model": ("default_model",),
+        "retrieval_engine": ("retrieval_engine", "memory_retriever", "vectorstore"),
+        "memory_storage": ("memory_storage", "memory_store", "vectorstore"),
+        "memory_database": ("memory_database", "database", "db"),
+        "database": ("database", "db"),
+        "db": ("db",),
+        "working_memory_store": (
+            "working_memory_store",
+            "working_memory",
+            "memory_store",
+            "histories",
+        ),
+    }.items():
+        value = _first_state_value(http_request, *state_names)
+        if value is not None:
+            metadata[metadata_key] = value
+
+    return metadata
+
+
+def _first_state_value(http_request: Request, *names: str) -> Any | None:
+    state = getattr(http_request.app, "state", None)
+    if state is None:
+        return None
+
+    for name in names:
+        value = getattr(state, name, None)
+        if value is not None:
+            return value
+    return None
 
 
 def _step_name(step: TurnStep) -> str:
