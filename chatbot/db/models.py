@@ -703,6 +703,55 @@ class Scene(Base):
     room: Mapped[Room] = relationship(back_populates="scenes", foreign_keys=[room_id])
 
 
+class VoicePreferences(Base):
+    __tablename__ = "voice_preferences"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=sa.text("gen_random_uuid()"),
+    )
+    user_id: Mapped[str] = mapped_column(
+        sa.String(64), nullable=False, unique=True
+    )
+    tts_provider_id: Mapped[str | None] = mapped_column(
+        sa.String(64), nullable=True
+    )
+    tts_model_id: Mapped[str | None] = mapped_column(
+        sa.String(128), nullable=True
+    )
+    stt_provider_id: Mapped[str | None] = mapped_column(
+        sa.String(64), nullable=True
+    )
+    stt_model_id: Mapped[str | None] = mapped_column(
+        sa.String(128), nullable=True
+    )
+    voice_speed: Mapped[float | None] = mapped_column(
+        sa.Float, nullable=True
+    )
+    voice_pitch: Mapped[float | None] = mapped_column(
+        sa.Float, nullable=True
+    )
+    voice_enabled: Mapped[bool] = mapped_column(
+        sa.Boolean,
+        nullable=False,
+        default=True,
+        server_default=sa.text("true"),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.sql.func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.sql.func.now(),
+        onupdate=sa.sql.func.now(),
+    )
+
+
 __all__ = [
     "AgencyRitual",
     "AgencyTimeline",
@@ -727,4 +776,5 @@ __all__ = [
     "User",
     "UserSession",
     "UserStateLog",
+    "VoicePreferences",
 ]
