@@ -18,6 +18,11 @@ dependencies = [
     "redis[hiredis]",
     "alembic",
     "httpx",
+    "dataclasses-json",
+    "python-multipart",
+    "PyJWT",
+    "passlib[bcrypt]",
+    "pydantic[email]",
 ]
 
 [dependency-groups]
