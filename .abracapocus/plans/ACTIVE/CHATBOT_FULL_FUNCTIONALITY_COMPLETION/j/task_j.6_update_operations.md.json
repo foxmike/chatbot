@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "task_id": "j.6",
+  "phase_id": "j",
+  "phase": "J",
+  "title": "Update OPERATIONS.md",
+  "description": "Before editing, inspect the files listed in allowed_write_paths. Update OPERATIONS.md. Allowed write paths: docs/OPERATIONS.md. selected_backend: antigravity_cli",
+  "acceptance_criteria": [
+    "The requested task outcome is implemented or verified.",
+    "No file outside allowed_write_paths is modified."
+  ],
+  "selected_backend": "antigravity_cli",
+  "verification_profile": "focused",
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "allowed_write_paths": [
+    "docs/OPERATIONS.md"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "task_id": "h.8",
+  "phase_id": "h",
+  "phase": "H",
+  "title": "Verify graceful provider failure",
+  "description": "Before editing, inspect the files listed in allowed_write_paths. Verify graceful provider failure. Allowed write paths: chatbot/visual/generation.py, chatbot/visual/understanding.py, docs/verification/phase_h_provider_failure.md. selected_backend: antigravity_cli",
+  "acceptance_criteria": [
+    "The requested task outcome is implemented or verified.",
+    "No file outside allowed_write_paths is modified."
+  ],
+  "selected_backend": "antigravity_cli",
+  "verification_profile": "focused",
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "allowed_write_paths": [
+    "chatbot/visual/generation.py",
+    "chatbot/visual/understanding.py",
+    "docs/verification/phase_h_provider_failure.md"
+  ]
+}

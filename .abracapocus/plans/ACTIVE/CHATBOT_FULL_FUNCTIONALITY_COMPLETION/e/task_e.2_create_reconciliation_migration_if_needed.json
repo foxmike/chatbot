@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "task_id": "e.2",
+  "phase_id": "e",
+  "phase": "E",
+  "title": "Create reconciliation migration if needed",
+  "description": "Before editing, inspect the files listed in allowed_write_paths. Create reconciliation migration if needed. Allowed write paths: migrations/versions/0010_continuity_reconciliation.py. selected_backend: codex_cli",
+  "acceptance_criteria": [
+    "The requested task outcome is implemented or verified.",
+    "No file outside allowed_write_paths is modified."
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "allowed_write_paths": [
+    "migrations/versions/0010_continuity_reconciliation.py"
+  ]
+}

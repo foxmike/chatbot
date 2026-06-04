@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "task_id": "j.1",
+  "phase_id": "j",
+  "phase": "J",
+  "title": "Multi-user E2E isolation tests",
+  "description": "Before editing, inspect the files listed in allowed_write_paths. Multi-user E2E isolation tests. Allowed write paths: tests/integration/test_multi_user_isolation.py. selected_backend: codex_cli",
+  "acceptance_criteria": [
+    "The requested task outcome is implemented or verified.",
+    "No file outside allowed_write_paths is modified."
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "allowed_write_paths": [
+    "tests/integration/test_multi_user_isolation.py"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "task_id": "g.3",
+  "phase_id": "g",
+  "phase": "G",
+  "title": "Implement STT provider call \u2014 replace NotImplementedError in chatbot/voice/stt.py",
+  "description": "Before editing, inspect the files listed in allowed_write_paths. Implement STT provider call \u2014 replace NotImplementedError in chatbot/voice/stt.py. Allowed write paths: chatbot/voice/stt.py. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro",
+  "acceptance_criteria": [
+    "The requested task outcome is implemented or verified.",
+    "No file outside allowed_write_paths is modified."
+  ],
+  "selected_backend": "pi_cli",
+  "verification_profile": "focused",
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "allowed_write_paths": [
+    "chatbot/voice/stt.py"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "task_id": "d.4",
+  "phase_id": "d",
+  "phase": "D",
+  "title": "Expose identity state and evolution controls \u2014 add identity UI",
+  "description": "Before editing, inspect the files listed in allowed_write_paths. Expose identity state and evolution controls \u2014 add identity UI. Allowed write paths: react_ui/src/App.tsx, react_ui/src/components/SettingsPanel.tsx, react_ui/src/components/IdentityControls.tsx, react_ui/src/api/client.ts. selected_backend: codex_cli",
+  "acceptance_criteria": [
+    "The requested task outcome is implemented or verified.",
+    "No file outside allowed_write_paths is modified."
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "allowed_write_paths": [
+    "react_ui/src/App.tsx",
+    "react_ui/src/components/SettingsPanel.tsx",
+    "react_ui/src/components/IdentityControls.tsx",
+    "react_ui/src/api/client.ts"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "task_id": "a.1",
+  "phase_id": "a",
+  "phase": "A",
+  "title": "Fix memory router prefix \u2014 change from /api/memories to /memories in chatbot/api/memory.py",
+  "description": "Before editing, inspect the files listed in allowed_write_paths. Fix memory router prefix \u2014 change from /api/memories to /memories in chatbot/api/memory.py. Allowed write paths: chatbot/api/memory.py. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905",
+  "acceptance_criteria": [
+    "The requested task outcome is implemented or verified.",
+    "No file outside allowed_write_paths is modified."
+  ],
+  "selected_backend": "pi_cli",
+  "verification_profile": "focused",
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "model": "openrouter/moonshotai/kimi-k2-0905",
+  "allowed_write_paths": [
+    "chatbot/api/memory.py"
+  ]
+}

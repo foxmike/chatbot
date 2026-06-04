@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "task_id": "c.4",
+  "phase_id": "c",
+  "phase": "C",
+  "title": "Verify extraction runs via background worker \u2014 ensure memory_extract handler processes extraction",
+  "description": "Before editing, inspect the files listed in allowed_write_paths. Verify extraction runs via background worker \u2014 ensure memory_extract handler processes extraction. Allowed write paths: chatbot/perf/handlers.py, chatbot/memory/extraction.py, docs/verification/phase_c_memory_extract_worker.md. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro",
+  "acceptance_criteria": [
+    "The requested task outcome is implemented or verified.",
+    "No file outside allowed_write_paths is modified."
+  ],
+  "selected_backend": "pi_cli",
+  "verification_profile": "focused",
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "allowed_write_paths": [
+    "chatbot/perf/handlers.py",
+    "chatbot/memory/extraction.py",
+    "docs/verification/phase_c_memory_extract_worker.md"
+  ]
+}

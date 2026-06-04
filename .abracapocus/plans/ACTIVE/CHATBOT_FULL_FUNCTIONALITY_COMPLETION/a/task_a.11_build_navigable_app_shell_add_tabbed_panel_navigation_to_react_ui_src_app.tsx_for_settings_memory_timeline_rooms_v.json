@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "task_id": "a.11",
+  "phase_id": "a",
+  "phase": "A",
+  "title": "Build navigable app shell \u2014 add tabbed/panel navigation to react_ui/src/App.tsx for settings, memory, timeline, rooms, v",
+  "description": "Before editing, inspect the files listed in allowed_write_paths. Build navigable app shell \u2014 add tabbed/panel navigation to react_ui/src/App.tsx for settings, memory, timeline, rooms, voice, admin panels. Create AppShell.tsx and SettingsPanel.tsx. Allowed write paths: react_ui/src/App.tsx, react_ui/src/components/AppShell.tsx, react_ui/src/components/SettingsPanel.tsx. selected_backend: codex_cli",
+  "acceptance_criteria": [
+    "The requested task outcome is implemented or verified.",
+    "No file outside allowed_write_paths is modified."
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "allowed_write_paths": [
+    "react_ui/src/App.tsx",
+    "react_ui/src/components/AppShell.tsx",
+    "react_ui/src/components/SettingsPanel.tsx"
+  ]
+}

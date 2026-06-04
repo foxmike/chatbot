@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "task_id": "c.1",
+  "phase_id": "c",
+  "phase": "C",
+  "title": "Add embedding provider config \u2014 add embedding_provider and embedding_model settings to chatbot/config.py",
+  "description": "Before editing, inspect the files listed in allowed_write_paths. Add embedding provider config \u2014 add embedding_provider and embedding_model settings to chatbot/config.py. Allowed write paths: chatbot/config.py. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905",
+  "acceptance_criteria": [
+    "The requested task outcome is implemented or verified.",
+    "No file outside allowed_write_paths is modified."
+  ],
+  "selected_backend": "pi_cli",
+  "verification_profile": "focused",
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "model": "openrouter/moonshotai/kimi-k2-0905",
+  "allowed_write_paths": [
+    "chatbot/config.py"
+  ]
+}

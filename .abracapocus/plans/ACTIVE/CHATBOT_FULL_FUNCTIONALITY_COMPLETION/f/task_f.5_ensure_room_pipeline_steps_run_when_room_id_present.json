@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "task_id": "f.5",
+  "phase_id": "f",
+  "phase": "F",
+  "title": "Ensure room pipeline steps run when room_id present",
+  "description": "Before editing, inspect the files listed in allowed_write_paths. Ensure room pipeline steps run when room_id present. Allowed write paths: chatbot/core/turn.py, chatbot/rooms/roleplay.py. selected_backend: codex_cli",
+  "acceptance_criteria": [
+    "The requested task outcome is implemented or verified.",
+    "No file outside allowed_write_paths is modified."
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "allowed_write_paths": [
+    "chatbot/core/turn.py",
+    "chatbot/rooms/roleplay.py"
+  ]
+}

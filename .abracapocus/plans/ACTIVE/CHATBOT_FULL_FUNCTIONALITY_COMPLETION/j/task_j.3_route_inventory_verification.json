@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "task_id": "j.3",
+  "phase_id": "j",
+  "phase": "J",
+  "title": "Route inventory verification",
+  "description": "Before editing, inspect the files listed in allowed_write_paths. Route inventory verification. Allowed write paths: tests/integration/test_route_inventory.py, docs/verification/phase_j_route_inventory.md. selected_backend: antigravity_cli",
+  "acceptance_criteria": [
+    "The requested task outcome is implemented or verified.",
+    "No file outside allowed_write_paths is modified."
+  ],
+  "selected_backend": "antigravity_cli",
+  "verification_profile": "focused",
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "allowed_write_paths": [
+    "tests/integration/test_route_inventory.py",
+    "docs/verification/phase_j_route_inventory.md"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "task_id": "i.4",
+  "phase_id": "i",
+  "phase": "I",
+  "title": "Configure task-class model routing",
+  "description": "Before editing, inspect the files listed in allowed_write_paths. Configure task-class model routing. Allowed write paths: chatbot/providers/router.py, chatbot/config.py. selected_backend: codex_cli",
+  "acceptance_criteria": [
+    "The requested task outcome is implemented or verified.",
+    "No file outside allowed_write_paths is modified."
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "allowed_write_paths": [
+    "chatbot/providers/router.py",
+    "chatbot/config.py"
+  ]
+}

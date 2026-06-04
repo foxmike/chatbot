@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "task_id": "a.3",
+  "phase_id": "a",
+  "phase": "A",
+  "title": "Register companion router \u2014 create chatbot/api/companions.py using existing CompanionManager, register in app.py",
+  "description": "Before editing, inspect the files listed in allowed_write_paths. Register companion router \u2014 create chatbot/api/companions.py using existing CompanionManager, register in app.py. Allowed write paths: chatbot/api/companions.py, chatbot/api/app.py. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro",
+  "acceptance_criteria": [
+    "The requested task outcome is implemented or verified.",
+    "No file outside allowed_write_paths is modified."
+  ],
+  "selected_backend": "pi_cli",
+  "verification_profile": "focused",
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "allowed_write_paths": [
+    "chatbot/api/companions.py",
+    "chatbot/api/app.py"
+  ]
+}

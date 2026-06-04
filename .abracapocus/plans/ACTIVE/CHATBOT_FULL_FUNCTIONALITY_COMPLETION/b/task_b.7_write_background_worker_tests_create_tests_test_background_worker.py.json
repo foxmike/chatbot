@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "task_id": "b.7",
+  "phase_id": "b",
+  "phase": "B",
+  "title": "Write background worker tests \u2014 create tests/test_background_worker.py",
+  "description": "Before editing, inspect the files listed in allowed_write_paths. Write background worker tests \u2014 create tests/test_background_worker.py. Allowed write paths: tests/test_background_worker.py. selected_backend: pi_cli, model: openrouter/qwen/qwen3-235b-a22b-thinking-2507",
+  "acceptance_criteria": [
+    "The requested task outcome is implemented or verified.",
+    "No file outside allowed_write_paths is modified."
+  ],
+  "selected_backend": "pi_cli",
+  "verification_profile": "focused",
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "model": "openrouter/qwen/qwen3-235b-a22b-thinking-2507",
+  "allowed_write_paths": [
+    "tests/test_background_worker.py"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "task_id": "b.1",
+  "phase_id": "b",
+  "phase": "B",
+  "title": "Create background worker module \u2014 implement worker loop in chatbot/perf/worker.py that consumes from BackgroundQueue",
+  "description": "Before editing, inspect the files listed in allowed_write_paths. Create background worker module \u2014 implement worker loop in chatbot/perf/worker.py that consumes from BackgroundQueue. Allowed write paths: chatbot/perf/worker.py. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro",
+  "acceptance_criteria": [
+    "The requested task outcome is implemented or verified.",
+    "No file outside allowed_write_paths is modified."
+  ],
+  "selected_backend": "pi_cli",
+  "verification_profile": "focused",
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "allowed_write_paths": [
+    "chatbot/perf/worker.py"
+  ]
+}

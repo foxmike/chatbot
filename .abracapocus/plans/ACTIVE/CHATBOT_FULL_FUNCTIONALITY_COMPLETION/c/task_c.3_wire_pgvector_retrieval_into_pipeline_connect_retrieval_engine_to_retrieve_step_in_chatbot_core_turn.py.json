@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "task_id": "c.3",
+  "phase_id": "c",
+  "phase": "C",
+  "title": "Wire pgvector retrieval into pipeline \u2014 connect retrieval_engine to retrieve step in chatbot/core/turn.py",
+  "description": "Before editing, inspect the files listed in allowed_write_paths. Wire pgvector retrieval into pipeline \u2014 connect retrieval_engine to retrieve step in chatbot/core/turn.py. Allowed write paths: chatbot/core/turn.py, chatbot/memory/retrieval.py. selected_backend: codex_cli",
+  "acceptance_criteria": [
+    "The requested task outcome is implemented or verified.",
+    "No file outside allowed_write_paths is modified."
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "allowed_write_paths": [
+    "chatbot/core/turn.py",
+    "chatbot/memory/retrieval.py"
+  ]
+}

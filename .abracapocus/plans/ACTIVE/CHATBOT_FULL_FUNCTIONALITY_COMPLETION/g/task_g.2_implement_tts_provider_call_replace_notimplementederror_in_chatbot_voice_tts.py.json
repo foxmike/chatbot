@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "task_id": "g.2",
+  "phase_id": "g",
+  "phase": "G",
+  "title": "Implement TTS provider call \u2014 replace NotImplementedError in chatbot/voice/tts.py",
+  "description": "Before editing, inspect the files listed in allowed_write_paths. Implement TTS provider call \u2014 replace NotImplementedError in chatbot/voice/tts.py. Allowed write paths: chatbot/voice/tts.py. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro",
+  "acceptance_criteria": [
+    "The requested task outcome is implemented or verified.",
+    "No file outside allowed_write_paths is modified."
+  ],
+  "selected_backend": "pi_cli",
+  "verification_profile": "focused",
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "allowed_write_paths": [
+    "chatbot/voice/tts.py"
+  ]
+}

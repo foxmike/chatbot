@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "task_id": "j.2",
+  "phase_id": "j",
+  "phase": "J",
+  "title": "Restart persistence tests",
+  "description": "Before editing, inspect the files listed in allowed_write_paths. Restart persistence tests. Allowed write paths: tests/integration/test_restart_persistence.py. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro",
+  "acceptance_criteria": [
+    "The requested task outcome is implemented or verified.",
+    "No file outside allowed_write_paths is modified."
+  ],
+  "selected_backend": "pi_cli",
+  "verification_profile": "focused",
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "allowed_write_paths": [
+    "tests/integration/test_restart_persistence.py"
+  ]
+}

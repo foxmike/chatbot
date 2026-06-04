@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "task_id": "g.9",
+  "phase_id": "g",
+  "phase": "G",
+  "title": "Write voice integration tests",
+  "description": "Before editing, inspect the files listed in allowed_write_paths. Write voice integration tests. Allowed write paths: tests/test_voice_integration.py. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905",
+  "acceptance_criteria": [
+    "The requested task outcome is implemented or verified.",
+    "No file outside allowed_write_paths is modified."
+  ],
+  "selected_backend": "pi_cli",
+  "verification_profile": "focused",
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "model": "openrouter/moonshotai/kimi-k2-0905",
+  "allowed_write_paths": [
+    "tests/test_voice_integration.py"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "task_id": "c.7",
+  "phase_id": "c",
+  "phase": "C",
+  "title": "Mount HistorySearch in app shell \u2014 wire HistorySearch component",
+  "description": "Before editing, inspect the files listed in allowed_write_paths. Mount HistorySearch in app shell \u2014 wire HistorySearch component. Allowed write paths: react_ui/src/App.tsx, react_ui/src/components/HistorySearch.tsx. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905",
+  "acceptance_criteria": [
+    "The requested task outcome is implemented or verified.",
+    "No file outside allowed_write_paths is modified."
+  ],
+  "selected_backend": "pi_cli",
+  "verification_profile": "focused",
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "model": "openrouter/moonshotai/kimi-k2-0905",
+  "allowed_write_paths": [
+    "react_ui/src/App.tsx",
+    "react_ui/src/components/HistorySearch.tsx"
+  ]
+}

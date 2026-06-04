@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "task_id": "b.4",
+  "phase_id": "b",
+  "phase": "B",
+  "title": "Wire worker into FastAPI lifespan \u2014 start worker on startup, graceful shutdown in chatbot/api/app.py",
+  "description": "Before editing, inspect the files listed in allowed_write_paths. Wire worker into FastAPI lifespan \u2014 start worker on startup, graceful shutdown in chatbot/api/app.py. Allowed write paths: chatbot/api/app.py, chatbot/perf/worker.py. selected_backend: codex_cli",
+  "acceptance_criteria": [
+    "The requested task outcome is implemented or verified.",
+    "No file outside allowed_write_paths is modified."
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "allowed_write_paths": [
+    "chatbot/api/app.py",
+    "chatbot/perf/worker.py"
+  ]
+}

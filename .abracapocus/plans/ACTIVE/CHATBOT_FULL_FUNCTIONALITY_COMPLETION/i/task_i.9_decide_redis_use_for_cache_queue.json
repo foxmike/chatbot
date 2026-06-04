@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "task_id": "i.9",
+  "phase_id": "i",
+  "phase": "I",
+  "title": "Decide Redis use for cache/queue",
+  "description": "Before editing, inspect the files listed in allowed_write_paths. Decide Redis use for cache/queue. Allowed write paths: chatbot/perf/cache.py, chatbot/perf/background.py, docker-compose.yml, docs/verification/phase_i_redis_cache_queue_decision.md. selected_backend: antigravity_cli",
+  "acceptance_criteria": [
+    "The requested task outcome is implemented or verified.",
+    "No file outside allowed_write_paths is modified."
+  ],
+  "selected_backend": "antigravity_cli",
+  "verification_profile": "focused",
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "allowed_write_paths": [
+    "chatbot/perf/cache.py",
+    "chatbot/perf/background.py",
+    "docker-compose.yml",
+    "docs/verification/phase_i_redis_cache_queue_decision.md"
+  ]
+}

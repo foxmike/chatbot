@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "task_id": "a.10",
+  "phase_id": "a",
+  "phase": "A",
+  "title": "Add auth to streaming endpoint \u2014 add auth dependency, session ownership check, DB history loading, and message persisten",
+  "description": "Before editing, inspect the files listed in allowed_write_paths. Add auth to streaming endpoint \u2014 add auth dependency, session ownership check, DB history loading, and message persistence to chatbot/api/streaming.py. Allowed write paths: chatbot/api/streaming.py. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro",
+  "acceptance_criteria": [
+    "The requested task outcome is implemented or verified.",
+    "No file outside allowed_write_paths is modified."
+  ],
+  "selected_backend": "pi_cli",
+  "verification_profile": "focused",
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "allowed_write_paths": [
+    "chatbot/api/streaming.py"
+  ]
+}

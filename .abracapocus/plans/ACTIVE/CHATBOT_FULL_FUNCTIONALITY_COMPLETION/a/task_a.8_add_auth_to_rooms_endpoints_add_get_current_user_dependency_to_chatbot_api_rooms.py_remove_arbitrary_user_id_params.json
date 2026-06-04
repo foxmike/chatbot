@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "task_id": "a.8",
+  "phase_id": "a",
+  "phase": "A",
+  "title": "Add auth to rooms endpoints \u2014 add get_current_user dependency to chatbot/api/rooms.py, remove arbitrary user_id params",
+  "description": "Before editing, inspect the files listed in allowed_write_paths. Add auth to rooms endpoints \u2014 add get_current_user dependency to chatbot/api/rooms.py, remove arbitrary user_id params. Allowed write paths: chatbot/api/rooms.py. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905",
+  "acceptance_criteria": [
+    "The requested task outcome is implemented or verified.",
+    "No file outside allowed_write_paths is modified."
+  ],
+  "selected_backend": "pi_cli",
+  "verification_profile": "focused",
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "model": "openrouter/moonshotai/kimi-k2-0905",
+  "allowed_write_paths": [
+    "chatbot/api/rooms.py"
+  ]
+}

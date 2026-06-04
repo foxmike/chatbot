@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "task_id": "h.1",
+  "phase_id": "h",
+  "phase": "H",
+  "title": "Create visual tables migration",
+  "description": "Before editing, inspect the files listed in allowed_write_paths. Create visual tables migration. Allowed write paths: migrations/versions/0012_visual_tables.py, chatbot/db/models.py. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro",
+  "acceptance_criteria": [
+    "The requested task outcome is implemented or verified.",
+    "No file outside allowed_write_paths is modified."
+  ],
+  "selected_backend": "pi_cli",
+  "verification_profile": "focused",
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "allowed_write_paths": [
+    "migrations/versions/0012_visual_tables.py",
+    "chatbot/db/models.py"
+  ]
+}

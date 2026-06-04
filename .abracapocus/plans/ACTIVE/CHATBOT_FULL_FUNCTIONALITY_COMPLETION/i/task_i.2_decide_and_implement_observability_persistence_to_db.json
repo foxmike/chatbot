@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "task_id": "i.2",
+  "phase_id": "i",
+  "phase": "I",
+  "title": "Decide and implement observability persistence to DB",
+  "description": "Before editing, inspect the files listed in allowed_write_paths. Decide and implement observability persistence to DB. Allowed write paths: chatbot/observability/tracing.py, chatbot/observability/metrics.py, chatbot/db/models.py, docs/verification/phase_i_observability_persistence_decision.md. selected_backend: codex_cli",
+  "acceptance_criteria": [
+    "The requested task outcome is implemented or verified.",
+    "No file outside allowed_write_paths is modified."
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "dependencies": [],
+  "task_timeout_seconds": 900,
+  "allowed_write_paths": [
+    "chatbot/observability/tracing.py",
+    "chatbot/observability/metrics.py",
+    "chatbot/db/models.py",
+    "docs/verification/phase_i_observability_persistence_decision.md"
+  ]
+}
