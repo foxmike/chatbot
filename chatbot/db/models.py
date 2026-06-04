@@ -49,6 +49,9 @@ class User(Base):
     )
     external_id: Mapped[str] = mapped_column(sa.String, unique=True, index=True, nullable=False)
     display_name: Mapped[str] = mapped_column(sa.String, nullable=False)
+    username: Mapped[str] = mapped_column(sa.String(64), unique=True, nullable=False)
+    email: Mapped[str] = mapped_column(sa.String(255), unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(sa.String(128), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True),
         nullable=False,
@@ -63,6 +66,70 @@ class User(Base):
 
     sessions: Mapped[list[Session]] = relationship(back_populates="user")
     semantic_facts: Mapped[list[SemanticFact]] = relationship(back_populates="user")
+    user_sessions: Mapped[list[UserSession]] = relationship(back_populates="user")
+    companions: Mapped[list[Companion]] = relationship(back_populates="user")
+
+
+class UserSession(Base):
+    __tablename__ = "user_sessions"
+
+    session_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("users.id"),
+        nullable=False,
+    )
+    token_hash: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.sql.func.now(),
+    )
+    revoked: Mapped[bool] = mapped_column(
+        sa.Boolean,
+        nullable=False,
+        default=False,
+    )
+
+    user: Mapped[User] = relationship(back_populates="user_sessions")
+
+
+class Companion(Base):
+    __tablename__ = "companions"
+
+    companion_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("users.id"),
+        nullable=False,
+    )
+    name: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    persona: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(sa.String(512), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.sql.func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.sql.func.now(),
+        onupdate=sa.sql.func.now(),
+    )
+
+    user: Mapped[User] = relationship(back_populates="companions")
 
 
 class Session(Base):
@@ -75,6 +142,7 @@ class Session(Base):
         server_default=sa.text("gen_random_uuid()"),
     )
     user_id: Mapped[uuid.UUID] = mapped_column(sa.ForeignKey("users.id"), nullable=False)
+    companion_id: Mapped[str | None] = mapped_column(sa.String(36), index=True, nullable=True)
     title: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     is_active: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
     mood_state: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
@@ -93,6 +161,7 @@ class Session(Base):
     )
 
     user: Mapped[User] = relationship(back_populates="sessions")
+    companion: Mapped[Companion | None] = relationship()
     messages: Mapped[list[Message]] = relationship(back_populates="session")
     episodes: Mapped[list[Episode]] = relationship(back_populates="session")
     relationship_configs: Mapped[list[RelationshipConfigModel]] = relationship(
@@ -265,6 +334,8 @@ class Message(Base):
         server_default=sa.text("gen_random_uuid()"),
     )
     session_id: Mapped[uuid.UUID] = mapped_column(sa.ForeignKey("sessions.id"), nullable=False)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(sa.ForeignKey("users.id"), index=True, nullable=True)
+    companion_id: Mapped[str | None] = mapped_column(sa.String(36), index=True, nullable=True)
     role: Mapped[str] = mapped_column(sa.String, nullable=False)
     content: Mapped[str] = mapped_column(sa.Text, nullable=False)
     embedding: Mapped[list[float] | None] = mapped_column(_embedding_vector_type(), nullable=True)
@@ -276,6 +347,8 @@ class Message(Base):
     )
 
     session: Mapped[Session] = relationship(back_populates="messages")
+    user: Mapped[User | None] = relationship()
+    companion: Mapped[Companion | None] = relationship()
 
 
 class Episode(Base):
@@ -636,6 +709,7 @@ __all__ = [
     "Base",
     "BotMoodLog",
     "CharacterProfileModel",
+    "Companion",
     "Entity",
     "Episode",
     "IdentityStateModel",
@@ -651,5 +725,6 @@ __all__ = [
     "Session",
     "TimelineEntry",
     "User",
+    "UserSession",
     "UserStateLog",
 ]
