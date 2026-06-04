@@ -661,7 +661,7 @@ class AgencyRitual(Base):
     cron_expression: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
     message_template: Mapped[str] = mapped_column(sa.Text, nullable=False)
     enabled: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
-    metadata: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
+    ritual_metadata: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True),
         nullable=False,
