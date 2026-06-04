@@ -1,0 +1,1 @@
+"""Companion management — multiple companions per user with per-companion memory."""
