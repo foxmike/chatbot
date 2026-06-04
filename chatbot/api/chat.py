@@ -25,6 +25,28 @@ try:
 except ImportError:
     _core_build_default_pipeline = None
 
+try:
+    from chatbot.perf.cache import PersonaCache
+    _perf_cache_available = True
+except ImportError:
+    PersonaCache = None  # type: ignore[assignment]
+    _perf_cache_available = False
+
+try:
+    from chatbot.perf.background import BackgroundQueue
+    _perf_background_available = True
+except ImportError:
+    BackgroundQueue = None  # type: ignore[assignment]
+    _perf_background_available = False
+
+_persona_cache: Any = None
+if _perf_cache_available:
+    _persona_cache = PersonaCache()
+
+_background_queue: Any = None
+if _perf_background_available:
+    _background_queue = BackgroundQueue()
+
 
 class ChatRequest(BaseModel):
     session_id: str
@@ -125,7 +147,10 @@ def _summarize_step_results(step_results: list[Any]) -> list[dict[str, Any]]:
 def build_default_pipeline() -> Any:
     if _core_build_default_pipeline is None:
         return _FallbackPipeline()
-    return _core_build_default_pipeline()
+    return _core_build_default_pipeline(
+        persona_cache=_persona_cache,
+        background_queue=_background_queue,
+    )
 
 
 async def _run_pipeline(ctx: TurnContext) -> TurnContext:
