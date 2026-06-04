@@ -16,8 +16,7 @@
     "npx tsc --noEmit (run from react_ui/) passes for both files",
     "No file outside the task's allowed_write_paths is created or modified"
   ],
-  "selected_backend": "opencode_cli",
-  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "selected_backend": "codex_cli",
   "verification_profile": "focused",
   "allowed_write_paths": [
     "react_ui/src/api/client.ts",

@@ -20,8 +20,7 @@
     "python -m py_compile chatbot/observability/__init__.py passes",
     "No file outside the task's allowed_write_paths is created or modified"
   ],
-  "selected_backend": "opencode_cli",
-  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "selected_backend": "codex_cli",
   "verification_profile": "focused",
   "allowed_write_paths": [
     "chatbot/observability/metrics.py",

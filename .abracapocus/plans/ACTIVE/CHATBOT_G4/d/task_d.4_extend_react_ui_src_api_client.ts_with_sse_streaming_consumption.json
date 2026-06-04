@@ -16,7 +16,7 @@
     "No new npm dependencies are added",
     "No file outside the task's allowed_write_paths is created or modified"
   ],
-  "selected_backend": "opencode_cli",
+  "selected_backend": "pi_cli",
   "model": "openrouter/deepseek/deepseek-v4-pro",
   "verification_profile": "focused",
   "allowed_write_paths": [

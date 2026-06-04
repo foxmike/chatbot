@@ -16,7 +16,7 @@
     "python -m py_compile chatbot/db/models.py passes",
     "No file outside the task's allowed_write_paths is created or modified"
   ],
-  "selected_backend": "pi_cli",
+  "selected_backend": "codex_cli",
   "verification_profile": "focused",
   "allowed_write_paths": [
     "chatbot/db/models.py"
@@ -54,6 +54,5 @@
     ]
   },
   "dependencies": [],
-  "task_timeout_seconds": 900,
-  "model": "openrouter/deepseek/deepseek-v4-pro"
+  "task_timeout_seconds": 900
 }

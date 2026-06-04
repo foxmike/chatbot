@@ -6,12 +6,19 @@ from collections.abc import Mapping
 from dataclasses import asdict, is_dataclass
 from time import perf_counter
 from typing import Any
+import uuid
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from chatbot.api.sessions import sessions_store
+from chatbot.auth.dependencies import CurrentUser, get_current_user
+from chatbot.companions.companion import CompanionManager
 from chatbot.core.steps import StepResult, TurnContext
+from chatbot.db import get_db
+from chatbot.db.models import Session
 
 try:
     from chatbot.core.turn import build_default_pipeline as _core_build_default_pipeline
@@ -22,6 +29,7 @@ except ImportError:
 class ChatRequest(BaseModel):
     session_id: str
     message: str
+    companion_id: str | None = None
 
 
 class ChatResponse(BaseModel):
@@ -34,7 +42,45 @@ chat_router = APIRouter(prefix="/chat")
 
 
 @chat_router.post("/", response_model=ChatResponse)
-async def chat(request: Request, body: ChatRequest) -> ChatResponse:
+async def chat(
+    request: Request,
+    body: ChatRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ChatResponse:
+    try:
+        sid = uuid.UUID(body.session_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        )
+
+    user_uuid = uuid.UUID(current_user.user_id)
+    stmt = select(Session).where(Session.id == sid, Session.user_id == user_uuid)
+    result = await db.execute(stmt)
+    db_session = result.scalar_one_or_none()
+    if db_session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        )
+
+    companion_id = body.companion_id
+    if companion_id is not None:
+        companion_mgr = CompanionManager(db)
+        companion = await companion_mgr.get(current_user.user_id, companion_id)
+        if companion is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Companion not found",
+            )
+        if db_session.companion_id is not None and db_session.companion_id != companion_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Companion mismatch: session is bound to a different companion",
+            )
+
     session = sessions_store.get(body.session_id, {})
     history = _load_session_history(request, body.session_id, session)
     persona = _load_persona(request, body.session_id, session)
@@ -50,6 +96,8 @@ async def chat(request: Request, body: ChatRequest) -> ChatResponse:
         final_response=None,
         metadata=_build_metadata(request, body.session_id, session, history, persona),
     )
+    ctx.metadata["user_id"] = current_user.user_id
+    ctx.metadata["companion_id"] = companion_id
 
     ctx = await _run_pipeline(ctx)
     response = ctx.final_response

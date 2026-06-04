@@ -18,8 +18,7 @@
     "A reply never depends on work that was deferred (deferred steps read ctx but do not change respond inputs)",
     "No file outside the task's allowed_write_paths is created or modified"
   ],
-  "selected_backend": "opencode_cli",
-  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "selected_backend": "codex_cli",
   "verification_profile": "focused",
   "allowed_write_paths": [
     "chatbot/core/turn.py",
