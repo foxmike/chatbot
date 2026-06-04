@@ -724,7 +724,7 @@ class Notification(Base):
     body: Mapped[str] = mapped_column(sa.Text, nullable=False)
     read: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
     dismissed: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
-    metadata: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
+    extra_metadata: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True),
         nullable=False,
@@ -764,7 +764,7 @@ class Room(Base):
         nullable=False,
         server_default=sa.sql.func.now(),
     )
-    metadata: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
+    extra_metadata: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
 
     scenes: Mapped[list[Scene]] = relationship(back_populates="room")
     scene: Mapped[Scene | None] = relationship(foreign_keys=[scene_id])
@@ -810,7 +810,7 @@ class Scene(Base):
     )
     participants: Mapped[list | None] = mapped_column(sa.JSON, nullable=True)
     scene_context: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
-    metadata: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
+    extra_metadata: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
 
     room: Mapped[Room] = relationship(back_populates="scenes", foreign_keys=[room_id])
 
