@@ -306,6 +306,40 @@ export interface ClassificationResponse {
   classification: "scene_only" | "durable" | "both";
 }
 
+// ---------------------------------------------------------------------------
+// SSE streaming types
+// ---------------------------------------------------------------------------
+
+export interface SSEStepEvent {
+  step: string;
+  status: "running" | "done" | "streaming";
+  duration_ms?: number;
+}
+
+export interface SSETokenEvent {
+  type: "token";
+  text: string;
+}
+
+export interface SSETypingEvent {
+  type: "typing";
+  status: "started" | "stopped";
+}
+
+export interface SSEResponseEvent {
+  type: "response";
+  text: string;
+}
+
+export interface StreamCallbacks {
+  onStep?: (event: SSEStepEvent) => void;
+  onToken?: (token: string) => void;
+  onTyping?: (status: "started" | "stopped") => void;
+  onResponse?: (text: string) => void;
+  onError?: (error: Error) => void;
+  onDone?: () => void;
+}
+
 const BASE_URL = "";
 
 let accessToken: string | null = localStorage.getItem("auth_token");
@@ -416,6 +450,210 @@ export function sendMessage(
     method: "POST",
     body: JSON.stringify({ message, session_id: sessionId }),
   });
+}
+
+export async function streamChat(
+  sessionId: string,
+  message: string,
+  callbacks: StreamCallbacks,
+  signal?: AbortSignal,
+): Promise<void> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${BASE_URL}/chat/stream`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ session_id: sessionId, message }),
+      signal,
+    });
+  } catch (err: unknown) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      return;
+    }
+    callbacks.onError?.(
+      err instanceof Error ? err : new Error(String(err)),
+    );
+    return;
+  }
+
+  if (!response.ok) {
+    let detail = response.statusText;
+    try {
+      const body = (await response.json()) as Partial<ApiError>;
+      if (typeof body.detail === "string") detail = body.detail;
+    } catch {
+      // swallow parse errors, use statusText
+    }
+    callbacks.onError?.(new Error(`Stream request failed: ${detail}`));
+    return;
+  }
+
+  const bodyReader = response.body?.getReader();
+  if (!bodyReader) {
+    callbacks.onError?.(new Error("Stream response body is not readable"));
+    return;
+  }
+  const reader: ReadableStreamDefaultReader<Uint8Array> = bodyReader;
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  async function cleanup(): Promise<void> {
+    try {
+      await reader.cancel();
+    } catch {
+      // best-effort
+    }
+  }
+
+  if (signal) {
+    if (signal.aborted) {
+      await cleanup();
+      return;
+    }
+    signal.addEventListener("abort", () => {
+      cleanup().catch(() => {});
+    });
+  }
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+
+      // Process complete SSE events (separated by double newline)
+      while (true) {
+        const idx = buffer.indexOf("\n\n");
+        if (idx === -1) break;
+
+        const rawEvent = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 2);
+
+        try {
+          processSseEvent(rawEvent, callbacks);
+        } catch (err: unknown) {
+          const error =
+            err instanceof Error ? err : new Error(String(err));
+          callbacks.onError?.(error);
+        }
+      }
+    }
+
+    // Process any remaining data in buffer
+    decoder.decode(); // flush
+    if (buffer.trim().length > 0) {
+      try {
+        processSseEvent(buffer, callbacks);
+      } catch (err: unknown) {
+        const error =
+          err instanceof Error ? err : new Error(String(err));
+        callbacks.onError?.(error);
+      }
+    }
+  } catch (err: unknown) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      return;
+    }
+    callbacks.onError?.(
+      err instanceof Error ? err : new Error(String(err)),
+    );
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      // best-effort
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Internal SSE helpers
+// ---------------------------------------------------------------------------
+
+function processSseEvent(
+  rawEvent: string,
+  callbacks: StreamCallbacks,
+): void {
+  const dataLines: string[] = [];
+
+  for (const line of rawEvent.split(/\r?\n/)) {
+    if (line === "" || line.startsWith(":")) {
+      continue;
+    }
+
+    const colonIdx = line.indexOf(":");
+    if (colonIdx === -1) {
+      continue;
+    }
+
+    const field = line.slice(0, colonIdx);
+    let value = line.slice(colonIdx + 1);
+    if (value.startsWith(" ")) {
+      value = value.slice(1);
+    }
+
+    if (field === "data") {
+      dataLines.push(value);
+    }
+  }
+
+  const data = dataLines.join("\n");
+  if (!data) return;
+
+  // Handle [DONE] sentinel
+  if (data === "[DONE]") {
+    callbacks.onDone?.();
+    return;
+  }
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(data) as Record<string, unknown>;
+  } catch {
+    // Not valid JSON — ignore non-data or malformed lines
+    return;
+  }
+
+  // Route by event shape
+  if ("step" in parsed && "status" in parsed) {
+    const event: SSEStepEvent = {
+      step: String(parsed.step),
+      status: parsed.status as SSEStepEvent["status"],
+      duration_ms:
+        typeof parsed.duration_ms === "number"
+          ? parsed.duration_ms
+          : undefined,
+    };
+    callbacks.onStep?.(event);
+    return;
+  }
+
+  if (parsed.type === "token" && typeof parsed.text === "string") {
+    callbacks.onToken?.(parsed.text);
+    return;
+  }
+
+  if (parsed.type === "typing") {
+    const status = parsed.status as "started" | "stopped";
+    if (status === "started" || status === "stopped") {
+      callbacks.onTyping?.(status);
+    }
+    return;
+  }
+
+  if (parsed.type === "response" && typeof parsed.text === "string") {
+    callbacks.onResponse?.(parsed.text);
+    return;
+  }
 }
 
 export function getRelationshipConfig(
