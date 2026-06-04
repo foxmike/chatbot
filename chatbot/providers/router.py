@@ -1,14 +1,74 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any
 
 from chatbot.providers.base import Provider, ProviderConfig, ProviderRegistry
 
 
+logger = logging.getLogger(__name__)
+
 PolicyConfig = Mapping[str, Any]
 ProviderCollection = Mapping[str, Provider] | Sequence[Any] | ProviderRegistry
+
+_DEFAULT_PROVIDER_ID = "openrouter"
+_DEFAULT_MODEL_ID = "openrouter/deepseek/deepseek-v4-pro"
+
+_KNOWN_MODEL_REGISTRY: Mapping[str, frozenset[str]] = {
+    "openrouter": frozenset(
+        {
+            "openrouter/deepseek/deepseek-v4-pro",
+            "google/gemma-4-31b-it",
+            "openrouter/google/gemma-4-31b-it",
+            "openrouter/qwen/qwen3-coder-next",
+            "openrouter/qwen/qwen3-235b-a22b-thinking-2507",
+            "openrouter/deepseek/deepseek-v3.2",
+            "openrouter/z-ai/glm-4.7-flash",
+            "openrouter/phind/codellama-34b-v2",
+            "openrouter/meta-llama/codellama-34b-instruct",
+            "openrouter/mistralai/mistral-openorca-7b",
+            "openrouter/teknium/openhermes-2-mistral-7b",
+            "openrouter/nousresearch/hermes-70b",
+            "openrouter/nousresearch/hermes-13b",
+            "openrouter/xwin/xwin-70b",
+            "openrouter/migtissera/synthia-70b",
+            "openrouter/huggingfaceh4/zephyr-7b",
+            "openrouter/meta-llama/llama-2-13b-chat",
+            "openrouter/meta-llama/llama-2-70b-chat",
+            "openrouter/jondurbin/airoboros-70b",
+            "openrouter/pygmalionai/mythalion-13b",
+        }
+    ),
+}
+
+
+class TaskClass(str, Enum):
+    CASUAL = "casual"
+    EMOTIONAL = "emotional"
+    SUMMARIZE = "summarize"
+    EXTRACT = "extract"
+    EMBED = "embed"
+
+
+def _default_task_class_map() -> dict[str, tuple[str, str]]:
+    return {
+        TaskClass.CASUAL.value: (_DEFAULT_PROVIDER_ID, _DEFAULT_MODEL_ID),
+        TaskClass.EMOTIONAL.value: (_DEFAULT_PROVIDER_ID, _DEFAULT_MODEL_ID),
+        TaskClass.SUMMARIZE.value: (_DEFAULT_PROVIDER_ID, _DEFAULT_MODEL_ID),
+        TaskClass.EXTRACT.value: (_DEFAULT_PROVIDER_ID, _DEFAULT_MODEL_ID),
+        TaskClass.EMBED.value: (_DEFAULT_PROVIDER_ID, _DEFAULT_MODEL_ID),
+    }
+
+
+@dataclass(slots=True)
+class TaskClassRoutingConfig:
+    enabled: bool = False
+    class_map: dict[str, tuple[str, str]] = field(default_factory=_default_task_class_map)
+    default_provider_id: str = _DEFAULT_PROVIDER_ID
+    default_model_id: str = _DEFAULT_MODEL_ID
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,6 +177,45 @@ def select(
     """Select a provider without explicitly constructing a router object."""
 
     return ProviderRouter(providers, policy).select(prompt, config)
+
+
+def select_model_for_task(
+    task_class: str,
+    routing_config: TaskClassRoutingConfig | None = None,
+) -> tuple[str, str]:
+    """Select a validated provider/model pair for a task class."""
+
+    if routing_config is None:
+        return _validated_or_default(_DEFAULT_PROVIDER_ID, _DEFAULT_MODEL_ID)
+
+    if not routing_config.enabled:
+        return _validated_or_default(
+            routing_config.default_provider_id,
+            routing_config.default_model_id,
+        )
+
+    normalized_task_class = _normalize_task_class(task_class)
+    provider_id, model_id = routing_config.class_map.get(
+        normalized_task_class,
+        (routing_config.default_provider_id, routing_config.default_model_id),
+    )
+    return _validated_or_default(
+        provider_id,
+        model_id,
+        fallback_provider_id=routing_config.default_provider_id,
+        fallback_model_id=routing_config.default_model_id,
+    )
+
+
+def validate_identifier(provider_id: str, model_id: str) -> bool:
+    """Return whether a provider/model pair is known to the router."""
+
+    if not provider_id or not model_id:
+        return False
+    known_models = _KNOWN_MODEL_REGISTRY.get(provider_id)
+    if known_models is None:
+        return False
+    return model_id in known_models
 
 
 def _coerce_providers(providers: ProviderCollection) -> dict[str, Provider]:
@@ -239,6 +338,42 @@ def _provider_is_available(provider: Provider) -> bool:
     return True
 
 
+def _normalize_task_class(task_class: str) -> str:
+    if not isinstance(task_class, str):
+        return ""
+    return task_class.strip().lower()
+
+
+def _validated_or_default(
+    provider_id: str,
+    model_id: str,
+    *,
+    fallback_provider_id: str = _DEFAULT_PROVIDER_ID,
+    fallback_model_id: str = _DEFAULT_MODEL_ID,
+) -> tuple[str, str]:
+    if validate_identifier(provider_id, model_id):
+        return provider_id, model_id
+
+    logger.error(
+        "Unknown provider/model route %s/%s; falling back to %s/%s",
+        provider_id,
+        model_id,
+        fallback_provider_id,
+        fallback_model_id,
+    )
+    if validate_identifier(fallback_provider_id, fallback_model_id):
+        return fallback_provider_id, fallback_model_id
+
+    logger.error(
+        "Unknown fallback provider/model route %s/%s; falling back to %s/%s",
+        fallback_provider_id,
+        fallback_model_id,
+        _DEFAULT_PROVIDER_ID,
+        _DEFAULT_MODEL_ID,
+    )
+    return _DEFAULT_PROVIDER_ID, _DEFAULT_MODEL_ID
+
+
 def _dedupe(names: Sequence[str]) -> tuple[str, ...]:
     seen: set[str] = set()
     deduped: list[str] = []
@@ -254,5 +389,9 @@ __all__ = [
     "NamedProvider",
     "PolicyProviderRouter",
     "ProviderRouter",
+    "TaskClass",
+    "TaskClassRoutingConfig",
     "select",
+    "select_model_for_task",
+    "validate_identifier",
 ]
