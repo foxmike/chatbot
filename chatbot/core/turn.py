@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import time
 import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, is_dataclass
@@ -49,6 +50,22 @@ try:
     from chatbot.providers.router import ProviderRouter
 except ImportError:
     ProviderRouter = None  # type: ignore[assignment]
+
+try:
+    from chatbot.observability.tracing import TraceStep, trace_collector
+except ImportError:
+    TraceStep = None  # type: ignore[assignment]
+    trace_collector = None  # type: ignore[assignment]
+
+try:
+    from chatbot.observability.metrics import metrics_collector
+except ImportError:
+    metrics_collector = None  # type: ignore[assignment]
+
+try:
+    from chatbot.observability.logs import structured_logger
+except ImportError:
+    structured_logger = None  # type: ignore[assignment]
 
 try:
     from chatbot.soul.persona_prompt import PersonaPromptAssembler
@@ -416,12 +433,15 @@ class CallProviderStep(TurnStep):
 
     async def run(self, ctx: TurnContext) -> TurnContext:
         provider = _select_provider(ctx)
+        config = _provider_config(ctx)
         if provider is None:
             ctx.provider_response = _fallback_provider_response(ctx)
+            _store_llm_trace_metadata(ctx, provider=None, config=config, result=None)
             return ctx
 
-        config = _provider_config(ctx)
         history = _provider_history(ctx)
+        ctx.metadata["llm_history"] = history
+        ctx.metadata["llm_prompt"] = _render_trace_prompt(ctx.user_message, history)
         try:
             result = await provider.complete(
                 prompt=ctx.user_message,
@@ -429,9 +449,11 @@ class CallProviderStep(TurnStep):
                 config=config,
             )
             ctx.provider_response = result.text
+            _store_llm_trace_metadata(ctx, provider=provider, config=config, result=result)
         except Exception as exc:
             logger.warning("Provider call failed: %s", exc, exc_info=True)
             ctx.provider_response = f"Provider error: {exc}"
+            _store_llm_trace_metadata(ctx, provider=provider, config=config, result=None)
         return ctx
 
 
@@ -736,15 +758,21 @@ class TurnPipeline:
         step_results: list[StepResult] = []
         ctx.metadata["step_results"] = step_results
         self._last_ctx = ctx
+        trace_id = await _start_turn_trace(ctx)
 
         for step in self._steps:
             step_name = _step_name(step)
             started_at = perf_counter()
+            trace_step = _new_trace_step(step_name)
 
             try:
-                ctx = await step.run(ctx)
+                if trace_step is None:
+                    ctx = await step.run(ctx)
+                else:
+                    with trace_step:
+                        ctx = await step.run(ctx)
             except Exception as exc:
-                duration_ms = (perf_counter() - started_at) * 1000
+                duration_ms = _trace_step_duration_ms(trace_step, started_at)
                 step_results.append(
                     StepResult(
                         step_name=step_name,
@@ -755,9 +783,18 @@ class TurnPipeline:
                 )
                 ctx.metadata["pipeline_error"] = str(exc)
                 self._last_ctx = ctx
+                await _record_turn_trace_step(
+                    ctx,
+                    trace_id,
+                    step_name,
+                    duration_ms,
+                    success=False,
+                    error=str(exc),
+                )
+                await _complete_turn_trace(ctx, trace_id)
                 return ctx
 
-            duration_ms = (perf_counter() - started_at) * 1000
+            duration_ms = _trace_step_duration_ms(trace_step, started_at)
             step_results.append(
                 StepResult(
                     step_name=step_name,
@@ -767,7 +804,15 @@ class TurnPipeline:
             )
             ctx.metadata["step_results"] = step_results
             self._last_ctx = ctx
+            await _record_turn_trace_step(
+                ctx,
+                trace_id,
+                step_name,
+                duration_ms,
+                success=True,
+            )
 
+        await _complete_turn_trace(ctx, trace_id)
         return ctx
 
     @property
@@ -822,6 +867,520 @@ def build_default_pipeline() -> TurnPipeline:
             RespondStep(),
         ]
     )
+
+
+def _new_trace_step(step_name: str) -> Any | None:
+    if TraceStep is None:
+        return None
+    try:
+        return TraceStep(step_name=step_name, started_at=time.monotonic())
+    except Exception:
+        logger.warning("Trace step creation failed for %s", step_name, exc_info=True)
+        return None
+
+
+def _trace_step_duration_ms(trace_step: Any | None, started_at: float) -> float:
+    duration_ms = getattr(trace_step, "duration_ms", 0) if trace_step is not None else 0
+    try:
+        duration = float(duration_ms)
+    except (TypeError, ValueError):
+        duration = 0
+    if duration > 0:
+        return duration
+    return (perf_counter() - started_at) * 1000
+
+
+async def _start_turn_trace(ctx: TurnContext) -> str | None:
+    if trace_collector is None:
+        return None
+
+    try:
+        turn_id = _trace_turn_id(ctx)
+        session_id = str(ctx.session_id)
+        user_id = _trace_user_id(ctx)
+        task_class = _trace_task_class(ctx)
+        trace_id = await trace_collector.start_trace(
+            turn_id,
+            session_id,
+            user_id,
+            task_class,
+        )
+        ctx.metadata["trace_id"] = trace_id
+        ctx.metadata["task_class"] = task_class
+        return str(trace_id)
+    except Exception as exc:
+        await _log_trace_warning(ctx, "Trace start failed", exc)
+        return None
+
+
+async def _record_turn_trace_step(
+    ctx: TurnContext,
+    trace_id: str | None,
+    step_name: str,
+    duration_ms: float,
+    *,
+    success: bool,
+    error: str | None = None,
+) -> None:
+    if trace_id is None or trace_collector is None:
+        return
+
+    try:
+        await trace_collector.record_step(
+            trace_id,
+            step_name,
+            duration_ms,
+            metadata=_trace_step_metadata(ctx, step_name, success=success, error=error),
+        )
+    except Exception as exc:
+        await _log_trace_warning(ctx, "Trace step recording failed", exc)
+
+
+async def _complete_turn_trace(ctx: TurnContext, trace_id: str | None) -> None:
+    if trace_id is None or trace_collector is None:
+        return
+
+    prompt = _trace_prompt(ctx)
+    prompt_tokens, completion_tokens = _trace_token_counts(ctx, prompt)
+    model_provider = _trace_model_provider(ctx)
+    model_id = _trace_model_id(ctx)
+
+    try:
+        trace_record = await trace_collector.complete_trace(
+            trace_id,
+            model_provider,
+            model_id,
+            prompt_tokens,
+            completion_tokens,
+            _trace_cost_usd_micros(ctx, prompt_tokens, completion_tokens),
+            prompt,
+            _trace_routing_decision(ctx, model_provider, model_id),
+            _trace_retrieval_snippets(ctx),
+            _trace_total_latency_ms(ctx),
+        )
+        ctx.metadata["trace_record"] = trace_record
+    except Exception as exc:
+        await _log_trace_warning(ctx, "Trace completion failed", exc)
+        return
+
+    if metrics_collector is None:
+        return
+    try:
+        await metrics_collector.record_trace(trace_record)
+    except Exception as exc:
+        await _log_trace_warning(ctx, "Trace metric recording failed", exc)
+
+
+async def _log_trace_warning(
+    ctx: TurnContext,
+    message: str,
+    exc: BaseException | None = None,
+) -> None:
+    logger.warning("%s: %s", message, exc, exc_info=exc is not None)
+    if structured_logger is None:
+        return
+
+    details = {
+        "message": message,
+        "error": str(exc) if exc is not None else None,
+    }
+    for method_name in ("warning", "warn", "log_warning"):
+        method = getattr(structured_logger, method_name, None)
+        if not callable(method):
+            continue
+        try:
+            await _maybe_await(
+                method(
+                    message,
+                    session_id=str(ctx.session_id),
+                    turn_id=str(ctx.metadata.get("turn_id") or ""),
+                    user_id=_trace_user_id(ctx),
+                    details=details,
+                )
+            )
+        except Exception:
+            logger.warning("Structured trace warning log failed", exc_info=True)
+        return
+
+
+def _trace_turn_id(ctx: TurnContext) -> str:
+    for key in ("turn_id", "current_turn_id", "request_id"):
+        value = ctx.metadata.get(key)
+        if value:
+            turn_id = str(value)
+            ctx.metadata["turn_id"] = turn_id
+            return turn_id
+
+    turn_id = str(uuid.uuid4())
+    ctx.metadata["turn_id"] = turn_id
+    return turn_id
+
+
+def _trace_user_id(ctx: TurnContext) -> str | None:
+    for key in ("user_id", "current_user_id", "account_id"):
+        value = ctx.metadata.get(key)
+        if value is not None:
+            text = str(value).strip()
+            return text or None
+
+    value = _read_session_field(ctx, "user_id")
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _trace_task_class(ctx: TurnContext) -> str:
+    for key in (
+        "task_class",
+        "task_type",
+        "intent_class",
+        "intent",
+        "conversation_task_class",
+    ):
+        value = ctx.metadata.get(key)
+        if value is None:
+            continue
+        if isinstance(value, Enum):
+            value = value.value
+        if isinstance(value, Mapping):
+            value = value.get("task_class") or value.get("class") or value.get("name")
+        text = str(value or "").strip()
+        if text:
+            return text
+    return "casual"
+
+
+def _trace_step_metadata(
+    ctx: TurnContext,
+    step_name: str,
+    *,
+    success: bool,
+    error: str | None = None,
+) -> dict[str, Any]:
+    metadata: dict[str, Any] = {"success": success}
+    if error:
+        metadata["error"] = error
+
+    normalized_name = step_name.lower()
+    if "retrieve" in normalized_name:
+        metadata["snippet_count"] = len(_trace_retrieval_snippets(ctx))
+        metadata["history_count"] = len(ctx.history)
+    elif normalized_name == "compile_context":
+        metadata["compiled_context_chars"] = len(str(ctx.compiled_context or ""))
+        metadata["snippet_count"] = len(_trace_retrieval_snippets(ctx))
+    elif normalized_name == "call_provider":
+        metadata["model_provider"] = _trace_model_provider(ctx)
+        metadata["model_id"] = _trace_model_id(ctx)
+        prompt_tokens, completion_tokens = _trace_token_counts(ctx, _trace_prompt(ctx))
+        metadata["prompt_tokens"] = prompt_tokens
+        metadata["completion_tokens"] = completion_tokens
+        finish_reason = ctx.metadata.get("llm_finish_reason")
+        if finish_reason is not None:
+            metadata["finish_reason"] = str(finish_reason)
+    elif normalized_name == "extract_memory":
+        metadata["extracted_memory_count"] = len(ctx.extracted_memories)
+    elif normalized_name == "scene_memory_gate":
+        metadata["durable_memory_count"] = len(ctx.extracted_memories)
+        classifications = ctx.metadata.get("memory_classifications")
+        if isinstance(classifications, Mapping):
+            metadata["classification_count"] = len(classifications)
+    elif normalized_name == "respond":
+        metadata["response_chars"] = len(str(ctx.final_response or ""))
+
+    return _json_safe(metadata)
+
+
+def _store_llm_trace_metadata(
+    ctx: TurnContext,
+    *,
+    provider: Any | None,
+    config: ProviderConfig,
+    result: Any | None,
+) -> None:
+    model_id = _result_model_id(result) or config.model or _trace_model_id(ctx)
+    model_provider = _trace_provider_name(ctx, provider, model_id)
+    usage = _provider_usage(result)
+
+    if model_id:
+        ctx.metadata["model_id"] = model_id
+    if model_provider:
+        ctx.metadata["model_provider"] = model_provider
+    if usage:
+        ctx.metadata["llm_usage"] = usage
+
+    finish_reason = getattr(result, "finish_reason", None) if result is not None else None
+    if finish_reason is not None:
+        ctx.metadata["llm_finish_reason"] = str(finish_reason)
+
+    routing_decision = ctx.metadata.get("routing_decision")
+    if not isinstance(routing_decision, Mapping):
+        routing_decision = {}
+    ctx.metadata["routing_decision"] = {
+        **dict(routing_decision),
+        "provider": model_provider,
+        "model": model_id,
+        "task_class": _trace_task_class(ctx),
+    }
+
+    if "llm_prompt" not in ctx.metadata:
+        ctx.metadata["llm_prompt"] = _trace_prompt(ctx)
+
+
+def _result_model_id(result: Any | None) -> str | None:
+    if result is None:
+        return None
+    model = getattr(result, "model", None)
+    if model:
+        return str(model)
+    raw = getattr(result, "raw", None)
+    if isinstance(raw, Mapping) and raw.get("model"):
+        return str(raw["model"])
+    return None
+
+
+def _provider_usage(result: Any | None) -> dict[str, Any]:
+    if result is None:
+        return {}
+
+    for source in (
+        getattr(result, "usage", None),
+        getattr(result, "token_usage", None),
+    ):
+        if isinstance(source, Mapping):
+            return dict(source)
+
+    raw = getattr(result, "raw", None)
+    if not isinstance(raw, Mapping):
+        return {}
+
+    for key in ("usage", "token_usage"):
+        usage = raw.get(key)
+        if isinstance(usage, Mapping):
+            return dict(usage)
+    return {}
+
+
+def _trace_prompt(ctx: TurnContext) -> str:
+    prompt = ctx.metadata.get("llm_prompt")
+    if isinstance(prompt, str) and prompt:
+        return prompt
+
+    history = ctx.metadata.get("llm_history")
+    if not isinstance(history, Sequence) or isinstance(history, (str, bytes)):
+        history = _provider_history(ctx)
+    return _render_trace_prompt(ctx.user_message, history)
+
+
+def _render_trace_prompt(
+    user_message: str,
+    history: Sequence[Mapping[str, Any]],
+) -> str:
+    parts: list[str] = []
+    for message in history:
+        if not isinstance(message, Mapping):
+            continue
+        role = str(message.get("role") or "message").strip() or "message"
+        content = str(message.get("content") or "").strip()
+        if content:
+            parts.append(f"{role}: {content}")
+
+    prompt = str(user_message or "").strip()
+    if prompt:
+        parts.append(f"user: {prompt}")
+    return "\n\n".join(parts)
+
+
+def _trace_retrieval_snippets(ctx: TurnContext) -> list[str]:
+    for key in ("retrieval_snippets", "retrieved_snippets"):
+        snippets = _coerce_text_list(ctx.metadata.get(key))
+        if snippets:
+            return snippets
+
+    snippets: list[str] = []
+    for memory in ctx.retrieved_memories:
+        if not isinstance(memory, Mapping):
+            continue
+        line = _memory_line(memory).strip()
+        if line.startswith("- "):
+            line = line[2:].strip()
+        if line:
+            snippets.append(line)
+    return snippets
+
+
+def _trace_model_provider(ctx: TurnContext) -> str | None:
+    value = _first_metadata_value(
+        ctx,
+        "model_provider",
+        "selected_provider_name",
+        "provider_name",
+        "default_provider",
+    )
+    if value is not None:
+        text = str(value).strip()
+        if text:
+            return text
+
+    env_provider = os.getenv("CHATBOT_PROVIDER")
+    if env_provider:
+        return env_provider
+
+    model_id = _trace_model_id(ctx)
+    if model_id and "/" in model_id:
+        provider = model_id.split("/", 1)[0].strip()
+        return provider or None
+    return None
+
+
+def _trace_provider_name(
+    ctx: TurnContext,
+    provider: Any | None,
+    model_id: str | None,
+) -> str | None:
+    configured = _trace_model_provider(ctx)
+    if configured:
+        return configured
+
+    for attribute in ("name", "provider_id", "id"):
+        value = getattr(provider, attribute, None)
+        if value:
+            return str(value)
+
+    if model_id and "/" in model_id:
+        provider_id = model_id.split("/", 1)[0].strip()
+        if provider_id:
+            return provider_id
+
+    if provider is not None:
+        return provider.__class__.__name__
+    return None
+
+
+def _trace_model_id(ctx: TurnContext) -> str | None:
+    value = _first_metadata_value(
+        ctx,
+        "model_id",
+        "selected_model_id",
+        "model",
+        "default_model",
+    )
+    if value is not None:
+        text = str(value).strip()
+        if text:
+            return text
+
+    config = ctx.metadata.get("provider_config")
+    if isinstance(config, ProviderConfig):
+        return config.model or None
+    if isinstance(config, Mapping):
+        model = str(config.get("model") or "").strip()
+        if model:
+            return model
+    return None
+
+
+def _trace_token_counts(ctx: TurnContext, prompt: str) -> tuple[int, int]:
+    usage = ctx.metadata.get("llm_usage")
+    if not isinstance(usage, Mapping):
+        usage = {}
+
+    prompt_tokens = _first_int(
+        ctx.metadata.get("prompt_tokens"),
+        usage.get("prompt_tokens"),
+        usage.get("input_tokens"),
+    )
+    completion_tokens = _first_int(
+        ctx.metadata.get("completion_tokens"),
+        usage.get("completion_tokens"),
+        usage.get("output_tokens"),
+    )
+
+    if prompt_tokens is None:
+        prompt_tokens = _estimate_tokens(prompt)
+    if completion_tokens is None:
+        completion_tokens = _estimate_tokens(
+            str(ctx.provider_response or ctx.final_response or "")
+        )
+    return max(0, prompt_tokens), max(0, completion_tokens)
+
+
+def _trace_cost_usd_micros(
+    ctx: TurnContext,
+    prompt_tokens: int,
+    completion_tokens: int,
+) -> int:
+    direct_cost = _first_int(
+        ctx.metadata.get("cost_usd_micros"),
+        ctx.metadata.get("llm_cost_usd_micros"),
+    )
+    if direct_cost is not None:
+        return max(0, direct_cost)
+
+    usage = ctx.metadata.get("llm_usage")
+    if isinstance(usage, Mapping):
+        usage_cost = _first_int(
+            usage.get("cost_usd_micros"),
+            usage.get("cost_micros"),
+        )
+        if usage_cost is not None:
+            return max(0, usage_cost)
+
+    prompt_rate = _optional_float(ctx.metadata.get("prompt_cost_usd_micros_per_1k"))
+    completion_rate = _optional_float(
+        ctx.metadata.get("completion_cost_usd_micros_per_1k")
+    )
+    if prompt_rate is None and completion_rate is None:
+        return 0
+    prompt_cost = prompt_tokens * (prompt_rate or 0) / 1000
+    completion_cost = completion_tokens * (completion_rate or 0) / 1000
+    return max(0, int(round(prompt_cost + completion_cost)))
+
+
+def _trace_routing_decision(
+    ctx: TurnContext,
+    model_provider: str | None,
+    model_id: str | None,
+) -> dict[str, Any]:
+    routing_decision = ctx.metadata.get("routing_decision")
+    if isinstance(routing_decision, Mapping):
+        decision = dict(routing_decision)
+    else:
+        decision = {}
+
+    decision.setdefault("provider", model_provider)
+    decision.setdefault("model", model_id)
+    decision.setdefault("task_class", _trace_task_class(ctx))
+    return _json_safe(decision)
+
+
+def _trace_total_latency_ms(ctx: TurnContext) -> float:
+    total = 0.0
+    for result in ctx.metadata.get("step_results", []):
+        if isinstance(result, Mapping):
+            duration = result.get("duration_ms")
+        else:
+            duration = getattr(result, "duration_ms", None)
+        total += _coerce_float(duration, 0.0)
+    return total
+
+
+def _first_int(*values: Any) -> int | None:
+    for value in values:
+        if value is None:
+            continue
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def _estimate_tokens(text: str) -> int:
+    compact = str(text or "").strip()
+    if not compact:
+        return 0
+    return max(1, (len(compact) + 3) // 4)
 
 
 def _step_name(step: TurnStep) -> str:
