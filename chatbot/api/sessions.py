@@ -37,6 +37,9 @@ class SessionDeleteResponse(BaseModel):
 
 sessions_router = APIRouter(prefix="/sessions")
 
+# In-memory session cache (legacy compat, used by chat.py)
+sessions_store: dict[str, dict] = {}
+
 
 @sessions_router.post("/", response_model=SessionCreateResponse)
 async def create_session(
