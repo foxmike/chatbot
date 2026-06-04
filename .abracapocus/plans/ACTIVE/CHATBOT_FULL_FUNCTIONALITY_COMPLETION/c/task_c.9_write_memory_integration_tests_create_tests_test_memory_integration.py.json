@@ -6,12 +6,16 @@
   "title": "Write memory integration tests \u2014 create tests/test_memory_integration.py",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Write memory integration tests \u2014 create tests/test_memory_integration.py. Allowed write paths: tests/test_memory_integration.py. selected_backend: pi_cli, model: openrouter/qwen/qwen3-235b-a22b-thinking-2507",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Write memory integration tests \u2014 create tests/test_memory_integration.py. , is completed for task c.9.",
+    "Only files listed in allowed_write_paths are created or modified: tests/test_memory_integration.py",
+    "Test files cover the requested behavior: tests/test_memory_integration.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",
-  "dependencies": [],
+  "dependencies": [
+    "c.3"
+  ],
   "task_timeout_seconds": 900,
   "model": "openrouter/qwen/qwen3-235b-a22b-thinking-2507",
   "allowed_write_paths": [

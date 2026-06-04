@@ -6,12 +6,16 @@
   "title": "Add auth to memory endpoints \u2014 add get_current_user dependency to chatbot/api/memory.py, scope queries by user",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Add auth to memory endpoints \u2014 add get_current_user dependency to chatbot/api/memory.py, scope queries by user. Allowed write paths: chatbot/api/memory.py. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Add auth to memory endpoints \u2014 add get_current_user dependency to chatbot/api/memory.py, scope queries by user. , is completed for task a.6.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/api/memory.py",
+    "Python files compile: python -m py_compile chatbot/api/memory.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",
-  "dependencies": [],
+  "dependencies": [
+    "a.1"
+  ],
   "task_timeout_seconds": 900,
   "model": "openrouter/moonshotai/kimi-k2-0905",
   "allowed_write_paths": [

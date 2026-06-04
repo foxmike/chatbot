@@ -6,8 +6,9 @@
   "title": "Add Docker Compose worker service \u2014 add worker service to docker-compose.yml",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Add Docker Compose worker service \u2014 add worker service to docker-compose.yml. Allowed write paths: docker-compose.yml. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Add Docker Compose worker service \u2014 add worker service to docker-compose.yml. , is completed for task b.6.",
+    "Only files listed in allowed_write_paths are created or modified: docker-compose.yml",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",

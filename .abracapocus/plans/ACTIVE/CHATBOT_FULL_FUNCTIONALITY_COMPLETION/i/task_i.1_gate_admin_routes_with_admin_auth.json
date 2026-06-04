@@ -6,8 +6,10 @@
   "title": "Gate admin routes with admin auth",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Gate admin routes with admin auth. Allowed write paths: chatbot/api/admin.py. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Gate admin routes with admin auth. , is completed for task i.1.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/api/admin.py",
+    "Python files compile: python -m py_compile chatbot/api/admin.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",

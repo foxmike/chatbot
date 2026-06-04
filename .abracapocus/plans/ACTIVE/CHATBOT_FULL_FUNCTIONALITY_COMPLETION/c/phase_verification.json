@@ -1,0 +1,43 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "phase_c_py_compile",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/config.py",
+          "chatbot/api/app.py",
+          "chatbot/memory/retrieval.py",
+          "chatbot/memory/extraction.py",
+          "chatbot/memory/pgvector_store.py",
+          "chatbot/core/turn.py",
+          "chatbot/perf/handlers.py",
+          "chatbot/consolidation/summarizer.py",
+          "chatbot/consolidation/contradiction.py",
+          "chatbot/consolidation/decay.py"
+        ]
+      },
+      {
+        "name": "phase_c_pytest",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "tests/test_memory_integration.py",
+          "tests/test_memory_management.py",
+          "-q"
+        ]
+      },
+      {
+        "name": "phase_c_tsc_typecheck",
+        "command": [
+          "sh",
+          "-c",
+          "cd react_ui && npx tsc --noEmit"
+        ]
+      }
+    ]
+  }
+}

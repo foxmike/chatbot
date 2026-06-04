@@ -6,12 +6,16 @@
   "title": "Mount streaming chat option in App.tsx",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Mount streaming chat option in App.tsx. Allowed write paths: react_ui/src/App.tsx. selected_backend: codex_cli",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Mount streaming chat option in App.tsx is completed for task i.7.",
+    "Only files listed in allowed_write_paths are created or modified: react_ui/src/App.tsx",
+    "Affected React/TypeScript files type-check with the existing frontend check.",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "codex_cli",
   "verification_profile": "focused",
-  "dependencies": [],
+  "dependencies": [
+    "i.6"
+  ],
   "task_timeout_seconds": 900,
   "allowed_write_paths": [
     "react_ui/src/App.tsx"

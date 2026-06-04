@@ -6,12 +6,16 @@
   "title": "Add scheduler runtime loop",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Add scheduler runtime loop. Allowed write paths: chatbot/agency/scheduler.py, chatbot/api/app.py. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Add scheduler runtime loop. , is completed for task e.5.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/agency/scheduler.py, chatbot/api/app.py",
+    "Python files compile: python -m py_compile chatbot/agency/scheduler.py chatbot/api/app.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",
-  "dependencies": [],
+  "dependencies": [
+    "e.4"
+  ],
   "task_timeout_seconds": 900,
   "model": "openrouter/deepseek/deepseek-v4-pro",
   "allowed_write_paths": [

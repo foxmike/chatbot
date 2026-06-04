@@ -6,8 +6,10 @@
   "title": "Create background worker module \u2014 implement worker loop in chatbot/perf/worker.py that consumes from BackgroundQueue",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Create background worker module \u2014 implement worker loop in chatbot/perf/worker.py that consumes from BackgroundQueue. Allowed write paths: chatbot/perf/worker.py. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Create background worker module \u2014 implement worker loop in chatbot/perf/worker.py that consumes from BackgroundQueue. , is completed for task b.1.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/perf/worker.py",
+    "Python files compile: python -m py_compile chatbot/perf/worker.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",

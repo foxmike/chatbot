@@ -6,12 +6,17 @@
   "title": "Write streaming and admin integration tests",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Write streaming and admin integration tests. Allowed write paths: tests/test_streaming_integration.py, tests/test_admin_integration.py. selected_backend: pi_cli, model: openrouter/qwen/qwen3-235b-a22b-thinking-2507",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Write streaming and admin integration tests. , is completed for task i.11.",
+    "Only files listed in allowed_write_paths are created or modified: tests/test_streaming_integration.py, tests/test_admin_integration.py",
+    "Test files cover the requested behavior: tests/test_streaming_integration.py, tests/test_admin_integration.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",
-  "dependencies": [],
+  "dependencies": [
+    "i.6",
+    "i.8"
+  ],
   "task_timeout_seconds": 900,
   "model": "openrouter/qwen/qwen3-235b-a22b-thinking-2507",
   "allowed_write_paths": [

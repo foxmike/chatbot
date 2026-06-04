@@ -6,12 +6,19 @@
   "title": "Verify graceful provider failure",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Verify graceful provider failure. Allowed write paths: chatbot/visual/generation.py, chatbot/visual/understanding.py, docs/verification/phase_h_provider_failure.md. selected_backend: antigravity_cli",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Verify graceful provider failure is completed for task h.8.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/visual/generation.py, chatbot/visual/understanding.py, docs/verification/phase_h_provider_failure.md",
+    "Python files compile: python -m py_compile chatbot/visual/generation.py chatbot/visual/understanding.py",
+    "Documentation or audit artifacts record the verification outcome: docs/verification/phase_h_provider_failure.md",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "antigravity_cli",
   "verification_profile": "focused",
-  "dependencies": [],
+  "dependencies": [
+    "h.2",
+    "h.3",
+    "h.4"
+  ],
   "task_timeout_seconds": 900,
   "allowed_write_paths": [
     "chatbot/visual/generation.py",

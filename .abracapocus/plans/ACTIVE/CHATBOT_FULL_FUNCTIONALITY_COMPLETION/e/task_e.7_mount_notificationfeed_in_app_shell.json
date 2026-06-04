@@ -6,12 +6,21 @@
   "title": "Mount NotificationFeed in app shell",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Mount NotificationFeed in app shell. Allowed write paths: react_ui/src/App.tsx, react_ui/src/components/NotificationFeed.tsx. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Mount NotificationFeed in app shell. , is completed for task e.7.",
+    "Only files listed in allowed_write_paths are created or modified: react_ui/src/App.tsx, react_ui/src/components/NotificationFeed.tsx",
+    "Affected React/TypeScript files type-check with the existing frontend check.",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",
-  "dependencies": [],
+  "dependencies": [
+    "e.1",
+    "e.2",
+    "e.3",
+    "e.4",
+    "e.5",
+    "e.6"
+  ],
   "task_timeout_seconds": 900,
   "model": "openrouter/deepseek/deepseek-v4-pro",
   "allowed_write_paths": [

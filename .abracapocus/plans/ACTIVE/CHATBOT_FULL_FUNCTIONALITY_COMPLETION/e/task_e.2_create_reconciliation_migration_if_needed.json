@@ -6,12 +6,16 @@
   "title": "Create reconciliation migration if needed",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Create reconciliation migration if needed. Allowed write paths: migrations/versions/0010_continuity_reconciliation.py. selected_backend: codex_cli",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Create reconciliation migration if needed is completed for task e.2.",
+    "Only files listed in allowed_write_paths are created or modified: migrations/versions/0010_continuity_reconciliation.py",
+    "Python files compile: python -m py_compile migrations/versions/0010_continuity_reconciliation.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "codex_cli",
   "verification_profile": "focused",
-  "dependencies": [],
+  "dependencies": [
+    "e.1"
+  ],
   "task_timeout_seconds": 900,
   "allowed_write_paths": [
     "migrations/versions/0010_continuity_reconciliation.py"

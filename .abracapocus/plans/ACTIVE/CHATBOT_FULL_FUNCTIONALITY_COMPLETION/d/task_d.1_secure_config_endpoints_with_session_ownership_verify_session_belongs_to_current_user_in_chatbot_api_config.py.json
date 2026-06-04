@@ -6,8 +6,10 @@
   "title": "Secure config endpoints with session ownership \u2014 verify session belongs to current user in chatbot/api/config.py",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Secure config endpoints with session ownership \u2014 verify session belongs to current user in chatbot/api/config.py. Allowed write paths: chatbot/api/config.py. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Secure config endpoints with session ownership \u2014 verify session belongs to current user in chatbot/api/config.py. , is completed for task d.1.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/api/config.py",
+    "Python files compile: python -m py_compile chatbot/api/config.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",

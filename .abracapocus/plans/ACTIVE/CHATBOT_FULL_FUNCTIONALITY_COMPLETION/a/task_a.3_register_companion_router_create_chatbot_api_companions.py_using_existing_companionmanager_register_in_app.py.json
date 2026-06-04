@@ -6,8 +6,10 @@
   "title": "Register companion router \u2014 create chatbot/api/companions.py using existing CompanionManager, register in app.py",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Register companion router \u2014 create chatbot/api/companions.py using existing CompanionManager, register in app.py. Allowed write paths: chatbot/api/companions.py, chatbot/api/app.py. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Register companion router \u2014 create chatbot/api/companions.py using existing CompanionManager, register in app.py. , is completed for task a.3.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/api/companions.py, chatbot/api/app.py",
+    "Python files compile: python -m py_compile chatbot/api/companions.py chatbot/api/app.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",

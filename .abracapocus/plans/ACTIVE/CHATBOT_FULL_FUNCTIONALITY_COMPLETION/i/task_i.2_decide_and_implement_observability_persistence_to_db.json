@@ -6,8 +6,11 @@
   "title": "Decide and implement observability persistence to DB",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Decide and implement observability persistence to DB. Allowed write paths: chatbot/observability/tracing.py, chatbot/observability/metrics.py, chatbot/db/models.py, docs/verification/phase_i_observability_persistence_decision.md. selected_backend: codex_cli",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Decide and implement observability persistence to DB is completed for task i.2.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/observability/tracing.py, chatbot/observability/metrics.py, chatbot/db/models.py, docs/verification/phase_i_observability_persistence_decision.md",
+    "Python files compile: python -m py_compile chatbot/observability/tracing.py chatbot/observability/metrics.py chatbot/db/models.py",
+    "Documentation or audit artifacts record the verification outcome: docs/verification/phase_i_observability_persistence_decision.md",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "codex_cli",
   "verification_profile": "focused",

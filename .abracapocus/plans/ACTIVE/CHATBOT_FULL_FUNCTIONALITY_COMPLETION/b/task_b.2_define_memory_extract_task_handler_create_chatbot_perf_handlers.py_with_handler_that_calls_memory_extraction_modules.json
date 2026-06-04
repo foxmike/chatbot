@@ -6,8 +6,10 @@
   "title": "Define memory_extract task handler \u2014 create chatbot/perf/handlers.py with handler that calls memory extraction modules",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Define memory_extract task handler \u2014 create chatbot/perf/handlers.py with handler that calls memory extraction modules. Allowed write paths: chatbot/perf/handlers.py. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Define memory_extract task handler \u2014 create chatbot/perf/handlers.py with handler that calls memory extraction modules. , is completed for task b.2.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/perf/handlers.py",
+    "Python files compile: python -m py_compile chatbot/perf/handlers.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",

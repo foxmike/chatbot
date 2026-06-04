@@ -6,8 +6,10 @@
   "title": "Add active room state tracking in React",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Add active room state tracking in React. Allowed write paths: react_ui/src/App.tsx. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Add active room state tracking in React. , is completed for task f.2.",
+    "Only files listed in allowed_write_paths are created or modified: react_ui/src/App.tsx",
+    "Affected React/TypeScript files type-check with the existing frontend check.",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",

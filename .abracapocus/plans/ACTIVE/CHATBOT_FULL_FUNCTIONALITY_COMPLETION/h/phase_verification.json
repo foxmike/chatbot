@@ -1,0 +1,50 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "phase_h_py_compile",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/config.py",
+          "chatbot/api/visual.py",
+          "chatbot/api/app.py",
+          "chatbot/visual/generation.py",
+          "chatbot/visual/understanding.py",
+          "chatbot/visual/appearance.py",
+          "migrations/versions/0012_visual_tables.py",
+          "chatbot/db/models.py",
+          "chatbot/companions/companion.py"
+        ]
+      },
+      {
+        "name": "phase_h_pytest",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "tests/test_visual_integration.py",
+          "-q"
+        ]
+      },
+      {
+        "name": "phase_h_tsc_typecheck",
+        "command": [
+          "sh",
+          "-c",
+          "cd react_ui && npx tsc --noEmit"
+        ]
+      },
+      {
+        "name": "phase_h_alembic_check",
+        "command": [
+          "python",
+          "-m",
+          "alembic",
+          "check"
+        ]
+      }
+    ]
+  }
+}

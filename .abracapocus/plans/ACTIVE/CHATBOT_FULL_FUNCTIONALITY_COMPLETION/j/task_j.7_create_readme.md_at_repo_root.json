@@ -6,8 +6,10 @@
   "title": "Create README.md at repo root",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Create README.md at repo root. Allowed write paths: README.md. selected_backend: antigravity_cli",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Create README.md at repo root is completed for task j.7.",
+    "Only files listed in allowed_write_paths are created or modified: README.md",
+    "Documentation or audit artifacts record the verification outcome: README.md",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "antigravity_cli",
   "verification_profile": "focused",

@@ -6,8 +6,10 @@
   "title": "Initialize retrieval_engine in app lifespan \u2014 create and inject retrieval engine into FastAPI app state",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Initialize retrieval_engine in app lifespan \u2014 create and inject retrieval engine into FastAPI app state. Allowed write paths: chatbot/api/app.py, chatbot/memory/retrieval.py. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Initialize retrieval_engine in app lifespan \u2014 create and inject retrieval engine into FastAPI app state. , is completed for task c.2.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/api/app.py, chatbot/memory/retrieval.py",
+    "Python files compile: python -m py_compile chatbot/api/app.py chatbot/memory/retrieval.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",

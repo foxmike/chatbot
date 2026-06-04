@@ -6,8 +6,10 @@
   "title": "Migration audit \u2014 verify clean alembic upgrade head",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Migration audit \u2014 verify clean alembic upgrade head. Allowed write paths: docs/verification/phase_j_migration_audit.md. selected_backend: antigravity_cli",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Migration audit \u2014 verify clean alembic upgrade head is completed for task j.4.",
+    "Only files listed in allowed_write_paths are created or modified: docs/verification/phase_j_migration_audit.md",
+    "Documentation or audit artifacts record the verification outcome: docs/verification/phase_j_migration_audit.md",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "antigravity_cli",
   "verification_profile": "focused",

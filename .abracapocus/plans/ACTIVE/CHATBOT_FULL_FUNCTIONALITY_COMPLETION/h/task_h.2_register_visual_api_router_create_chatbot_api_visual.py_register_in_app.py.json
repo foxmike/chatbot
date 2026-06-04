@@ -6,8 +6,10 @@
   "title": "Register visual API router \u2014 create chatbot/api/visual.py, register in app.py",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Register visual API router \u2014 create chatbot/api/visual.py, register in app.py. Allowed write paths: chatbot/api/visual.py, chatbot/api/app.py. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Register visual API router \u2014 create chatbot/api/visual.py, register in app.py. , is completed for task h.2.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/api/visual.py, chatbot/api/app.py",
+    "Python files compile: python -m py_compile chatbot/api/visual.py chatbot/api/app.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",

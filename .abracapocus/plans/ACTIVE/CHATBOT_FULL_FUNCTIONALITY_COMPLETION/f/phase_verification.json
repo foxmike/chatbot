@@ -1,0 +1,36 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "phase_f_py_compile",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/api/chat.py",
+          "chatbot/api/rooms.py",
+          "chatbot/core/turn.py",
+          "chatbot/rooms/roleplay.py"
+        ]
+      },
+      {
+        "name": "phase_f_pytest",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "tests/test_rooms_integration.py",
+          "-q"
+        ]
+      },
+      {
+        "name": "phase_f_tsc_typecheck",
+        "command": [
+          "sh",
+          "-c",
+          "cd react_ui && npx tsc --noEmit"
+        ]
+      }
+    ]
+  }
+}

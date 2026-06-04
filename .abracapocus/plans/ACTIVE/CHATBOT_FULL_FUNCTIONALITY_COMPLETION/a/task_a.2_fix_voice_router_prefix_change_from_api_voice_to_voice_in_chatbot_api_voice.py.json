@@ -6,8 +6,10 @@
   "title": "Fix voice router prefix \u2014 change from /api/voice to /voice in chatbot/api/voice.py",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Fix voice router prefix \u2014 change from /api/voice to /voice in chatbot/api/voice.py. Allowed write paths: chatbot/api/voice.py. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Fix voice router prefix \u2014 change from /api/voice to /voice in chatbot/api/voice.py. , is completed for task a.2.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/api/voice.py",
+    "Python files compile: python -m py_compile chatbot/api/voice.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",

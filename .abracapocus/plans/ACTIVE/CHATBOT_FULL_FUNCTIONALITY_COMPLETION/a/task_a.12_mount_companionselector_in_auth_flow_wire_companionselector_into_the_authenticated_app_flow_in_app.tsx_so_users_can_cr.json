@@ -6,8 +6,10 @@
   "title": "Mount CompanionSelector in auth flow \u2014 wire CompanionSelector into the authenticated app flow in App.tsx so users can cr",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Mount CompanionSelector in auth flow \u2014 wire CompanionSelector into the authenticated app flow in App.tsx so users can create/select companions. Depends on a.3 and a.11. Allowed write paths: react_ui/src/App.tsx, react_ui/src/components/CompanionSelector.tsx. selected_backend: codex_cli",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Mount CompanionSelector in auth flow \u2014 wire CompanionSelector into the authenticated app flow in App.tsx so users can create/select companions. Depends on a.3 and a.11 is completed for task a.12.",
+    "Only files listed in allowed_write_paths are created or modified: react_ui/src/App.tsx, react_ui/src/components/CompanionSelector.tsx",
+    "Affected React/TypeScript files type-check with the existing frontend check.",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "codex_cli",
   "verification_profile": "focused",

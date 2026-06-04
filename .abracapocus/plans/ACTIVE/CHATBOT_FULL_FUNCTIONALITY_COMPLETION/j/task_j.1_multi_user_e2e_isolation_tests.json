@@ -6,8 +6,10 @@
   "title": "Multi-user E2E isolation tests",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Multi-user E2E isolation tests. Allowed write paths: tests/integration/test_multi_user_isolation.py. selected_backend: codex_cli",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Multi-user E2E isolation tests is completed for task j.1.",
+    "Only files listed in allowed_write_paths are created or modified: tests/integration/test_multi_user_isolation.py",
+    "Test files cover the requested behavior: tests/integration/test_multi_user_isolation.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "codex_cli",
   "verification_profile": "focused",

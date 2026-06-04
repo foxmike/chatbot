@@ -6,8 +6,10 @@
   "title": "Add admin auth gate \u2014 add admin authorization check to chatbot/api/admin.py endpoints",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Add admin auth gate \u2014 add admin authorization check to chatbot/api/admin.py endpoints. Allowed write paths: chatbot/api/admin.py. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Add admin auth gate \u2014 add admin authorization check to chatbot/api/admin.py endpoints. , is completed for task a.9.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/api/admin.py",
+    "Python files compile: python -m py_compile chatbot/api/admin.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",

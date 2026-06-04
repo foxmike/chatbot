@@ -6,8 +6,10 @@
   "title": "Restart persistence tests",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Restart persistence tests. Allowed write paths: tests/integration/test_restart_persistence.py. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Restart persistence tests. , is completed for task j.2.",
+    "Only files listed in allowed_write_paths are created or modified: tests/integration/test_restart_persistence.py",
+    "Test files cover the requested behavior: tests/integration/test_restart_persistence.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",

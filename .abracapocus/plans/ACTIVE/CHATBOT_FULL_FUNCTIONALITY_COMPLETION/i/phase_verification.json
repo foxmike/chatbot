@@ -1,0 +1,45 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "phase_i_py_compile",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/api/admin.py",
+          "chatbot/api/streaming.py",
+          "chatbot/api/app.py",
+          "chatbot/observability/tracing.py",
+          "chatbot/observability/metrics.py",
+          "chatbot/providers/router.py",
+          "chatbot/config.py",
+          "chatbot/perf/cache.py",
+          "chatbot/db/models.py",
+          "chatbot/core/turn.py",
+          "chatbot/perf/background.py",
+          "chatbot/api/health.py"
+        ]
+      },
+      {
+        "name": "phase_i_pytest",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "tests/test_streaming_integration.py",
+          "tests/test_admin_integration.py",
+          "-q"
+        ]
+      },
+      {
+        "name": "phase_i_tsc_typecheck",
+        "command": [
+          "sh",
+          "-c",
+          "cd react_ui && npx tsc --noEmit"
+        ]
+      }
+    ]
+  }
+}

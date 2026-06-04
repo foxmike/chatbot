@@ -6,12 +6,16 @@
   "title": "Wire pgvector retrieval into pipeline \u2014 connect retrieval_engine to retrieve step in chatbot/core/turn.py",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Wire pgvector retrieval into pipeline \u2014 connect retrieval_engine to retrieve step in chatbot/core/turn.py. Allowed write paths: chatbot/core/turn.py, chatbot/memory/retrieval.py. selected_backend: codex_cli",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Wire pgvector retrieval into pipeline \u2014 connect retrieval_engine to retrieve step in chatbot/core/turn.py is completed for task c.3.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/core/turn.py, chatbot/memory/retrieval.py",
+    "Python files compile: python -m py_compile chatbot/core/turn.py chatbot/memory/retrieval.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "codex_cli",
   "verification_profile": "focused",
-  "dependencies": [],
+  "dependencies": [
+    "c.2"
+  ],
   "task_timeout_seconds": 900,
   "allowed_write_paths": [
     "chatbot/core/turn.py",

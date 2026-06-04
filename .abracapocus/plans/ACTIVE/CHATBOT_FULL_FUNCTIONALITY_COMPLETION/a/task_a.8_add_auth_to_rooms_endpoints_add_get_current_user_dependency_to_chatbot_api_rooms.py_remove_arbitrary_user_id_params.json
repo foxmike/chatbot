@@ -6,8 +6,10 @@
   "title": "Add auth to rooms endpoints \u2014 add get_current_user dependency to chatbot/api/rooms.py, remove arbitrary user_id params",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Add auth to rooms endpoints \u2014 add get_current_user dependency to chatbot/api/rooms.py, remove arbitrary user_id params. Allowed write paths: chatbot/api/rooms.py. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Add auth to rooms endpoints \u2014 add get_current_user dependency to chatbot/api/rooms.py, remove arbitrary user_id params. , is completed for task a.8.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/api/rooms.py",
+    "Python files compile: python -m py_compile chatbot/api/rooms.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",

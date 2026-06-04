@@ -6,12 +6,24 @@
   "title": "Final E2E smoke test",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Final E2E smoke test. Allowed write paths: tests/integration/test_full_smoke.py, docs/verification/phase_j_final_smoke.md. selected_backend: pi_cli, model: openrouter/qwen/qwen3-235b-a22b-thinking-2507",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Final E2E smoke test. , is completed for task j.9.",
+    "Only files listed in allowed_write_paths are created or modified: tests/integration/test_full_smoke.py, docs/verification/phase_j_final_smoke.md",
+    "Test files cover the requested behavior: tests/integration/test_full_smoke.py",
+    "Documentation or audit artifacts record the verification outcome: docs/verification/phase_j_final_smoke.md",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",
-  "dependencies": [],
+  "dependencies": [
+    "j.1",
+    "j.2",
+    "j.3",
+    "j.4",
+    "j.5",
+    "j.6",
+    "j.7",
+    "j.8"
+  ],
   "task_timeout_seconds": 900,
   "model": "openrouter/qwen/qwen3-235b-a22b-thinking-2507",
   "allowed_write_paths": [

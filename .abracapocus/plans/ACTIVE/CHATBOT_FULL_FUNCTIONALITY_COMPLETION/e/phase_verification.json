@@ -1,0 +1,52 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "phase_e_py_compile",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/continuity/timeline.py",
+          "chatbot/continuity/narrative.py",
+          "chatbot/continuity/rituals.py",
+          "chatbot/api/continuity.py",
+          "chatbot/api/agency.py",
+          "chatbot/agency/scheduler.py",
+          "chatbot/agency/notifications.py",
+          "chatbot/core/turn.py",
+          "migrations/versions/0010_continuity_reconciliation.py",
+          "chatbot/db/models.py",
+          "chatbot/api/app.py"
+        ]
+      },
+      {
+        "name": "phase_e_pytest",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "tests/test_continuity_integration.py",
+          "-q"
+        ]
+      },
+      {
+        "name": "phase_e_tsc_typecheck",
+        "command": [
+          "sh",
+          "-c",
+          "cd react_ui && npx tsc --noEmit"
+        ]
+      },
+      {
+        "name": "phase_e_alembic_check",
+        "command": [
+          "python",
+          "-m",
+          "alembic",
+          "check"
+        ]
+      }
+    ]
+  }
+}

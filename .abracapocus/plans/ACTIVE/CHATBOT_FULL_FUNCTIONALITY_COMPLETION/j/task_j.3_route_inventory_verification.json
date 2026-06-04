@@ -6,8 +6,11 @@
   "title": "Route inventory verification",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Route inventory verification. Allowed write paths: tests/integration/test_route_inventory.py, docs/verification/phase_j_route_inventory.md. selected_backend: antigravity_cli",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Route inventory verification is completed for task j.3.",
+    "Only files listed in allowed_write_paths are created or modified: tests/integration/test_route_inventory.py, docs/verification/phase_j_route_inventory.md",
+    "Test files cover the requested behavior: tests/integration/test_route_inventory.py",
+    "Documentation or audit artifacts record the verification outcome: docs/verification/phase_j_route_inventory.md",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "antigravity_cli",
   "verification_profile": "focused",

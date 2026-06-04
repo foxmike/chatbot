@@ -6,12 +6,16 @@
   "title": "Mount CharacterCreator in settings panel",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Mount CharacterCreator in settings panel. Allowed write paths: react_ui/src/App.tsx, react_ui/src/components/SettingsPanel.tsx, react_ui/src/components/CharacterCreator.tsx. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Mount CharacterCreator in settings panel. , is completed for task d.3.",
+    "Only files listed in allowed_write_paths are created or modified: react_ui/src/App.tsx, react_ui/src/components/SettingsPanel.tsx, react_ui/src/components/CharacterCreator.tsx",
+    "Affected React/TypeScript files type-check with the existing frontend check.",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",
-  "dependencies": [],
+  "dependencies": [
+    "d.2"
+  ],
   "task_timeout_seconds": 900,
   "model": "openrouter/deepseek/deepseek-v4-pro",
   "allowed_write_paths": [

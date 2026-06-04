@@ -6,12 +6,17 @@
   "title": "Verify cadence mapping affects TTS",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Verify cadence mapping affects TTS. Allowed write paths: chatbot/voice/cadence.py, chatbot/voice/tts.py, docs/verification/phase_g_cadence_tts.md. selected_backend: pi_cli, model: openrouter/qwen/qwen3-235b-a22b-thinking-2507",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Verify cadence mapping affects TTS. , is completed for task g.8.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/voice/cadence.py, chatbot/voice/tts.py, docs/verification/phase_g_cadence_tts.md",
+    "Python files compile: python -m py_compile chatbot/voice/cadence.py chatbot/voice/tts.py",
+    "Documentation or audit artifacts record the verification outcome: docs/verification/phase_g_cadence_tts.md",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",
-  "dependencies": [],
+  "dependencies": [
+    "g.2"
+  ],
   "task_timeout_seconds": 900,
   "model": "openrouter/qwen/qwen3-235b-a22b-thinking-2507",
   "allowed_write_paths": [

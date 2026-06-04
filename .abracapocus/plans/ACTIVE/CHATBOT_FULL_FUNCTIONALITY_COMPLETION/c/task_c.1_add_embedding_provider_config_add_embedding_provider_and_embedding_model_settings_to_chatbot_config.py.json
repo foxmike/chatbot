@@ -6,8 +6,10 @@
   "title": "Add embedding provider config \u2014 add embedding_provider and embedding_model settings to chatbot/config.py",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Add embedding provider config \u2014 add embedding_provider and embedding_model settings to chatbot/config.py. Allowed write paths: chatbot/config.py. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Add embedding provider config \u2014 add embedding_provider and embedding_model settings to chatbot/config.py. , is completed for task c.1.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/config.py",
+    "Python files compile: python -m py_compile chatbot/config.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",

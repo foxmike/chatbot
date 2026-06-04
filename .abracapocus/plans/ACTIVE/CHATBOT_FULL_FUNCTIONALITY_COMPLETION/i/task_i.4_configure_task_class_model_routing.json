@@ -6,8 +6,10 @@
   "title": "Configure task-class model routing",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Configure task-class model routing. Allowed write paths: chatbot/providers/router.py, chatbot/config.py. selected_backend: codex_cli",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Configure task-class model routing is completed for task i.4.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/providers/router.py, chatbot/config.py",
+    "Python files compile: python -m py_compile chatbot/providers/router.py chatbot/config.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "codex_cli",
   "verification_profile": "focused",

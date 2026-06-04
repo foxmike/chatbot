@@ -6,8 +6,11 @@
   "title": "Pass room_id through ChatRequest",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Pass room_id through ChatRequest. Allowed write paths: chatbot/api/chat.py, react_ui/src/api/client.ts. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Pass room_id through ChatRequest. , is completed for task f.1.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/api/chat.py, react_ui/src/api/client.ts",
+    "Python files compile: python -m py_compile chatbot/api/chat.py",
+    "Affected React/TypeScript files type-check with the existing frontend check.",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",

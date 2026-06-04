@@ -6,8 +6,10 @@
   "title": "Fix memory router prefix \u2014 change from /api/memories to /memories in chatbot/api/memory.py",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Fix memory router prefix \u2014 change from /api/memories to /memories in chatbot/api/memory.py. Allowed write paths: chatbot/api/memory.py. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Fix memory router prefix \u2014 change from /api/memories to /memories in chatbot/api/memory.py. , is completed for task a.1.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/api/memory.py",
+    "Python files compile: python -m py_compile chatbot/api/memory.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",

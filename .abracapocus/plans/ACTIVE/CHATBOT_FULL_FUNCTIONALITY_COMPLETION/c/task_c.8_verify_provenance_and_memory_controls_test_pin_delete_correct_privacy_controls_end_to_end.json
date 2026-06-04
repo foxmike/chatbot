@@ -6,12 +6,17 @@
   "title": "Verify provenance and memory controls \u2014 test pin/delete/correct/privacy controls end-to-end",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Verify provenance and memory controls \u2014 test pin/delete/correct/privacy controls end-to-end. Allowed write paths: tests/test_memory_management.py, docs/verification/phase_c_memory_controls.md. selected_backend: pi_cli, model: openrouter/qwen/qwen3-235b-a22b-thinking-2507",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Verify provenance and memory controls \u2014 test pin/delete/correct/privacy controls end-to-end. , is completed for task c.8.",
+    "Only files listed in allowed_write_paths are created or modified: tests/test_memory_management.py, docs/verification/phase_c_memory_controls.md",
+    "Test files cover the requested behavior: tests/test_memory_management.py",
+    "Documentation or audit artifacts record the verification outcome: docs/verification/phase_c_memory_controls.md",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",
-  "dependencies": [],
+  "dependencies": [
+    "c.3"
+  ],
   "task_timeout_seconds": 900,
   "model": "openrouter/qwen/qwen3-235b-a22b-thinking-2507",
   "allowed_write_paths": [

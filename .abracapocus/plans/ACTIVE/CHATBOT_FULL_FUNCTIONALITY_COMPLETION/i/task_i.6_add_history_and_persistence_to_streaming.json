@@ -6,12 +6,16 @@
   "title": "Add history and persistence to streaming",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Add history and persistence to streaming. Allowed write paths: chatbot/api/streaming.py, chatbot/core/turn.py. selected_backend: codex_cli",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Add history and persistence to streaming is completed for task i.6.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/api/streaming.py, chatbot/core/turn.py",
+    "Python files compile: python -m py_compile chatbot/api/streaming.py chatbot/core/turn.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "codex_cli",
   "verification_profile": "focused",
-  "dependencies": [],
+  "dependencies": [
+    "i.5"
+  ],
   "task_timeout_seconds": 900,
   "allowed_write_paths": [
     "chatbot/api/streaming.py",

@@ -6,8 +6,10 @@
   "title": "Create voice_preferences migration",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Create voice_preferences migration. Allowed write paths: migrations/versions/0011_voice_preferences.py, chatbot/db/models.py. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Create voice_preferences migration. , is completed for task g.4.",
+    "Only files listed in allowed_write_paths are created or modified: migrations/versions/0011_voice_preferences.py, chatbot/db/models.py",
+    "Python files compile: python -m py_compile migrations/versions/0011_voice_preferences.py chatbot/db/models.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",

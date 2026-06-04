@@ -6,8 +6,10 @@
   "title": "Implement TTS provider call \u2014 replace NotImplementedError in chatbot/voice/tts.py",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Implement TTS provider call \u2014 replace NotImplementedError in chatbot/voice/tts.py. Allowed write paths: chatbot/voice/tts.py. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Implement TTS provider call \u2014 replace NotImplementedError in chatbot/voice/tts.py. , is completed for task g.2.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/voice/tts.py",
+    "Python files compile: python -m py_compile chatbot/voice/tts.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",

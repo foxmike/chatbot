@@ -6,12 +6,16 @@
   "title": "Configure image understanding provider settings",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Configure image understanding provider settings. Allowed write paths: chatbot/config.py, chatbot/visual/understanding.py. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Configure image understanding provider settings. , is completed for task h.4.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/config.py, chatbot/visual/understanding.py",
+    "Python files compile: python -m py_compile chatbot/config.py chatbot/visual/understanding.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",
-  "dependencies": [],
+  "dependencies": [
+    "h.3"
+  ],
   "task_timeout_seconds": 900,
   "model": "openrouter/moonshotai/kimi-k2-0905",
   "allowed_write_paths": [

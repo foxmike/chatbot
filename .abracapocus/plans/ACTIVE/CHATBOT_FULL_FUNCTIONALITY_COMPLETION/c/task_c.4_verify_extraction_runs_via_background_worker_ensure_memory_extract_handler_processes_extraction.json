@@ -6,8 +6,11 @@
   "title": "Verify extraction runs via background worker \u2014 ensure memory_extract handler processes extraction",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Verify extraction runs via background worker \u2014 ensure memory_extract handler processes extraction. Allowed write paths: chatbot/perf/handlers.py, chatbot/memory/extraction.py, docs/verification/phase_c_memory_extract_worker.md. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Verify extraction runs via background worker \u2014 ensure memory_extract handler processes extraction. , is completed for task c.4.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/perf/handlers.py, chatbot/memory/extraction.py, docs/verification/phase_c_memory_extract_worker.md",
+    "Python files compile: python -m py_compile chatbot/perf/handlers.py chatbot/memory/extraction.py",
+    "Documentation or audit artifacts record the verification outcome: docs/verification/phase_c_memory_extract_worker.md",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",

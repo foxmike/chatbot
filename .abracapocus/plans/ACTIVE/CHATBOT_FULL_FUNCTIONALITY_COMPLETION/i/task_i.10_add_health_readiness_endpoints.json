@@ -6,8 +6,10 @@
   "title": "Add health/readiness endpoints",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Add health/readiness endpoints. Allowed write paths: chatbot/api/health.py, chatbot/api/app.py. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Add health/readiness endpoints. , is completed for task i.10.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/api/health.py, chatbot/api/app.py",
+    "Python files compile: python -m py_compile chatbot/api/health.py chatbot/api/app.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",

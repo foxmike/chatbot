@@ -6,8 +6,10 @@
   "title": "Configure image generation provider settings",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Configure image generation provider settings. Allowed write paths: chatbot/config.py, chatbot/visual/generation.py. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Configure image generation provider settings. , is completed for task h.3.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/config.py, chatbot/visual/generation.py",
+    "Python files compile: python -m py_compile chatbot/config.py chatbot/visual/generation.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",

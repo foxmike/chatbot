@@ -1,0 +1,29 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "phase_b_py_compile",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/perf/background.py",
+          "chatbot/perf/worker.py",
+          "chatbot/perf/handlers.py",
+          "chatbot/api/app.py",
+          "chatbot/api/health.py"
+        ]
+      },
+      {
+        "name": "phase_b_pytest",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "tests/test_background_worker.py",
+          "-q"
+        ]
+      }
+    ]
+  }
+}

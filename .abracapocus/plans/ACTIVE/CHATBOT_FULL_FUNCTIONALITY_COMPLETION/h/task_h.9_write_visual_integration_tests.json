@@ -6,12 +6,23 @@
   "title": "Write visual integration tests",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Write visual integration tests. Allowed write paths: tests/test_visual_integration.py. selected_backend: pi_cli, model: openrouter/qwen/qwen3-235b-a22b-thinking-2507",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Write visual integration tests. , is completed for task h.9.",
+    "Only files listed in allowed_write_paths are created or modified: tests/test_visual_integration.py",
+    "Test files cover the requested behavior: tests/test_visual_integration.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",
-  "dependencies": [],
+  "dependencies": [
+    "h.1",
+    "h.2",
+    "h.3",
+    "h.4",
+    "h.5",
+    "h.6",
+    "h.7",
+    "h.8"
+  ],
   "task_timeout_seconds": 900,
   "model": "openrouter/qwen/qwen3-235b-a22b-thinking-2507",
   "allowed_write_paths": [

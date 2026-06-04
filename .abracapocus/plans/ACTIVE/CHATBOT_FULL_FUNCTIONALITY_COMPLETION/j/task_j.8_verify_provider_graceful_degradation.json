@@ -6,8 +6,11 @@
   "title": "Verify provider graceful degradation",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Verify provider graceful degradation. Allowed write paths: tests/integration/test_provider_degradation.py, docs/verification/phase_j_provider_degradation.md. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Verify provider graceful degradation. , is completed for task j.8.",
+    "Only files listed in allowed_write_paths are created or modified: tests/integration/test_provider_degradation.py, docs/verification/phase_j_provider_degradation.md",
+    "Test files cover the requested behavior: tests/integration/test_provider_degradation.py",
+    "Documentation or audit artifacts record the verification outcome: docs/verification/phase_j_provider_degradation.md",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",

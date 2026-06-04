@@ -6,12 +6,16 @@
   "title": "Define consolidate task handler \u2014 add consolidation handler to chatbot/perf/handlers.py",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Define consolidate task handler \u2014 add consolidation handler to chatbot/perf/handlers.py. Allowed write paths: chatbot/perf/handlers.py. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Define consolidate task handler \u2014 add consolidation handler to chatbot/perf/handlers.py. , is completed for task b.3.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/perf/handlers.py",
+    "Python files compile: python -m py_compile chatbot/perf/handlers.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",
-  "dependencies": [],
+  "dependencies": [
+    "b.2"
+  ],
   "task_timeout_seconds": 900,
   "model": "openrouter/deepseek/deepseek-v4-pro",
   "allowed_write_paths": [

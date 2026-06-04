@@ -6,8 +6,10 @@
   "title": "Mount MemoryPanel in app shell \u2014 wire MemoryPanel component into settings/panel area",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Mount MemoryPanel in app shell \u2014 wire MemoryPanel component into settings/panel area. Allowed write paths: react_ui/src/App.tsx, react_ui/src/components/MemoryPanel.tsx. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Mount MemoryPanel in app shell \u2014 wire MemoryPanel component into settings/panel area. , is completed for task c.6.",
+    "Only files listed in allowed_write_paths are created or modified: react_ui/src/App.tsx, react_ui/src/components/MemoryPanel.tsx",
+    "Affected React/TypeScript files type-check with the existing frontend check.",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",

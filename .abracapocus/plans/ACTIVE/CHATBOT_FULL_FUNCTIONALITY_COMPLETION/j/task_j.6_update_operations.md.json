@@ -6,8 +6,10 @@
   "title": "Update OPERATIONS.md",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Update OPERATIONS.md. Allowed write paths: docs/OPERATIONS.md. selected_backend: antigravity_cli",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Update OPERATIONS.md is completed for task j.6.",
+    "Only files listed in allowed_write_paths are created or modified: docs/OPERATIONS.md",
+    "Documentation or audit artifacts record the verification outcome: docs/OPERATIONS.md",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "antigravity_cli",
   "verification_profile": "focused",

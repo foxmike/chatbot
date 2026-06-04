@@ -6,8 +6,11 @@
   "title": "Reconcile continuity table/model name mismatches",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Reconcile continuity table/model name mismatches. Allowed write paths: chatbot/db/models.py, docs/verification/phase_e_continuity_schema_reconciliation.md. selected_backend: codex_cli",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Reconcile continuity table/model name mismatches is completed for task e.1.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/db/models.py, docs/verification/phase_e_continuity_schema_reconciliation.md",
+    "Python files compile: python -m py_compile chatbot/db/models.py",
+    "Documentation or audit artifacts record the verification outcome: docs/verification/phase_e_continuity_schema_reconciliation.md",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "codex_cli",
   "verification_profile": "focused",

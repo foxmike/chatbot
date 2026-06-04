@@ -6,12 +6,16 @@
   "title": "Wire appearance/outfit continuity into companion display",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Wire appearance/outfit continuity into companion display. Allowed write paths: chatbot/visual/appearance.py, chatbot/companions/companion.py. selected_backend: codex_cli",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Wire appearance/outfit continuity into companion display is completed for task h.5.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/visual/appearance.py, chatbot/companions/companion.py",
+    "Python files compile: python -m py_compile chatbot/visual/appearance.py chatbot/companions/companion.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "codex_cli",
   "verification_profile": "focused",
-  "dependencies": [],
+  "dependencies": [
+    "h.2"
+  ],
   "task_timeout_seconds": 900,
   "allowed_write_paths": [
     "chatbot/visual/appearance.py",

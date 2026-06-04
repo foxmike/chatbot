@@ -6,8 +6,10 @@
   "title": "Secure streaming endpoint with auth",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Secure streaming endpoint with auth. Allowed write paths: chatbot/api/streaming.py. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Secure streaming endpoint with auth. , is completed for task i.5.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/api/streaming.py",
+    "Python files compile: python -m py_compile chatbot/api/streaming.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",

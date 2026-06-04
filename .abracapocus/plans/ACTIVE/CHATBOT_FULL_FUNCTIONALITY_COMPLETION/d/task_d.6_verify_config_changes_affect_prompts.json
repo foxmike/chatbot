@@ -6,12 +6,21 @@
   "title": "Verify config changes affect prompts",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Verify config changes affect prompts. Allowed write paths: docs/verification/phase_d_prompt_config_effects.md, tests/test_config_integration.py. selected_backend: pi_cli, model: openrouter/qwen/qwen3-235b-a22b-thinking-2507",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Verify config changes affect prompts. , is completed for task d.6.",
+    "Only files listed in allowed_write_paths are created or modified: docs/verification/phase_d_prompt_config_effects.md, tests/test_config_integration.py",
+    "Test files cover the requested behavior: tests/test_config_integration.py",
+    "Documentation or audit artifacts record the verification outcome: docs/verification/phase_d_prompt_config_effects.md",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",
-  "dependencies": [],
+  "dependencies": [
+    "d.1",
+    "d.2",
+    "d.3",
+    "d.4",
+    "d.5"
+  ],
   "task_timeout_seconds": 900,
   "model": "openrouter/qwen/qwen3-235b-a22b-thinking-2507",
   "allowed_write_paths": [

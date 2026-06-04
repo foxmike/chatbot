@@ -1,0 +1,48 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "phase_g_py_compile",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/config.py",
+          "chatbot/voice/tts.py",
+          "chatbot/voice/stt.py",
+          "chatbot/api/voice.py",
+          "migrations/versions/0011_voice_preferences.py",
+          "chatbot/db/models.py",
+          "chatbot/voice/cadence.py"
+        ]
+      },
+      {
+        "name": "phase_g_pytest",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "tests/test_voice_integration.py",
+          "-q"
+        ]
+      },
+      {
+        "name": "phase_g_tsc_typecheck",
+        "command": [
+          "sh",
+          "-c",
+          "cd react_ui && npx tsc --noEmit"
+        ]
+      },
+      {
+        "name": "phase_g_alembic_check",
+        "command": [
+          "python",
+          "-m",
+          "alembic",
+          "check"
+        ]
+      }
+    ]
+  }
+}

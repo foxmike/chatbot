@@ -6,12 +6,23 @@
   "title": "Write voice integration tests",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Write voice integration tests. Allowed write paths: tests/test_voice_integration.py. selected_backend: pi_cli, model: openrouter/moonshotai/kimi-k2-0905",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Write voice integration tests. , is completed for task g.9.",
+    "Only files listed in allowed_write_paths are created or modified: tests/test_voice_integration.py",
+    "Test files cover the requested behavior: tests/test_voice_integration.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",
-  "dependencies": [],
+  "dependencies": [
+    "g.1",
+    "g.2",
+    "g.3",
+    "g.4",
+    "g.5",
+    "g.6",
+    "g.7",
+    "g.8"
+  ],
   "task_timeout_seconds": 900,
   "model": "openrouter/moonshotai/kimi-k2-0905",
   "allowed_write_paths": [

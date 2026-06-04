@@ -1,0 +1,32 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "phase_a_py_compile",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/api/app.py",
+          "chatbot/api/memory.py",
+          "chatbot/api/voice.py",
+          "chatbot/api/config.py",
+          "chatbot/api/agency.py",
+          "chatbot/api/rooms.py",
+          "chatbot/api/admin.py",
+          "chatbot/api/streaming.py",
+          "chatbot/api/companions.py",
+          "chatbot/api/continuity.py"
+        ]
+      },
+      {
+        "name": "phase_a_tsc_typecheck",
+        "command": [
+          "sh",
+          "-c",
+          "cd react_ui && npx tsc --noEmit"
+        ]
+      }
+    ]
+  }
+}

@@ -6,8 +6,11 @@
   "title": "Decide Redis use for cache/queue",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Decide Redis use for cache/queue. Allowed write paths: chatbot/perf/cache.py, chatbot/perf/background.py, docker-compose.yml, docs/verification/phase_i_redis_cache_queue_decision.md. selected_backend: antigravity_cli",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Decide Redis use for cache/queue is completed for task i.9.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/perf/cache.py, chatbot/perf/background.py, docker-compose.yml, docs/verification/phase_i_redis_cache_queue_decision.md",
+    "Python files compile: python -m py_compile chatbot/perf/cache.py chatbot/perf/background.py",
+    "Documentation or audit artifacts record the verification outcome: docs/verification/phase_i_redis_cache_queue_decision.md",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "antigravity_cli",
   "verification_profile": "focused",

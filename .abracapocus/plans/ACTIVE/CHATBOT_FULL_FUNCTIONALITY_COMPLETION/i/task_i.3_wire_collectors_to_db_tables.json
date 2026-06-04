@@ -6,12 +6,16 @@
   "title": "Wire collectors to DB tables",
   "description": "Before editing, inspect the files listed in allowed_write_paths. Wire collectors to DB tables. Allowed write paths: chatbot/observability/tracing.py, chatbot/observability/metrics.py. selected_backend: pi_cli, model: openrouter/deepseek/deepseek-v4-pro",
   "acceptance_criteria": [
-    "The requested task outcome is implemented or verified.",
-    "No file outside allowed_write_paths is modified."
+    "Wire collectors to DB tables. , is completed for task i.3.",
+    "Only files listed in allowed_write_paths are created or modified: chatbot/observability/tracing.py, chatbot/observability/metrics.py",
+    "Python files compile: python -m py_compile chatbot/observability/tracing.py chatbot/observability/metrics.py",
+    "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
   "selected_backend": "pi_cli",
   "verification_profile": "focused",
-  "dependencies": [],
+  "dependencies": [
+    "i.2"
+  ],
   "task_timeout_seconds": 900,
   "model": "openrouter/deepseek/deepseek-v4-pro",
   "allowed_write_paths": [
