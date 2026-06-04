@@ -27,7 +27,7 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     app = FastAPI(title="Chatbot API", version=__version__, lifespan=lifespan)
     app.include_router(health_router)
-    app.include_router(config_router, prefix="/api/config", tags=["config"])
+    app.include_router(config_router, prefix="/config", tags=["config"])
     app.include_router(sessions_router)
     app.include_router(chat_router)
     app.include_router(streaming_router)
