@@ -118,7 +118,11 @@ class Companion(Base):
     description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(sa.String(512), nullable=True)
     appearance_id: Mapped[str | None] = mapped_column(
-        sa.ForeignKey("appearances.appearance_id"),
+        sa.ForeignKey(
+            "appearances.appearance_id",
+            name="companions_appearance_id_fkey",
+            use_alter=True,
+        ),
         nullable=True,
     )
     created_at: Mapped[datetime] = mapped_column(
@@ -757,7 +761,12 @@ class Room(Base):
         sa.Boolean, nullable=False, default=True
     )
     scene_id: Mapped[str | None] = mapped_column(
-        sa.ForeignKey("scenes.scene_id"), nullable=True
+        sa.ForeignKey(
+            "scenes.scene_id",
+            name="rooms_scene_id_fkey",
+            use_alter=True,
+        ),
+        nullable=True,
     )
     created_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True),
@@ -766,7 +775,10 @@ class Room(Base):
     )
     extra_metadata: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
 
-    scenes: Mapped[list[Scene]] = relationship(back_populates="room")
+    scenes: Mapped[list[Scene]] = relationship(
+        back_populates="room",
+        foreign_keys="[Scene.room_id]",
+    )
     scene: Mapped[Scene | None] = relationship(foreign_keys=[scene_id])
 
 

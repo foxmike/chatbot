@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import asdict, is_dataclass
 from typing import Any, Mapping, Optional
 
 from chatbot.soul.character import CharacterProfile
@@ -110,7 +111,8 @@ class PersonaPromptAssembler:
         character_profile: Optional[CharacterProfile] = None,
         identity_state: Optional[IdentityState] = None,
     ) -> str:
-        if not persona:
+        persona_data = _persona_mapping(persona)
+        if not persona_data:
             return self._with_prompt_modifiers(
                 str(self._config["fallback_prompt"]),
                 "\n",
@@ -121,7 +123,10 @@ class PersonaPromptAssembler:
                 identity_state,
             )
 
-        style_name = _first_text(persona.get("template"), persona.get("style"))
+        style_name = _first_text(
+            _persona_value(persona_data, "template"),
+            _persona_value(persona_data, "style"),
+        )
         if not style_name:
             style_name = str(self._config["default_style"])
 
@@ -132,7 +137,7 @@ class PersonaPromptAssembler:
         if not isinstance(style, Mapping):
             style = {}
 
-        sections = self._render_sections(persona, style)
+        sections = self._render_sections(persona_data, style)
         identity_sections = _render_identity_sections(
             style=style,
             relationship_config=relationship_config,
@@ -240,6 +245,9 @@ def assemble_persona_prompt(
     character_profile: Optional[CharacterProfile] = None,
     identity_state: Optional[IdentityState] = None,
 ) -> str:
+    if isinstance(mood, str):
+        return _render_legacy_personality_prompt(persona, mood, mode)
+
     assembler = PersonaPromptAssembler()
     return assembler.assemble(
         persona,
@@ -275,6 +283,94 @@ def _lookup_section_value(
             return persona[alias]
 
     return None
+
+
+def _render_legacy_personality_prompt(
+    persona: Any,
+    identity_anchor: str,
+    state: Any,
+) -> str:
+    persona_data = _persona_mapping(persona)
+    anchor = _clean_fragment(identity_anchor)
+    if not anchor:
+        anchor = _clean_fragment(getattr(state, "identity_anchor", ""))
+
+    name = _clean_text(_persona_value(persona_data, "name"))
+    description = _clean_text(_persona_value(persona_data, "description"))
+    traits = _persona_value(persona_data, "core_traits")
+    tone = _clean_text(_persona_value(persona_data, "tone"))
+    verbosity = _clean_text(_persona_value(persona_data, "verbosity"))
+    custom_instructions = _clean_fragment(
+        _persona_value(persona_data, "custom_instructions")
+    )
+
+    personality_lines = []
+    if name:
+        personality_lines.append(f"Name: {name}")
+    if description:
+        personality_lines.append(f"Description: {description}")
+    traits_text = _render_trait_summary(traits)
+    if traits_text:
+        personality_lines.append(f"Core traits: {traits_text}")
+
+    tone_lines = []
+    if tone:
+        tone_lines.append(f"Tone: {tone}")
+    if verbosity:
+        tone_lines.append(f"Verbosity: {verbosity}")
+
+    constraint_lines = []
+    for key, label in (
+        ("use_emojis", "Use emojis"),
+        ("use_markdown", "Use markdown"),
+        ("max_response_length", "Max response length"),
+    ):
+        value = _persona_value(persona_data, key)
+        if value is not None:
+            constraint_lines.append(f"{label}: {value}")
+    if custom_instructions:
+        constraint_lines.append(f"Custom instructions: {custom_instructions}")
+
+    context_lines = []
+    session_id = _clean_text(getattr(state, "session_id", ""))
+    user_id = _clean_text(getattr(state, "user_id", ""))
+    if session_id:
+        context_lines.append(f"Session: {session_id}")
+    if user_id:
+        context_lines.append(f"User: {user_id}")
+
+    return "\n".join(
+        [
+            "IDENTITY",
+            anchor or name or str(_DEFAULT_CONFIG["fallback_prompt"]),
+            "PERSONALITY",
+            "\n".join(personality_lines) or "No fixed personality configured.",
+            "TONE",
+            "\n".join(tone_lines) or "neutral",
+            "CONSTRAINTS",
+            "\n".join(constraint_lines) or "No extra constraints.",
+            "CONTEXT",
+            "\n".join(context_lines) or "No additional context.",
+        ]
+    )
+
+
+def _persona_mapping(persona: Any) -> Mapping[str, Any]:
+    if isinstance(persona, Mapping):
+        return persona
+    if is_dataclass(persona) and not isinstance(persona, type):
+        return asdict(persona)
+    return {}
+
+
+def _persona_value(persona: Mapping[str, Any], key: str) -> Any | None:
+    return persona.get(key)
+
+
+def _render_trait_summary(value: Any) -> str:
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return ", ".join(_clean_text(item) for item in value if _clean_text(item))
+    return _clean_text(value)
 
 
 def _render_value(value: Any, item_prefix: str) -> str:
