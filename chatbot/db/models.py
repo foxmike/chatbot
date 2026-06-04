@@ -117,6 +117,10 @@ class Companion(Base):
     persona: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(sa.String(512), nullable=True)
+    appearance_id: Mapped[str | None] = mapped_column(
+        sa.ForeignKey("appearances.appearance_id"),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True),
         nullable=False,
@@ -130,6 +134,114 @@ class Companion(Base):
     )
 
     user: Mapped[User] = relationship(back_populates="companions")
+
+
+class ImageMemory(Base):
+    __tablename__ = "image_memories"
+    __table_args__ = (
+        sa.CheckConstraint(
+            "source_type IN ('generated', 'uploaded', 'understood')",
+            name="ck_image_memories_source_type",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(sa.Integer, primary_key=True, autoincrement=True)
+    image_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        unique=True,
+        nullable=False,
+        default=lambda: str(uuid.uuid4()),
+    )
+    source_type: Mapped[str] = mapped_column(sa.String(20), nullable=False)
+    turn_id: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    session_id: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        sa.ForeignKey("users.id"),
+        nullable=True,
+    )
+    image_data: Mapped[bytes | None] = mapped_column(sa.LargeBinary, nullable=True)
+    image_url: Mapped[str | None] = mapped_column(sa.String(1024), nullable=True)
+    mime_type: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    prompt_used: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    seed_used: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+    model_used: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    width: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+    height: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+    generation_time_ms: Mapped[float | None] = mapped_column(sa.Float, nullable=True)
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    detected_objects: Mapped[list[dict[str, object]] | None] = mapped_column(
+        sa.JSON,
+        nullable=True,
+    )
+    detected_text: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    scene_category: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    understanding_confidence: Mapped[float | None] = mapped_column(sa.Float, nullable=True)
+    processing_time_ms: Mapped[float | None] = mapped_column(sa.Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        default=datetime.utcnow,
+    )
+
+
+class Appearance(Base):
+    __tablename__ = "appearances"
+
+    id: Mapped[int] = mapped_column(sa.Integer, primary_key=True, autoincrement=True)
+    appearance_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        unique=True,
+        nullable=False,
+        default=lambda: str(uuid.uuid4()),
+    )
+    companion_id: Mapped[str | None] = mapped_column(
+        sa.ForeignKey("companions.companion_id"),
+        nullable=True,
+    )
+    character_seed: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=42)
+    character_description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    visual_traits: Mapped[list[str]] = mapped_column(sa.JSON, nullable=False, default=list)
+    art_style: Mapped[str] = mapped_column(
+        sa.String(128),
+        nullable=False,
+        default="digital illustration",
+    )
+    color_palette: Mapped[list[str]] = mapped_column(sa.JSON, nullable=False, default=list)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        default=datetime.utcnow,
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=True,
+        onupdate=datetime.utcnow,
+    )
+
+
+class OutfitRecord(Base):
+    __tablename__ = "outfit_records"
+
+    id: Mapped[int] = mapped_column(sa.Integer, primary_key=True, autoincrement=True)
+    outfit_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        unique=True,
+        nullable=False,
+        default=lambda: str(uuid.uuid4()),
+    )
+    appearance_id: Mapped[str] = mapped_column(
+        sa.ForeignKey("appearances.appearance_id"),
+        nullable=False,
+    )
+    name: Mapped[str] = mapped_column(sa.String(128), nullable=False, default="default")
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False, default="")
+    visual_tags: Mapped[list[str]] = mapped_column(sa.JSON, nullable=False, default=list)
+    is_active: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        default=datetime.utcnow,
+    )
 
 
 class Session(Base):
@@ -755,6 +867,7 @@ class VoicePreferences(Base):
 __all__ = [
     "AgencyRitual",
     "AgencyTimeline",
+    "Appearance",
     "Base",
     "BotMoodLog",
     "CharacterProfileModel",
@@ -762,10 +875,12 @@ __all__ = [
     "Entity",
     "Episode",
     "IdentityStateModel",
+    "ImageMemory",
     "InitiativeSettings",
     "Message",
     "NarrativeThread",
     "Notification",
+    "OutfitRecord",
     "RelationshipConfigModel",
     "Ritual",
     "Room",
