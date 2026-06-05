@@ -6,6 +6,7 @@ import {
   listSessions,
   sendMessage,
 } from "./api/client";
+import AvatarDisplay from "./components/AvatarDisplay";
 import ChatInput from "./components/ChatInput";
 import ChatMessage from "./components/ChatMessage";
 import MessageList from "./components/MessageList";
@@ -331,6 +332,7 @@ export default function App() {
 
   const chatPanel = (
     <div className="flex h-full min-h-0 flex-col">
+      <AvatarDisplay companion={selectedCompanion} />
       {error ? (
         <div className="border-b border-red-900/70 bg-red-950/40 p-4">
           <ChatMessage message={createMessage("assistant", error)} />
