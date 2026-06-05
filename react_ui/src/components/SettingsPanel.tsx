@@ -1,4 +1,5 @@
 import type { User } from "../api/client";
+import { RelationshipSettings } from "./RelationshipSettings";
 
 interface SettingsPanelProps {
   user: User;
@@ -75,23 +76,27 @@ export function SettingsPanel({
           </section>
         </div>
 
-        <section className="rounded-lg border border-gray-700 bg-gray-800 p-5">
-          <div className="flex flex-col gap-1">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400">
-              Protected Configuration
-            </h3>
-            <p className="text-sm text-gray-400">
-              Relationship, character, and identity controls stay inactive until
-              session ownership is verified by their backend endpoints.
-            </p>
-          </div>
+        {activeSessionId ? (
+          <RelationshipSettings sessionId={activeSessionId} />
+        ) : (
+          <section className="rounded-lg border border-gray-700 bg-gray-800 p-5">
+            <div className="flex flex-col gap-1">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400">
+                Protected Configuration
+              </h3>
+              <p className="text-sm text-gray-400">
+                Relationship, character, and identity controls stay inactive until
+                session ownership is verified by their backend endpoints.
+              </p>
+            </div>
 
-          <ul className="mt-4 grid gap-3 sm:grid-cols-3">
-            <BoundaryItem label="Relationship" status="Guarded" />
-            <BoundaryItem label="Character" status="Guarded" />
-            <BoundaryItem label="Identity" status="Guarded" />
-          </ul>
-        </section>
+            <ul className="mt-4 grid gap-3 sm:grid-cols-3">
+              <BoundaryItem label="Relationship" status="Guarded" />
+              <BoundaryItem label="Character" status="Guarded" />
+              <BoundaryItem label="Identity" status="Guarded" />
+            </ul>
+          </section>
+        )}
       </div>
     </section>
   );
