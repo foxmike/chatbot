@@ -17,7 +17,7 @@ from chatbot.memory import export as memory_export
 from chatbot.memory import search as memory_search
 
 
-memory_router = APIRouter(prefix="/api/memories", tags=["memory"])
+memory_router = APIRouter(prefix="/memories", tags=["memory"])
 
 
 class PinRequest(BaseModel):
