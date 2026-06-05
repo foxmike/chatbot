@@ -11,11 +11,10 @@
     "Python files compile: python -m py_compile chatbot/api/voice.py",
     "The task outcome does not introduce the phase risk noted in the skeleton."
   ],
-  "selected_backend": "pi_cli",
+  "selected_backend": "codex_cli",
   "verification_profile": "focused",
   "dependencies": [],
   "task_timeout_seconds": 900,
-  "model": "openrouter/moonshotai/kimi-k2-0905",
   "allowed_write_paths": [
     "chatbot/api/voice.py"
   ]
