@@ -655,6 +655,11 @@ class Ritual(Base):
     )
 
 
+# Continuity compatibility names point to the migration-backed tables above.
+RelationshipTimelineEntryModel = TimelineEntry
+CompanionRitualModel = Ritual
+
+
 class AgencyRitual(Base):
     __tablename__ = "agency_rituals"
 
