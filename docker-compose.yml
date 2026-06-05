@@ -58,6 +58,20 @@ services:
     networks:
       - chatbot-net
 
+  worker:
+    build:
+      context: .
+    command: celery -A chatbot worker --loglevel=info
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      - db
+      - redis
+    networks:
+      - chatbot-net
+    restart: unless-stopped
+
 volumes:
   postgres-data:
 
