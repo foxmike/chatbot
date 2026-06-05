@@ -13,6 +13,7 @@ from chatbot.api.admin import admin_router
 from chatbot.api.auth import auth_router
 from chatbot.api.rooms import rooms_router
 from chatbot.api.streaming import streaming_router
+from chatbot.api.continuity import narrative_router, rituals_router, timeline_router
 from chatbot.api.companions import companion_router
 from chatbot.api.voice import voice_router
 from chatbot.config import get_settings
@@ -39,6 +40,9 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(companion_router)
     app.include_router(voice_router)
+    app.include_router(timeline_router)
+    app.include_router(narrative_router)
+    app.include_router(rituals_router)
 
     @app.get("/")
     async def root() -> dict[str, str]:
