@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+import httpx
+
 from chatbot.voice.base import TTSProvider, VoiceSynthesisRequest, VoiceSynthesisResult
 from chatbot.voice.cadence import CadenceMapper, CadenceProfile
 
@@ -27,6 +29,9 @@ class TTSAdapter(TTSProvider):
         model_id: str,
         params: Mapping[str, Any] | None = None,
         *,
+        api_key: str = "",
+        base_url: str = "https://api.openai.com/v1",
+        timeout_seconds: float = 60.0,
         cadence_mapper: CadenceMapper | None = None,
     ) -> None:
         if not self.validate_identifier(provider_id, model_id):
@@ -35,6 +40,9 @@ class TTSAdapter(TTSProvider):
         self.provider_id = provider_id
         self.model_id = model_id
         self.params: dict[str, Any] = dict(params or {})
+        self.api_key = api_key or ""
+        self.base_url = (base_url or "").rstrip("/")
+        self.timeout_seconds = timeout_seconds
         self.cadence_mapper = cadence_mapper or CadenceMapper()
 
     async def synthesize(self, request: VoiceSynthesisRequest) -> VoiceSynthesisResult:
@@ -132,10 +140,107 @@ class TTSAdapter(TTSProvider):
         return payload
 
     async def _call_provider(self, payload: Mapping[str, Any]) -> bytes:
-        raise NotImplementedError(
-            "TTS provider API calls are not implemented yet; "
-            f"would call {payload.get('provider')}/{payload.get('model')}"
-        )
+        """Call the TTS provider API and return raw audio bytes."""
+        provider = payload.get("provider", "")
+
+        if provider == "openai":
+            return await self._call_openai_tts(payload)
+        if provider == "elevenlabs":
+            return await self._call_elevenlabs_tts(payload)
+
+        raise ValueError(f"unsupported TTS provider: {provider}")
+
+    async def _call_openai_tts(self, payload: Mapping[str, Any]) -> bytes:
+        model = payload.get("model", self.model_id)
+        text = payload.get("input", "")
+        audio_format = payload.get("format", "mp3")
+        params = payload.get("params", {})
+        voice = payload.get("voice")
+
+        body: dict[str, Any] = {
+            "model": model,
+            "input": text,
+            "voice": voice or "alloy",
+        }
+
+        response_format = _normalize_openai_format(audio_format)
+        if response_format:
+            body["response_format"] = response_format
+
+        speed = params.get("speed_factor") or params.get("voice_speed")
+        if speed is not None:
+            body["speed"] = float(speed)
+
+        headers: dict[str, str] = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/audio/speech",
+                    headers=headers,
+                    json=body,
+                    timeout=self.timeout_seconds,
+                )
+        except httpx.TimeoutException as exc:
+            raise TimeoutError("TTS provider request timed out") from exc
+        except httpx.HTTPError as exc:
+            raise RuntimeError(f"TTS provider request failed: {exc}") from exc
+
+        if response.status_code >= 400:
+            _raise_tts_http_error(response)
+
+        return response.content
+
+    async def _call_elevenlabs_tts(self, payload: Mapping[str, Any]) -> bytes:
+        model = payload.get("model", self.model_id)
+        text = payload.get("input", "")
+        params = payload.get("params", {})
+        voice = payload.get("voice")
+
+        if not voice:
+            raise ValueError("voice ID is required for elevenlabs TTS")
+
+        body: dict[str, Any] = {
+            "text": text,
+            "model_id": model,
+        }
+
+        stability = params.get("stability")
+        if stability is not None:
+            body["voice_settings"] = {"stability": float(stability)}
+
+        speed = params.get("speed_factor") or params.get("voice_speed")
+        if speed is not None:
+            body.setdefault("voice_settings", {})["speed"] = float(speed)
+
+        headers: dict[str, str] = {
+            "Content-Type": "application/json",
+            "Accept": "audio/mpeg",
+        }
+        if self.api_key:
+            headers["xi-api-key"] = self.api_key
+
+        base = self.base_url or "https://api.elevenlabs.io"
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{base}/v1/text-to-speech/{voice}",
+                    headers=headers,
+                    json=body,
+                    timeout=self.timeout_seconds,
+                )
+        except httpx.TimeoutException as exc:
+            raise TimeoutError("TTS provider request timed out") from exc
+        except httpx.HTTPError as exc:
+            raise RuntimeError(f"TTS provider request failed: {exc}") from exc
+
+        if response.status_code >= 400:
+            _raise_tts_http_error(response)
+
+        return response.content
 
 
 def _nested_preferences(params: Mapping[str, Any]) -> Mapping[str, Any] | Any:
@@ -184,6 +289,40 @@ def _content_type(audio_format: str) -> str:
     if normalized == "aac":
         return "audio/aac"
     return "audio/mpeg"
+
+
+def _normalize_openai_format(audio_format: str) -> str:
+    """Map a format string to an OpenAI-compatible response_format value."""
+    normalized = str(audio_format or "").strip().lower()
+    if normalized in {"mp3", "opus", "aac", "flac", "wav", "pcm"}:
+        return normalized
+    if normalized in {"ogg", "vorbis"}:
+        return "opus"
+    return "mp3"
+
+
+def _raise_tts_http_error(response: httpx.Response) -> None:
+    """Raise an appropriate error for non-2xx TTS API responses."""
+    message = f"TTS provider HTTP {response.status_code}: {response.text}"
+    try:
+        body = response.json()
+        if isinstance(body, Mapping):
+            error = body.get("error")
+            if isinstance(error, Mapping):
+                detail = error.get("message") or error.get("code") or error.get("type")
+                if detail:
+                    message = f"TTS provider HTTP {response.status_code}: {detail}"
+            elif error is not None:
+                message = f"TTS provider HTTP {response.status_code}: {error}"
+            elif body.get("message"):
+                message = f"TTS provider HTTP {response.status_code}: {body['message']}"
+    except ValueError:
+        pass
+    if response.status_code in {401, 403}:
+        raise PermissionError(message)
+    if response.status_code == 429:
+        raise RuntimeError(message)
+    raise RuntimeError(message)
 
 
 __all__ = ["TTSAdapter"]
