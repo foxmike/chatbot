@@ -35,6 +35,8 @@ class StreamRequest(BaseModel):
     message: str
     stream_tokens: bool = True
 
+    model_config = {"str_strip_whitespace": True, "str_min_length": 1}
+
 
 streaming_router = APIRouter(prefix="/chat")
 _STREAM_METHOD_NAMES = ("stream_complete", "complete_stream", "stream_tokens", "stream")
@@ -182,10 +184,14 @@ async def _stream_turn(
             user_message=request.message,
             assistant_message=response,
         )
-    except Exception as exc:
+    except HTTPException:
         if typing_active:
             yield _sse_data({"type": "typing", "status": "stopped"})
-        yield _sse_data({"type": "error", "error": str(exc)})
+        raise
+    except Exception:
+        if typing_active:
+            yield _sse_data({"type": "typing", "status": "stopped"})
+        yield _sse_data({"type": "error", "error": "An internal error occurred"})
         yield "data: [DONE]\n\n"
 
 
