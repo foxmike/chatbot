@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from collections.abc import Awaitable, Callable, Mapping
 from datetime import datetime, timezone
@@ -46,6 +47,7 @@ class BackgroundWorker:
         self._tasks_dropped: int = 0
         self._started_at: str | None = None
         self._stopped_at: str | None = None
+        self._run_task: asyncio.Task[None] | None = None
 
     async def run(self) -> None:
         """Begin the worker loop. Blocks until shutdown is requested and the queue drains."""
@@ -71,10 +73,38 @@ class BackgroundWorker:
                 self._tasks_dropped,
             )
 
-    async def shutdown(self) -> None:
+    def start(self) -> asyncio.Task[None]:
+        """Start the worker loop as an asyncio task and return the task handle."""
+
+        if self._run_task is not None and not self._run_task.done():
+            return self._run_task
+
+        self._run_task = asyncio.create_task(self.run())
+        return self._run_task
+
+    async def shutdown(self, *, timeout_seconds: float | None = None) -> None:
         """Signal the worker to stop after draining the queue."""
 
         self.stop_event.set()
+        if self._run_task is None:
+            return
+
+        try:
+            if timeout_seconds is None:
+                await self._run_task
+            else:
+                await asyncio.wait_for(
+                    asyncio.shield(self._run_task),
+                    timeout=timeout_seconds,
+                )
+        except TimeoutError:
+            logger.warning(
+                "BackgroundWorker shutdown timed out after %.2f seconds; cancelling",
+                timeout_seconds,
+            )
+            self._run_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._run_task
 
     async def _dispatch(self, task: BackgroundTask) -> None:
         handler = self.handlers.get(task.task_type) or self.default_handler
@@ -141,6 +171,12 @@ class BackgroundWorker:
 
         return self._stopped_at
 
+    @property
+    def run_task(self) -> asyncio.Task[None] | None:
+        """The asyncio task running this worker, if started with :meth:`start`."""
+
+        return self._run_task
+
 
 async def start_worker(
     queue: BackgroundQueue,
@@ -159,7 +195,7 @@ async def start_worker(
         default_handler=default_handler,
         idle_sleep_seconds=idle_sleep_seconds,
     )
-    asyncio.create_task(worker.run())
+    worker.start()
     return worker
 
 
