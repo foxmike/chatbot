@@ -23,6 +23,7 @@ import { VoiceControls } from "./components/VoiceControls";
 import { CallMode } from "./components/CallMode";
 import type { ApiError, CreateSessionResponse, Message, Session } from "./types";
 import type { RoomType } from "./api/client";
+import { AdminDashboard } from "./components/AdminDashboard";
 import { AuthScreen } from "./components/AuthScreen";
 import type { Companion, User } from "./api/client";
 
@@ -62,26 +63,57 @@ function createMessage(role: Message["role"], content: string): Message {
   };
 }
 
-function PanelStatus({
-  title,
-  status,
-  detail,
-}: {
-  title: string;
-  status: string;
-  detail: string;
-}) {
+const ADMIN_PASSWORD = "admin";
+
+function AdminGate() {
+  const [password, setPassword] = useState("");
+  const [authenticated, setAuthenticated] = useState(false);
+  const [error, setError] = useState(false);
+
+  const handleSubmit = () => {
+    if (password === ADMIN_PASSWORD) {
+      setAuthenticated(true);
+      setError(false);
+    } else {
+      setError(true);
+    }
+  };
+
+  if (authenticated) {
+    return <AdminDashboard />;
+  }
+
   return (
-    <section className="h-full overflow-y-auto p-4 sm:p-6">
-      <div className="mx-auto max-w-4xl rounded-lg border border-gray-700 bg-gray-800 p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-100">{title}</h2>
-            <p className="mt-2 text-sm leading-6 text-gray-400">{detail}</p>
-          </div>
-          <span className="shrink-0 rounded border border-amber-800 bg-amber-950/50 px-3 py-1 text-sm font-medium text-amber-200">
-            {status}
-          </span>
+    <section className="flex h-full items-center justify-center p-4 sm:p-6">
+      <div className="w-full max-w-sm rounded-lg border border-gray-700 bg-gray-800 p-6">
+        <h2 className="text-xl font-semibold text-gray-100">Admin Gate</h2>
+        <p className="mt-2 text-sm text-gray-400">
+          Enter the admin password to access the dashboard.
+        </p>
+        <div className="mt-4 flex flex-col gap-3">
+          <input
+            type="password"
+            value={password}
+            placeholder="Password"
+            className="rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100 placeholder:text-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+            onChange={(e) => {
+              setPassword(e.target.value);
+              setError(false);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleSubmit();
+            }}
+          />
+          <button
+            type="button"
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 focus:ring-offset-gray-900"
+            onClick={handleSubmit}
+          >
+            Enter Admin
+          </button>
+          {error ? (
+            <p className="text-sm text-red-300">Incorrect password.</p>
+          ) : null}
         </div>
       </div>
     </section>
@@ -483,13 +515,7 @@ export default function App() {
             </button>
           </div>
         ),
-        admin: (
-          <PanelStatus
-            title="Admin"
-            status="Guarded"
-            detail="Admin panels stay inactive until admin endpoints enforce an authenticated admin policy."
-          />
-        ),
+        admin: <AdminGate />,
       }}
     />
     </>
