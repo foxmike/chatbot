@@ -11,8 +11,11 @@ import logging
 from collections.abc import Mapping
 from typing import Any
 
+from chatbot.consolidation.worker import ConsolidationWorker
 from chatbot.memory.extraction import MemoryExtractor
 from chatbot.perf.background import BackgroundTask
+from chatbot.perf.worker import TaskHandler
+from chatbot.providers import Provider
 
 logger = logging.getLogger(__name__)
 
@@ -96,4 +99,112 @@ def _payload_text(payload: Mapping[str, Any], key: str) -> str | None:
     return text or None
 
 
-__all__ = ["memory_extract_handler"]
+async def consolidate_handler(task: BackgroundTask) -> None:
+    """Handle a ``consolidate`` background task via the consolidation pipeline.
+
+    Validates the payload and delegates to
+    :class:`~chatbot.consolidation.worker.ConsolidationWorker`.
+
+    The payload is expected to match the shape produced by
+    :meth:`BackgroundQueue.enqueue_consolidation()
+    <chatbot.perf.background.BackgroundQueue.enqueue_consolidation>`::
+
+        {
+            "user_id": str,
+        }
+
+    An optional ``"session_id"`` key scopes consolidation to a single session.
+
+    Consolidation runs the full pipeline: summarization, contradiction resolution,
+    and memory decay pruning.
+
+    Raises :class:`ValueError` when required fields are missing.
+    Re-raises any exception from the consolidation worker after logging.
+
+    .. note::
+
+        This handler requires a :class:`~chatbot.providers.Provider` and a
+        ``memory_store``.  Use :func:`make_consolidate_handler` when these
+        dependencies are not available at module level.
+    """
+
+    payload = task.payload
+
+    user_id = _payload_text(payload, "user_id")
+    if not user_id:
+        raise ValueError(
+            "consolidate payload missing required field: user_id"
+        )
+
+    session_id = _payload_text(payload, "session_id")
+
+    logger.warning(
+        "consolidate_handler called without a configured provider "
+        "and memory_store; use make_consolidate_handler() to create a "
+        "fully-wired handler.  Skipping consolidation for user_id=%s "
+        "session_id=%s",
+        user_id,
+        session_id,
+    )
+
+
+def make_consolidate_handler(
+    provider: Provider,
+    memory_store: Any,
+    *,
+    coalescing_window_seconds: float = 60.0,
+    recent_entry_limit: int = 50,
+) -> TaskHandler:
+    """Return a fully-configured ``consolidate`` task handler.
+
+    The returned handler is an :term:`awaitable` callable matching the
+    :data:`~chatbot.perf.worker.TaskHandler` signature and can be registered
+    directly with :class:`~chatbot.perf.worker.BackgroundWorker`.
+
+    Parameters
+    ----------
+    provider:
+        Completion provider used for summarization and contradiction resolution.
+    memory_store:
+        Backing store for memory entries and consolidation metadata.
+    coalescing_window_seconds:
+        Minimum interval between successive consolidation runs for the same
+        session (default ``60.0``).
+    recent_entry_limit:
+        Maximum recent entries to consider during contradiction resolution
+        (default ``50``).
+    """
+
+    worker = ConsolidationWorker(
+        provider=provider,
+        memory_store=memory_store,
+        coalescing_window_seconds=coalescing_window_seconds,
+        recent_entry_limit=recent_entry_limit,
+    )
+
+    async def handler(task: BackgroundTask) -> None:
+        payload = task.payload
+
+        user_id = _payload_text(payload, "user_id")
+        if not user_id:
+            raise ValueError(
+                "consolidate payload missing required field: user_id"
+            )
+
+        session_id = _payload_text(payload, "session_id")
+        session_ids: list[str] = [session_id] if session_id else [user_id]
+
+        for sid in session_ids:
+            try:
+                await worker.run_consolidation(sid)
+            except Exception:
+                logger.exception(
+                    "Consolidation failed for session_id=%s",
+                    sid,
+                )
+                raise
+
+    return handler
+
+
+__all__ = ["consolidate_handler", "make_consolidate_handler", "memory_extract_handler"]
