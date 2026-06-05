@@ -10,6 +10,8 @@ import ChatInput from "./components/ChatInput";
 import ChatMessage from "./components/ChatMessage";
 import MessageList from "./components/MessageList";
 import SessionSidebar from "./components/SessionSidebar";
+import AppShell from "./components/AppShell";
+import SettingsPanel from "./components/SettingsPanel";
 import type { ApiError, CreateSessionResponse, Message, Session } from "./types";
 import { AuthScreen } from "./components/AuthScreen";
 import type { User } from "./api/client";
@@ -50,6 +52,32 @@ function createMessage(role: Message["role"], content: string): Message {
   };
 }
 
+function PanelStatus({
+  title,
+  status,
+  detail,
+}: {
+  title: string;
+  status: string;
+  detail: string;
+}) {
+  return (
+    <section className="h-full overflow-y-auto p-4 sm:p-6">
+      <div className="mx-auto max-w-4xl rounded-lg border border-gray-700 bg-gray-800 p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-100">{title}</h2>
+            <p className="mt-2 text-sm leading-6 text-gray-400">{detail}</p>
+          </div>
+          <span className="shrink-0 rounded border border-amber-800 bg-amber-950/50 px-3 py-1 text-sm font-medium text-amber-200">
+            {status}
+          </span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -58,6 +86,9 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const messages = activeSessionId ? messagesBySession[activeSessionId] ?? [] : [];
+  const activeSession = sessions.find(
+    (session) => session.session_id === activeSessionId,
+  );
 
   useEffect(() => {
     if (!user) {
@@ -258,29 +289,81 @@ export default function App() {
     return <AuthScreen onAuthenticated={setUser} />;
   }
 
-  return (
-    <div className="flex h-screen bg-gray-900 text-gray-100">
-      <SessionSidebar
-        sessions={sessions}
-        activeSessionId={activeSessionId}
-        onSelect={handleSelectSession}
-        onNewSession={handleNewSession}
-        onDelete={handleDeleteSession}
+  const chatPanel = (
+    <div className="flex h-full min-h-0 flex-col">
+      {error ? (
+        <div className="border-b border-red-900/70 bg-red-950/40 p-4">
+          <ChatMessage message={createMessage("assistant", error)} />
+        </div>
+      ) : null}
+
+      <MessageList messages={messages} isLoading={isLoading} />
+      <ChatInput
+        onSend={handleSend}
+        disabled={isLoading || !activeSessionId}
       />
-
-      <main className="flex min-w-0 flex-1 flex-col bg-gray-900">
-        {error ? (
-          <div className="border-b border-red-900/70 bg-red-950/40 p-4">
-            <ChatMessage message={createMessage("assistant", error)} />
-          </div>
-        ) : null}
-
-        <MessageList messages={messages} isLoading={isLoading} />
-        <ChatInput
-          onSend={handleSend}
-          disabled={isLoading || !activeSessionId}
-        />
-      </main>
     </div>
+  );
+
+  return (
+    <AppShell
+      user={user}
+      activeSessionTitle={activeSession?.title}
+      sidebar={
+        <SessionSidebar
+          sessions={sessions}
+          activeSessionId={activeSessionId}
+          onSelect={handleSelectSession}
+          onNewSession={handleNewSession}
+          onDelete={handleDeleteSession}
+        />
+      }
+      chatPanel={chatPanel}
+      panels={{
+        settings: (
+          <SettingsPanel
+            user={user}
+            activeSessionId={activeSessionId}
+            activeSessionTitle={activeSession?.title}
+            sessionCount={sessions.length}
+          />
+        ),
+        memory: (
+          <PanelStatus
+            title="Memory"
+            status="Guarded"
+            detail="Memory controls are available from the shell after route prefix and auth scoping checks are complete."
+          />
+        ),
+        timeline: (
+          <PanelStatus
+            title="Timeline"
+            status="Guarded"
+            detail="Timeline navigation is in place, but the continuity routes are not mounted until the backend route and schema checks are reconciled."
+          />
+        ),
+        rooms: (
+          <PanelStatus
+            title="Rooms"
+            status="Guarded"
+            detail="Room controls stay inactive until room ownership checks are verified for the authenticated user."
+          />
+        ),
+        voice: (
+          <PanelStatus
+            title="Voice"
+            status="Guarded"
+            detail="Voice controls stay inactive until provider configuration and speech routes are verified."
+          />
+        ),
+        admin: (
+          <PanelStatus
+            title="Admin"
+            status="Guarded"
+            detail="Admin panels stay inactive until admin endpoints enforce an authenticated admin policy."
+          />
+        ),
+      }}
+    />
   );
 }
