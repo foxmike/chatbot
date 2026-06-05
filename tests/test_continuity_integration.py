@@ -1,33 +1,57 @@
-import subprocess
-import time
-import os
 import pytest
+from backends.pi_cli import PiCliBackend
+from runtime.agency import Agency
 
-def test_timeline_survives_restart(tmp_path):
-    """Verify timeline state persists across application restarts"""
-    state_dir = tmp_path / "state"
-    state_dir.mkdir()
-    env = {**os.environ, "PI_STATE_DIR": str(state_dir)}
 
-    # Start application and create timeline event
-    start_proc = subprocess.Popen(["pi", "start"], env=env)
-    time.sleep(1.5)  # Allow initialization
-    subprocess.run(["pi", "timeline", "add", "verification_event"], 
-                  env=env, check=True, capture_output=True)
+def test_continuity_state_persists_across_steps():
+    """Verify continuity state is maintained between agency execution steps"""
+    backend = PiCliBackend(model="openrouter/qwen/qwen3-235b-a22b-thinking-2507")
+    agency = Agency(backend=backend, selected_backend="pi_cli")
 
-    # Stop application
-    subprocess.run(["pi", "stop"], env=env, check=True)
-    time.sleep(0.5)
+    # Initial execution with state
+    result1 = agency.execute(
+        task_description="Analyze code",
+        context="def hello(): return 'world'",
+        state={"analysis_stage": "parsing"}
+    )
 
-    # Restart application
-    start_proc = subprocess.Popen(["pi", "start"], env=env)
-    time.sleep(1.5)
+    # Subsequent execution should maintain continuity
+    result2 = agency.execute(
+        task_description="Generate test",
+        context=result1["output"],
+        state=result1.get("state")
+    )
 
-    # Verify timeline event persists
-    result = subprocess.run(["pi", "timeline", "list"], 
-                          env=env, capture_output=True, text=True, check=True)
-    assert "verification_event" in result.stdout
+    assert result2["state"]["analysis_stage"] == "testing"
+    assert "parsing" in result2["output"]
+    assert backend.model == "openrouter/qwen/qwen3-235b-a22b-thinking-2507"
 
-    # Cleanup
-    subprocess.run(["pi", "stop"], env=env)
-    start_proc.terminate()
+
+def test_backend_initialization_with_specified_model():
+    """Verify selected backend initializes with correct model configuration"""
+    backend = PiCliBackend(
+        model="openrouter/qwen/qwen3-235b-a22b-thinking-2507",
+        verification_profile="integration"
+    )
+    assert backend.config["model"] == "openrouter/qwen/qwen3-235b-a22b-thinking-2507"
+    assert backend.config["provider"] == "openrouter"
+    assert "qwen3-235b" in backend.config["model_name"]
+
+
+def test_continuity_failure_recovery():
+    """Verify state rollback on execution failure maintains continuity constraints"""
+    agency = Agency(
+        backend=PiCliBackend(model="openrouter/qwen/qwen3-235b-a22b-thinking-2507"),
+        max_retries=1
+    )
+    initial_state = {"phase": "E", "task_id": "e.11"}
+
+    with pytest.raises(RuntimeError):
+        agency.execute(
+            task_description="Invalid operation",
+            context="",
+            state=initial_state.copy()
+        )
+
+    # Verify no state mutation occurred
+    assert agency.state == initial_state
