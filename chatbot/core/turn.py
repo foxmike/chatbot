@@ -39,9 +39,10 @@ except ImportError:
     UserStateLog = None  # type: ignore[assignment]
 
 try:
-    from chatbot.memory.extraction import MemoryExtractor
+    from chatbot.memory.extraction import MemoryExtractor, SQLAlchemyMemoryStorage
 except ImportError:
     MemoryExtractor = None  # type: ignore[assignment]
+    SQLAlchemyMemoryStorage = None  # type: ignore[assignment]
 
 try:
     from chatbot.memory.working_memory import WorkingMemoryLoader
@@ -117,6 +118,14 @@ logger = logging.getLogger(__name__)
 
 FAST_PATH_STEPS: list[str] = [
     "receive",
+    "retrieve",
+    "compile_context",
+    "call_provider",
+    "respond",
+]
+ROOM_FAST_PATH_STEPS: list[str] = [
+    "receive",
+    "room_context",
     "retrieve",
     "compile_context",
     "call_provider",
@@ -603,6 +612,13 @@ class ExtractMemoryStep(TurnStep):
             return ctx
 
         try:
+            if ctx.metadata.get("scene_memory_isolation"):
+                storage = _scene_memory_storage(ctx, storage, database)
+                database = None
+                if storage is None:
+                    ctx.extracted_memories = []
+                    return ctx
+
             extractor = self._extractor_cls(database=database, storage=storage)
             ctx.extracted_memories = await extractor.extract(
                 session_id=ctx.session_id,
@@ -754,41 +770,38 @@ class SceneMemoryGateStep(TurnStep):
         if not ctx.metadata.get("scene_memory_isolation"):
             return ctx
 
-        if RoleplayEngine is None or RoleplayPersona is None:
+        if RoleplayEngine is None:
             logger.warning("RoleplayEngine is unavailable; skipping memory gate")
             return ctx
 
         scene = ctx.metadata.get("active_scene")
-        if scene is None:
-            return ctx
+        engine = None
 
-        try:
-            engine = RoleplayEngine(
-                scene=scene,
-                persona=RoleplayPersona(
-                    name="",
-                    description="",
-                    traits=[],
-                    voice_style="",
-                    backstory="",
-                ),
-            )
-        except Exception:
-            logger.warning(
-                "RoleplayEngine instantiation failed; skipping memory gate",
-                exc_info=True,
-            )
-            return ctx
+        if scene is not None and RoleplayPersona is not None:
+            try:
+                engine = RoleplayEngine(
+                    scene=scene,
+                    persona=RoleplayPersona(
+                        name="",
+                        description="",
+                        traits=[],
+                        voice_style="",
+                        backstory="",
+                    ),
+                )
+            except Exception:
+                logger.warning(
+                    "RoleplayEngine instantiation failed; using text classifier",
+                    exc_info=True,
+                )
 
         classifications: dict[str, str] = {}
         durable_memories: list[dict] = []
 
         for memory in ctx.extracted_memories:
-            content = str(
-                memory.get("content") or memory.get("summary") or memory.get("fact_text") or ""
-            )
+            content = _memory_entry_content(memory)
             try:
-                is_durable = engine.is_durable_candidate(content)
+                is_durable = _is_scene_durable_candidate(ctx, content, engine=engine)
             except Exception:
                 logger.warning(
                     "Memory classification failed; treating as non-durable",
@@ -803,6 +816,121 @@ class SceneMemoryGateStep(TurnStep):
         ctx.metadata["memory_classifications"] = classifications
         ctx.extracted_memories = durable_memories
         return ctx
+
+
+class _SceneMemoryStorage:
+    def __init__(self, ctx: TurnContext, storage: Any) -> None:
+        self._ctx = ctx
+        self._storage = storage
+
+    async def persist(
+        self,
+        session_id: str,
+        entries: Sequence[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        durable_entries = _filter_scene_memory_entries(self._ctx, entries)
+        if not durable_entries:
+            return []
+        return await _maybe_await(self._storage.persist(session_id, durable_entries))
+
+
+def _scene_memory_storage(
+    ctx: TurnContext,
+    storage: Any | None,
+    database: Any | None,
+) -> _SceneMemoryStorage | None:
+    if storage is None and database is not None and SQLAlchemyMemoryStorage is not None:
+        storage = SQLAlchemyMemoryStorage(database)
+    if storage is None or not callable(getattr(storage, "persist", None)):
+        return None
+    return _SceneMemoryStorage(ctx, storage)
+
+
+def _filter_scene_memory_entries(
+    ctx: TurnContext,
+    entries: Sequence[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    durable_entries: list[dict[str, Any]] = []
+    classifications = ctx.metadata.get("memory_classifications")
+    if isinstance(classifications, Mapping):
+        memory_classifications: dict[str, str] = dict(classifications)
+    else:
+        memory_classifications = {}
+
+    for entry in entries:
+        content = _memory_entry_content(entry)
+        try:
+            is_durable = _is_scene_durable_candidate(ctx, content)
+        except Exception:
+            logger.warning(
+                "Memory classification failed; treating as non-durable",
+                exc_info=True,
+            )
+            is_durable = False
+
+        memory_classifications[content[:64]] = (
+            "durable" if is_durable else "scene_only"
+        )
+        if is_durable:
+            durable_entries.append(entry)
+
+    ctx.metadata["memory_classifications"] = memory_classifications
+    return durable_entries
+
+
+def _is_scene_durable_candidate(
+    ctx: TurnContext,
+    content: str,
+    *,
+    engine: Any | None = None,
+) -> bool:
+    if not content or RoleplayEngine is None:
+        return False
+
+    if engine is None:
+        scene = ctx.metadata.get("active_scene")
+        if scene is not None and RoleplayPersona is not None:
+            try:
+                engine = RoleplayEngine(
+                    scene=scene,
+                    persona=RoleplayPersona(
+                        name="",
+                        description="",
+                        traits=[],
+                        voice_style="",
+                        backstory="",
+                    ),
+                )
+            except Exception:
+                logger.warning(
+                    "RoleplayEngine instantiation failed; using text classifier",
+                    exc_info=True,
+                )
+                engine = None
+
+    if engine is not None:
+        return bool(engine.is_durable_candidate(content))
+
+    classify = getattr(RoleplayEngine, "is_durable_text_candidate", None)
+    if callable(classify):
+        return bool(classify(content))
+    return False
+
+
+def _memory_entry_content(memory: Mapping[str, Any]) -> str:
+    return str(
+        memory.get("content")
+        or memory.get("summary")
+        or memory.get("fact_text")
+        or ""
+    )
+
+
+def _room_id_present(ctx: TurnContext) -> bool:
+    room_id = ctx.metadata.get("room_id")
+    if room_id is None:
+        return False
+    return bool(str(room_id).strip())
 
 
 class TurnPipeline:
@@ -821,6 +949,9 @@ class TurnPipeline:
 
     async def run(self, ctx: TurnContext) -> TurnContext:
         if self._background_queue is not None:
+            if _room_id_present(ctx):
+                return await self._run_steps(ctx, self._steps)
+
             ctx = await self.run_fast(ctx)
             await self.enqueue_deferred(ctx)
             return ctx
@@ -828,7 +959,8 @@ class TurnPipeline:
         return await self._run_steps(ctx, self._steps)
 
     async def run_fast(self, ctx: TurnContext) -> TurnContext:
-        return await self._run_steps(ctx, self._selected_steps(FAST_PATH_STEPS))
+        step_names = ROOM_FAST_PATH_STEPS if _room_id_present(ctx) else FAST_PATH_STEPS
+        return await self._run_steps(ctx, self._selected_steps(step_names))
 
     async def enqueue_deferred(self, ctx: TurnContext) -> None:
         if self._background_queue is None:

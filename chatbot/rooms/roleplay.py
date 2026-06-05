@@ -113,6 +113,12 @@ class RoleplayEngine:
     def classify_memory_importance(
         self, content: str
     ) -> Literal["scene_only", "durable", "both"]:
+        return self.classify_text_memory_importance(content)
+
+    @staticmethod
+    def classify_text_memory_importance(
+        content: str
+    ) -> Literal["scene_only", "durable", "both"]:
         if _has_persist_marker(content):
             return "durable"
         if _has_relationship_declaration(content):
@@ -145,9 +151,13 @@ class RoleplayEngine:
         return " | ".join(parts)
 
     def is_durable_candidate(self, turn_text: str) -> bool:
+        return self.is_durable_text_candidate(turn_text)
+
+    @staticmethod
+    def is_durable_text_candidate(turn_text: str) -> bool:
         if _has_persist_marker(turn_text):
             return True
-        return self.classify_memory_importance(turn_text) == "durable"
+        return RoleplayEngine.classify_text_memory_importance(turn_text) == "durable"
 
     def get_scene_memory_scope(self) -> str:
         return self._memory_policy.scope
