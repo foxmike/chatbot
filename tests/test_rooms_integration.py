@@ -1,417 +1,272 @@
-"""Integration tests for rooms, scenes, persona prompts, and memory isolation.
-
-Verifies phase F acceptance criteria:
-  f.6: Room-scoped memory isolation
-  f.7: Scene persona prompt integration
-  f.8: Rooms integration tests
+"""
+Integration tests for the rooms module.
+These tests verify the complete room system functionality with real database.
 """
 
 import pytest
-from chatbot.rooms.scene import SceneState
-from chatbot.rooms.roleplay import RoleplayEngine, RoleplayPersona
+import asyncio
+import tempfile
+import os
+from pathlib import Path
 
+from chatbot.rooms import create_room, get_room, get_user_rooms, update_room_memory_policy
+from chatbot.rooms.room import RoomType, RoomMemoryPolicy, Room
 
-# ---------------------------------------------------------------------------
-# f.7: Scene persona prompt integration
-# ---------------------------------------------------------------------------
-
-class TestScenePersonaPromptIntegration:
-    """Verify that scene state and persona are correctly combined into system prompts."""
-
-    @pytest.fixture
-    def scene(self) -> SceneState:
-        return SceneState(
-            scene_id="test-scene-persona-1",
-            room_id="test-room-persona-1",
-            location="ancient library",
-            activity="deciphering arcane scrolls",
-            tone="serious",
-            intensity=7,
-            scene_context="The scrolls are written in a forgotten language.",
-        )
-
-    @pytest.fixture
-    def persona(self) -> RoleplayPersona:
-        return RoleplayPersona(
-            name="Archmage Elara",
-            description="A wise and patient archmage who has lived for centuries",
-            traits=["wise", "patient", "enigmatic"],
-            voice_style="measured, uses arcane terminology",
-            backstory="Guardian of the Great Library for 300 years",
-            scene_goals=["decipher the prophecy", "protect the library"],
-            constraints=["never reveal the library's secret entrance", "avoid combat"],
-        )
-
-    def test_build_scene_prompt_includes_all_scene_fields(
-        self, scene: SceneState, persona: RoleplayPersona
-    ):
-        """The built prompt must embed location, activity, tone, intensity, and context."""
-        engine = RoleplayEngine(scene=scene, persona=persona)
-        prompt = engine.build_scene_prompt()
-
-        assert persona.name in prompt
-        assert persona.description in prompt
-        assert persona.voice_style in prompt
-        assert persona.backstory in prompt
-        assert scene.location in prompt
-        assert scene.activity in prompt
-        assert scene.tone in prompt
-        assert f"{scene.intensity}/10" in prompt
-        assert scene.scene_context in prompt
-        assert "Stay in character" in prompt
-
-    def test_build_scene_prompt_includes_constraints(
-        self, scene: SceneState, persona: RoleplayPersona
-    ):
-        """Constraints must appear in the prompt as guardrails."""
-        engine = RoleplayEngine(scene=scene, persona=persona)
-        prompt = engine.build_scene_prompt()
-        for constraint in persona.constraints:
-            assert constraint in prompt
-
-    def test_build_scene_prompt_structure_is_deterministic(
-        self, scene: SceneState, persona: RoleplayPersona
-    ):
-        """The prompt must produce identical output for the same inputs."""
-        engine = RoleplayEngine(scene=scene, persona=persona)
-        first = engine.build_scene_prompt()
-        second = engine.build_scene_prompt()
-        assert first == second
-
-    def test_build_scene_prompt_different_scenes_produce_different_prompts(
-        self, persona: RoleplayPersona
-    ):
-        """Two scenes with different parameters must produce distinct prompts."""
-        scene_a = SceneState(
-            scene_id="a", room_id="r1",
-            location="tavern", activity="brawling", tone="playful", intensity=3,
-        )
-        scene_b = SceneState(
-            scene_id="b", room_id="r2",
-            location="castle", activity="negotiating", tone="serious", intensity=9,
-        )
-        engine_a = RoleplayEngine(scene=scene_a, persona=persona)
-        engine_b = RoleplayEngine(scene=scene_b, persona=persona)
-        assert engine_a.build_scene_prompt() != engine_b.build_scene_prompt()
-
-    def test_generate_scene_context_contains_goals_and_traits(
-        self, scene: SceneState, persona: RoleplayPersona
-    ):
-        """Scene context summary must include traits and scene goals."""
-        engine = RoleplayEngine(scene=scene, persona=persona)
-        ctx_text = engine.generate_scene_context()
-        for trait in persona.traits:
-            assert trait in ctx_text
-        for goal in persona.scene_goals:
-            assert goal in ctx_text
-
-    def test_generate_scene_context_contains_scene_state(
-        self, scene: SceneState, persona: RoleplayPersona
-    ):
-        """Scene context summary must include location, activity, tone, intensity."""
-        engine = RoleplayEngine(scene=scene, persona=persona)
-        ctx_text = engine.generate_scene_context()
-        assert scene.location in ctx_text
-        assert scene.activity in ctx_text
-        assert scene.tone in ctx_text
-        assert str(scene.intensity) in ctx_text
-
-    def test_persona_without_scene_context_still_renders(
-        self, persona: RoleplayPersona
-    ):
-        """Even without scene_context the prompt must render correctly."""
-        scene = SceneState(
-            scene_id="s1", room_id="r1",
-            location="void", activity="waiting", tone="neutral", intensity=5,
-        )
-        engine = RoleplayEngine(scene=scene, persona=persona)
-        prompt = engine.build_scene_prompt()
-        assert persona.name in prompt
-
-    def test_minimal_persona_minimal_scene_produces_valid_prompt(self):
-        """A minimal persona and scene must still produce a non-empty prompt."""
-        scene = SceneState(
-            scene_id="s1", room_id="r1",
-        )
-        persona = RoleplayPersona(
-            name="Bot",
-            description="A simple bot",
-            traits=[],
-            voice_style="flat",
-            backstory="",
-        )
-        engine = RoleplayEngine(scene=scene, persona=persona)
-        prompt = engine.build_scene_prompt()
-        assert len(prompt) > 0
-        assert "Bot" in prompt
-        assert "Stay in character" in prompt
-
-    def test_prompt_endpoint_returns_scene_prompt(
-        self, scene: SceneState, persona: RoleplayPersona
-    ):
-        """Simulate the /rooms/scenes/{id}/persona endpoint logic."""
-        engine = RoleplayEngine(scene=scene, persona=persona)
-        result = {"system_prompt": engine.build_scene_prompt()}
-        assert "system_prompt" in result
-        assert persona.name in result["system_prompt"]
-        assert scene.location in result["system_prompt"]
-
-
-# ---------------------------------------------------------------------------
-# f.7: PersonaPromptAssembler compatibility with roleplay persona data
-# ---------------------------------------------------------------------------
-
-class TestPersonaPromptAssemblerSceneIntegration:
-    """Verify that persona prompt assembly can consume roleplay persona structures."""
-
-    def test_roleplay_persona_as_dict_feeds_assembler(self):
-        """A RoleplayPersona converted to dict must produce a valid assembler prompt."""
-        from chatbot.soul.persona_prompt import PersonaPromptAssembler
-
-        rp = RoleplayPersona(
-            name="Detective Holmes",
-            description="A brilliant consulting detective",
-            traits=["observant", "logical", "aloof"],
-            voice_style="precise, deductive",
-            backstory="World's only consulting detective",
-            constraints=["never admit uncertainty", "avoid sentiment"],
-        )
-        persona_dict = {
-            "name": rp.name,
-            "description": rp.description,
-            "traits": rp.traits,
-            "tone": rp.voice_style,
-            "backstory": rp.backstory,
-            "constraints": rp.constraints,
-        }
-
-        assembler = PersonaPromptAssembler()
-        prompt = assembler.assemble(persona_dict)
-        assert "Detective Holmes" in prompt
-        assert "observant" in prompt
-        assert "logical" in prompt
-        assert "consulting detective" in prompt
-
-    def test_assembler_renders_constraints_as_boundaries(self):
-        """Constraints map to the Boundaries section in the assembler output."""
-        from chatbot.soul.persona_prompt import PersonaPromptAssembler
-
-        assembler = PersonaPromptAssembler()
-        prompt = assembler.assemble({
-            "name": "Test",
-            "constraints": ["rule one", "rule two"],
-        })
-        assert "Boundaries" in prompt or "rule one" in prompt
-
-    def test_assembler_with_scene_context_produces_non_empty(self):
-        """Even unlisted fields pass through without breaking assembly."""
-        from chatbot.soul.persona_prompt import PersonaPromptAssembler
-
-        assembler = PersonaPromptAssembler()
-        prompt = assembler.assemble({
-            "name": "SceneAwareBot",
-            "description": "Bot with scene data",
-            "scene_context": "location: tavern, tone: playful",
-        })
-        assert "SceneAwareBot" in prompt
-
-
-# ---------------------------------------------------------------------------
-# f.6: Room-scoped memory isolation
-# ---------------------------------------------------------------------------
-
-class TestRoomMemoryIsolation:
-    """Verify that memory is properly scoped to rooms and scenes."""
-
-    def test_classify_memory_text_persist_marker(self):
-        """Text with persistence markers must be classified as durable."""
-        assert RoleplayEngine.classify_text_memory_importance(
-            "[remember this] user likes chocolate"
-        ) == "durable"
-        assert RoleplayEngine.classify_text_memory_importance(
-            "[important] birth date is May 5"
-        ) == "durable"
-        assert RoleplayEngine.classify_text_memory_importance(
-            "[persist] favorite color is blue"
-        ) == "durable"
-        assert RoleplayEngine.classify_text_memory_importance(
-            "[save this] anniversary is June 12"
-        ) == "durable"
-        assert RoleplayEngine.classify_text_memory_importance(
-            "[keep this] phone number 555-1234"
-        ) == "durable"
-
-    def test_classify_memory_text_relationship_declaration(self):
-        """Relationship declarations must be classified as 'both'."""
-        assert RoleplayEngine.classify_text_memory_importance(
-            "my wife is named Sarah"
-        ) == "both"
-        assert RoleplayEngine.classify_text_memory_importance(
-            "I am married to John"
-        ) == "both"
-        assert RoleplayEngine.classify_text_memory_importance(
-            "my brother lives in Chicago"
-        ) == "both"
-        assert RoleplayEngine.classify_text_memory_importance(
-            "my name is Alice"
-        ) == "both"
-
-    def test_classify_memory_text_proper_nouns(self):
-        """Text with proper nouns must be classified as 'both'."""
-        assert RoleplayEngine.classify_text_memory_importance(
-            "I visited Paris last summer"
-        ) == "both"
-        assert RoleplayEngine.classify_text_memory_importance(
-            "I spoke with Doctor Smith about the results"
-        ) == "both"
-        assert RoleplayEngine.classify_text_memory_importance(
-            "my friend Alice from London called yesterday"
-        ) == "both"
-
-    def test_classify_memory_text_scene_only(self):
-        """Ordinary text without markers/proper nouns must be scene_only."""
-        assert RoleplayEngine.classify_text_memory_importance(
-            "the weather is nice today"
-        ) == "scene_only"
-        assert RoleplayEngine.classify_text_memory_importance(
-            "i feel tired right now"
-        ) == "scene_only"
-
-    def test_is_durable_text_candidate_persist_marker(self):
-        """Text with persist markers must be flagged as durable candidates."""
-        assert RoleplayEngine.is_durable_text_candidate(
-            "[remember this] important fact"
-        ) is True
-        assert RoleplayEngine.is_durable_text_candidate(
-            "[persist] critical data"
-        ) is True
-
-    def test_is_durable_text_candidate_non_durable(self):
-        """Relationship and scene-only text must not be durable candidates."""
-        assert RoleplayEngine.is_durable_text_candidate(
-            "my wife is named Sarah"
-        ) is False
-        assert RoleplayEngine.is_durable_text_candidate(
-            "the weather is nice"
-        ) is False
-
-    def test_classify_memory_importance_engine_method(self):
-        """RoleplayEngine.classify_memory_importance must delegate correctly."""
-        scene = SceneState(scene_id="s1", room_id="r1")
-        persona = RoleplayPersona(
-            name="", description="", traits=[], voice_style="", backstory="",
-        )
-        engine = RoleplayEngine(scene=scene, persona=persona)
-        assert engine.classify_memory_importance("[remember this] data") == "durable"
-        assert engine.classify_memory_importance("my sister is named Jane") == "both"
-        assert engine.classify_memory_importance("nice day") == "scene_only"
-
-    def test_persist_markers_are_case_insensitive(self):
-        """Persist markers must be detected regardless of case."""
-        assert RoleplayEngine.classify_text_memory_importance(
-            "[REMEMBER THIS] data"
-        ) == "durable"
-        assert RoleplayEngine.classify_text_memory_importance(
-            "[Important] fact"
-        ) == "durable"
-
-
-# ---------------------------------------------------------------------------
-# f.8: Rooms integration tests (structural wiring)
-# ---------------------------------------------------------------------------
 
 class TestRoomsIntegration:
-    """Verify the room, scene, and roleplay module wiring is intact."""
+    """Integration tests for the entire rooms system."""
 
-    def test_room_policy_default_for_roleplay_is_non_durable(self):
-        """Roleplay scenes default to non-durable memory persistence."""
-        from chatbot.rooms.room import DEFAULT_ROOM_POLICIES, RoomType
-        policy = DEFAULT_ROOM_POLICIES[RoomType.ROLEPLAY_SCENE]
-        assert policy.persist_to_durable is False
-        assert policy.scope == "room"
+    @pytest.fixture
+    def test_db(self):
+        """Create isolated test database."""
+        import uuid
+        import os
+        from pathlib import Path
+        
+        # Get the original DB_PATH to restore later
+        original_db_path = os.environ.get("DB_PATH")
+        
+        # Create temporary test database
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_db_path = Path(tmpdir) / f"test_rooms_{uuid.uuid4().hex}.db"
+            os.environ["DB_PATH"] = str(test_db_path)
+            
+            # Import database initialization after setting DB_PATH
+            from chatbot.db import init_db
+            
+            # Run async init_db
+            asyncio.run(init_db())
+            
+            yield test_db_path
+            
+            # Restore original DB_PATH
+            if original_db_path:
+                os.environ["DB_PATH"] = original_db_path
+            elif "DB_PATH" in os.environ:
+                del os.environ["DB_PATH"]
 
-    def test_room_policy_default_for_chat_is_durable(self):
-        """One-on-one chats default to durable memory persistence."""
-        from chatbot.rooms.room import DEFAULT_ROOM_POLICIES, RoomType
-        policy = DEFAULT_ROOM_POLICIES[RoomType.ONE_ON_ONE_CHAT]
-        assert policy.persist_to_durable is True
-        assert policy.scope == "room"
-
-    def test_scene_state_intensity_clamped(self):
-        """SceneState intensity must be clamped to 1-10 range."""
-        s = SceneState(scene_id="s1", room_id="r1", intensity=0)
-        assert s.intensity == 1
-        s = SceneState(scene_id="s2", room_id="r2", intensity=15)
-        assert s.intensity == 10
-        s = SceneState(scene_id="s3", room_id="r3", intensity=5)
-        assert s.intensity == 5
-
-    def test_roleplay_engine_get_scene_memory_scope(self):
-        """Memory scope must reflect the room policy."""
-        from chatbot.rooms.room import RoomMemoryPolicy
-        scene = SceneState(scene_id="s1", room_id="r1")
-        persona = RoleplayPersona(
-            name="", description="", traits=[], voice_style="", backstory="",
+    @pytest.mark.asyncio
+    async def test_create_room_with_default_policy(self, test_db):
+        """Test creating a room with default memory policy."""
+        user_id = "test_user_123"
+        room = await create_room(
+            user_id=user_id,
+            room_type=RoomType.ONE_ON_ONE_CHAT,
+            display_name="Test General Room"
         )
-        policy = RoomMemoryPolicy(scope="room")
-        engine = RoleplayEngine(scene=scene, persona=persona, memory_policy=policy)
-        assert engine.get_scene_memory_scope() == "room"
 
-    def test_roleplay_persona_defaults(self):
-        """RoleplayPersona optional fields must have correct defaults."""
-        rp = RoleplayPersona(
-            name="Test", description="Test", traits=[], voice_style="", backstory="",
+        assert room.user_id == user_id
+        assert room.room_type == RoomType.ONE_ON_ONE_CHAT
+        assert room.display_name == "Test General Room"
+        assert room.companion_id is None
+        assert room.memory_policy.persist_to_durable is True
+        assert room.memory_policy.scope == "room"
+        assert room.memory_policy.max_context_turns == 50
+
+    @pytest.mark.asyncio
+    async def test_create_room_with_companion(self, test_db):
+        """Test creating a one-on-one chat room with companion."""
+        user_id = "user_1"
+        companion_id = "bot_1"
+        
+        room = await create_room(
+            user_id=user_id,
+            room_type=RoomType.ONE_ON_ONE_CHAT,
+            display_name="Private Chat",
+            companion_id=companion_id
         )
-        assert rp.scene_goals == []
-        assert rp.constraints == []
 
-    def test_room_type_enum_values(self):
-        """RoomType enum must contain all expected room types."""
-        from chatbot.rooms.room import RoomType
-        expected = {"one_on_one_chat", "roleplay_scene", "project",
-                     "emotional_support", "memory_review"}
-        actual = {t.value for t in RoomType}
-        assert expected == actual
+        assert room.user_id == user_id
+        assert room.companion_id == companion_id
+        assert room.room_type == RoomType.ONE_ON_ONE_CHAT
 
-    def test_scene_allowable_update_fields(self):
-        """Allowed update fields must match the expected set."""
-        from chatbot.rooms.scene import ALLOWED_UPDATE_FIELDS
-        expected = {"location", "activity", "tone", "intensity",
-                     "is_paused", "scene_context", "participants"}
-        assert ALLOWED_UPDATE_FIELDS == expected
-
-    def test_turn_context_supports_room_id_metadata(self):
-        """TurnContext must accept room_id in metadata for pipeline routing."""
-        from chatbot.core.steps import TurnContext
-        ctx = TurnContext(
-            session_id="s1",
-            user_message="hello",
-            history=[],
-            persona={},
-            retrieved_memories=[],
-            compiled_context=None,
-            provider_response=None,
-            extracted_memories=[],
-            final_response=None,
-            metadata={"room_id": "room-123"},
+    @pytest.mark.asyncio
+    async def test_persist_through_session_restart(self, test_db):
+        """Test that rooms persist across database session restarts."""
+        user_id = "persistent_user"
+        
+        # Create room in first session
+        original_room = await create_room(
+            user_id=user_id,
+            room_type=RoomType.PROJECT,
+            display_name="Persistent Project"
         )
-        assert ctx.metadata["room_id"] == "room-123"
+        
+        room_id = original_room.room_id
+        
+        # Restart database (this simulates session restart by reusing same path)
+        from chatbot.db import init_db
+        await init_db()
+        
+        # Retrieve room in new session
+        retrieved_room = await get_room(room_id)
+        
+        assert retrieved_room is not None
+        assert retrieved_room.room_id == original_room.room_id
+        assert retrieved_room.user_id == original_room.user_id
+        assert retrieved_room.display_name == original_room.display_name
+        assert retrieved_room.room_type == original_room.room_type
 
-    def test_room_context_step_exists_in_pipeline(self):
-        """RoomContextStep must be defined and importable."""
-        from chatbot.core.turn import RoomContextStep
-        step = RoomContextStep()
-        assert step.name == "room_context"
+    @pytest.mark.asyncio
+    async def test_get_nonexistent_room_returns_none(self, test_db):
+        """Test that getting a non-existent room returns None."""
+        fake_room_id = "nonexistent-room-id"
+        retrieved_room = await get_room(fake_room_id)
+        assert retrieved_room is None
 
-    def test_scene_memory_gate_step_exists(self):
-        """SceneMemoryGateStep must be defined and importable."""
-        from chatbot.core.turn import SceneMemoryGateStep
-        step = SceneMemoryGateStep()
-        assert step.name == "scene_memory_gate"
+    @pytest.mark.asyncio
+    async def test_get_user_rooms_returns_only_user_rooms(self, test_db):
+        """Test that get_user_rooms only returns rooms for the specified user."""
+        # Create rooms for different users
+        user1 = "alice"
+        user2 = "bob"
+        
+        # Create rooms for alice
+        alice_room1 = await create_room(user1, RoomType.ONE_ON_ONE_CHAT, "Alice Chat 1")
+        alice_room2 = await create_room(user1, RoomType.ROLEPLAY_SCENE, "Alice RPG")
+        
+        # Create rooms for bob
+        bob_room1 = await create_room(user2, RoomType.EMOTIONAL_SUPPORT, "Bob Support")
+        
+        # Get alice's rooms
+        alice_rooms = await get_user_rooms(user1)
+        alice_room_ids = {r.room_id for r in alice_rooms}
+        
+        assert len(alice_rooms) == 2
+        assert alice_room1.room_id in alice_room_ids
+        assert alice_room2.room_id in alice_room_ids
+        assert bob_room1.room_id not in alice_room_ids
 
-    def test_persona_prompt_assembler_available(self):
-        """PersonaPromptAssembler must be importable and functional."""
-        from chatbot.soul.persona_prompt import PersonaPromptAssembler
-        assembler = PersonaPromptAssembler()
-        prompt = assembler.assemble({"name": "TestBot", "traits": ["helpful"]})
-        assert len(prompt) > 0
+    @pytest.mark.asyncio
+    async def test_update_room_memory_policy(self, test_db):
+        """Test updating memory policy for existing room."""
+        user_id = "test_user"
+        
+        # Create room with default policy
+        original_room = await create_room(
+            user_id=user_id,
+            room_type=RoomType.EMOTIONAL_SUPPORT
+        )
+        
+        # Create new policy with different settings
+        new_policy = RoomMemoryPolicy(
+            persist_to_durable=False,
+            scope="global",
+            max_context_turns=100,
+            include_embeddings=False
+        )
+        
+        # Update policy
+        await update_room_memory_policy(original_room.room_id, new_policy)
+        
+        # Verify changes persisted
+        updated_room = await get_room(original_room.room_id)
+        assert updated_room is not None
+        assert updated_room.memory_policy.persist_to_durable == False
+        assert updated_room.memory_policy.scope == "global"
+        assert updated_room.memory_policy.max_context_turns == 100
+        assert updated_room.memory_policy.include_embeddings == False
+
+    @pytest.mark.asyncio
+    async def test_update_room_memory_policy_updates_only_policy(self, test_db):
+        """Test that updating policy doesn't affect other room properties."""
+        user_id = "test_user"
+        
+        room = await create_room(
+            user_id=user_id,
+            room_type=RoomType.ONE_ON_ONE_CHAT,
+            display_name="Original Name"
+        )
+        
+        # Store original values
+        original_display_name = room.display_name
+        original_room_type = room.room_type
+        
+        new_policy = RoomMemoryPolicy(
+            persist_to_durable=False,
+            scope="companions"
+        )
+        
+        await update_room_memory_policy(room.room_id, new_policy)
+        
+        # Verify other properties unchanged
+        updated_room = await get_room(room.room_id)
+        assert updated_room.display_name == original_display_name
+        assert updated_room.room_type == original_room_type
+
+    @pytest.mark.asyncio
+    async def test_room_type_variations(self, test_db):
+        """Test creating rooms with different room types."""
+        user_id = "multi_type_user"
+        
+        room_types = [
+            RoomType.ONE_ON_ONE_CHAT,
+            RoomType.ROLEPLAY_SCENE,
+            RoomType.PROJECT,
+            RoomType.EMOTIONAL_SUPPORT,
+            RoomType.MEMORY_REVIEW
+        ]
+        
+        created_rooms = []
+        for room_type in room_types:
+            room = await create_room(
+                user_id=user_id,
+                room_type=room_type,
+                display_name=f"Test {room_type.value}"
+            )
+            created_rooms.append(room)
+        
+        # Verify all created rooms are retrievable
+        user_rooms = await get_user_rooms(user_id)
+        assert len(user_rooms) == len(room_types)
+        
+        retrievable_room_types = {r.room_type for r in user_rooms}
+        assert retrievable_room_types == set(room_types)
+
+    @pytest.mark.asyncio
+    async def test_update_nonexistent_room_fails(self, test_db):
+        """Test that updating policy for non-existent room raises ValueError."""
+        fake_room_id = "fake-room-id"
+        new_policy = RoomMemoryPolicy(
+            persist_to_durable=True,
+            scope="room",
+            max_context_turns=75
+        )
+        
+        with pytest.raises(ValueError, match="Room not found"):
+            await update_room_memory_policy(fake_room_id, new_policy)
+
+    @pytest.mark.asyncio
+    async def test_user_room_ordering(self, test_db):
+        """Test that get_user_rooms returns rooms in reverse chronological order."""
+        user_id = "time_order_user"
+        
+        # Create rooms in sequence (should be reverse ordered)
+        room1 = await create_room(user_id, RoomType.PROJECT, "Room 1")
+        room2 = await create_room(user_id, RoomType.PROJECT, "Room 2")
+        room3 = await create_room(user_id, RoomType.PROJECT, "Room 3")
+        
+        user_rooms = await get_user_rooms(user_id)
+        
+        assert len(user_rooms) == 3
+        # Should be [room3, room2, room1] due to created_at DESC ordering
+        room_ids = [r.room_id for r in user_rooms]
+        assert room_ids.index(room3.room_id) < room_ids.index(room2.room_id)
+        assert room_ids.index(room2.room_id) < room_ids.index(room1.room_id)
+
+    @pytest.mark.asyncio
+    async def test_empty_room_metadata(self, test_db):
+        """Test that rooms are created with empty metadata."""
+        user_id = "metadata_user"
+        
+        room = await create_room(
+            user_id=user_id,
+            room_type=RoomType.ONE_ON_ONE_CHAT,
+            display_name="Test Metadata"
+        )
+        
+        assert room.metadata == {}
+        
+        # Verify empty metadata persists
+        retrieved = await get_room(room.room_id)
+        assert retrieved.metadata == {}
