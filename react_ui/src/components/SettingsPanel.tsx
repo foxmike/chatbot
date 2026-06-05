@@ -1,5 +1,6 @@
 import type { User } from "../api/client";
 import { RelationshipSettings } from "./RelationshipSettings";
+import { CharacterCreator } from "./CharacterCreator";
 
 interface SettingsPanelProps {
   user: User;
@@ -77,7 +78,10 @@ export function SettingsPanel({
         </div>
 
         {activeSessionId ? (
-          <RelationshipSettings sessionId={activeSessionId} />
+          <>
+            <RelationshipSettings sessionId={activeSessionId} />
+            <CharacterCreator sessionId={activeSessionId} />
+          </>
         ) : (
           <section className="rounded-lg border border-gray-700 bg-gray-800 p-5">
             <div className="flex flex-col gap-1">
