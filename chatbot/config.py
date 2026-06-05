@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     default_model: str = "google/gemma-4-31b-it"
     default_provider: str = "openrouter"
 
+    embedding_provider: str = "openrouter"
+    embedding_model: str = "openai/text-embedding-3-small"
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 
