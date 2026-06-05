@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from chatbot.agency.checkins import CheckInGenerator
@@ -12,6 +12,7 @@ from chatbot.agency.initiative import InitiativeSettings
 from chatbot.agency.initiative import ProjectInitiative
 from chatbot.agency.notifications import NotificationQueue
 from chatbot.agency.scheduler import Scheduler
+from chatbot.auth.dependencies import get_current_user, CurrentUser
 
 agency_router = APIRouter(prefix="/agency", tags=["agency"])
 
@@ -63,7 +64,6 @@ class NotificationListResponse(BaseModel):
 
 class CheckInTriggerRequest(BaseModel):
     checkin_type: str
-    user_id: str
     context: dict[str, Any] | None = None
 
 
@@ -104,9 +104,9 @@ def _sync_scheduler_level(user_id: str, level: str) -> None:
         scheduler.set_initiative_level(user_id, mapped)
 
 
-@agency_router.get("/initiative/{user_id}", response_model=InitiativeResponse)
-async def get_initiative(user_id: str) -> InitiativeResponse:
-    settings: InitiativeSettings = await project_initiative.get_initiative(user_id)
+@agency_router.get("/initiative", response_model=InitiativeResponse)
+async def get_initiative(current_user: CurrentUser = Depends(get_current_user)) -> InitiativeResponse:
+    settings: InitiativeSettings = await project_initiative.get_initiative(current_user.user_id)
     return InitiativeResponse(
         user_id=settings.user_id,
         level=settings.level.value,
@@ -115,22 +115,22 @@ async def get_initiative(user_id: str) -> InitiativeResponse:
     )
 
 
-@agency_router.put("/initiative/{user_id}", response_model=InitiativeResponse)
+@agency_router.put("/initiative", response_model=InitiativeResponse)
 async def update_initiative(
-    user_id: str, req: InitiativeUpdateRequest
+    req: InitiativeUpdateRequest, current_user: CurrentUser = Depends(get_current_user)
 ) -> InitiativeResponse:
     _validate_initiative_level(req.level)
     level_enum = InitiativeLevel(req.level)
     settings = InitiativeSettings(
-        user_id=user_id,
+        user_id=current_user.user_id,
         level=level_enum,
         quiet_hours_start=req.quiet_hours_start,
         quiet_hours_end=req.quiet_hours_end,
     )
-    await project_initiative.set_initiative(user_id, settings)
-    _sync_scheduler_level(user_id, req.level)
+    await project_initiative.set_initiative(current_user.user_id, settings)
+    _sync_scheduler_level(current_user.user_id, req.level)
     return InitiativeResponse(
-        user_id=user_id,
+        user_id=current_user.user_id,
         level=req.level,
         quiet_hours_start=req.quiet_hours_start,
         quiet_hours_end=req.quiet_hours_end,
@@ -138,13 +138,13 @@ async def update_initiative(
 
 
 @agency_router.get(
-    "/notifications/{user_id}", response_model=NotificationListResponse
+    "/notifications", response_model=NotificationListResponse
 )
 async def get_notifications(
-    user_id: str, since: str | None = None
+    since: str | None = None, current_user: CurrentUser = Depends(get_current_user)
 ) -> NotificationListResponse:
-    notifications = notification_queue.poll(user_id, since=since)
-    pending = notification_queue.pending_count(user_id)
+    notifications = notification_queue.poll(current_user.user_id, since=since)
+    pending = notification_queue.pending_count(current_user.user_id)
     return NotificationListResponse(
         notifications=[
             NotificationResponse(
@@ -179,7 +179,7 @@ async def dismiss_notification(notification_id: str) -> dict[str, str]:
 
 
 @agency_router.post("/checkins/trigger", response_model=CheckInResponse)
-async def trigger_checkin(req: CheckInTriggerRequest) -> CheckInResponse:
+async def trigger_checkin(req: CheckInTriggerRequest, current_user: CurrentUser = Depends(get_current_user)) -> CheckInResponse:
     if req.checkin_type not in CheckInType.__args__:
         raise HTTPException(
             status_code=400,
@@ -189,7 +189,7 @@ async def trigger_checkin(req: CheckInTriggerRequest) -> CheckInResponse:
     if req.context is not None:
         context_str = str(req.context)
     checkin = checkin_generator.generate(
-        req.checkin_type, req.user_id, context=context_str,
+        req.checkin_type, current_user.user_str, context=context_str,
     )
     if checkin is None:
         raise HTTPException(
@@ -204,12 +204,12 @@ async def trigger_checkin(req: CheckInTriggerRequest) -> CheckInResponse:
     )
 
 
-@agency_router.get("/schedule/{user_id}", response_model=ScheduleResponse)
-async def get_schedule(user_id: str) -> ScheduleResponse:
+@agency_router.get("/schedule", response_model=ScheduleResponse)
+async def get_schedule(current_user: CurrentUser = Depends(get_current_user)) -> ScheduleResponse:
     user_events = [
         _scheduled_event_to_dict(e)
         for e in scheduler._events
-        if e.user_id == user_id
+        if e.user_id == current_user.user_id
     ]
     next_event = scheduler.get_next_event()
     next_event_dict = (
