@@ -21,6 +21,21 @@ class Settings(BaseSettings):
     embedding_provider: str = "openrouter"
     embedding_model: str = "openai/text-embedding-3-small"
 
+    # TTS (Text-to-Speech) Configuration
+    tts_provider: str = "openai"
+    tts_model: str = "tts-1"
+    tts_voice: str = "alloy"
+    tts_speed: float = 1.0
+    tts_api_key: str = ""
+    tts_base_url: str = "https://api.openai.com/v1"
+
+    # STT (Speech-to-Text) Configuration
+    stt_provider: str = "openai"
+    stt_model: str = "whisper-1"
+    stt_language: str = "en"
+    stt_api_key: str = ""
+    stt_base_url: str = "https://api.openai.com/v1"
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 
