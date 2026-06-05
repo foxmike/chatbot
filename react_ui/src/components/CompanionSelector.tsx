@@ -5,6 +5,7 @@ import {
   createCompanion,
   deleteCompanion,
   listCompanions,
+  updateCompanion,
 } from "../api/client";
 import type { Companion } from "../api/client";
 import type { ApiError } from "../types";
@@ -48,6 +49,12 @@ export function CompanionSelector({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editPersona, setEditPersona] = useState("");
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const loadCompanions = async () => {
     setLoading(true);
@@ -114,6 +121,47 @@ export function CompanionSelector({
     }
   };
 
+  const startEdit = (companion: Companion) => {
+    setConfirmDeleteId(null);
+    setEditError(null);
+    setEditingId(companion.companion_id);
+    setEditName(companion.name);
+    setEditPersona(companion.persona ?? "");
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditName("");
+    setEditPersona("");
+    setEditError(null);
+  };
+
+  const handleSaveEdit = async (
+    event: FormEvent<HTMLFormElement>,
+    companionId: string,
+  ) => {
+    event.preventDefault();
+
+    if (!editName.trim()) return;
+
+    setIsSavingEdit(true);
+    setEditError(null);
+
+    try {
+      await updateCompanion(companionId, {
+        name: editName.trim(),
+        persona: editPersona.trim() || null,
+      });
+      cancelEdit();
+      await loadCompanions();
+    } catch (err) {
+      console.error("Failed to update companion", err);
+      setEditError(getErrorDetail(err));
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
   const handleLogout = () => {
     clearAccessToken();
     onLogout();
@@ -177,12 +225,79 @@ export function CompanionSelector({
                 key={companion.companion_id}
                 className="rounded-lg bg-gray-800 p-4 text-gray-100"
               >
-                <h3 className="text-lg font-semibold">{companion.name}</h3>
-                <p className="mt-1 text-sm text-gray-400">
-                  {companion.persona || companion.description || "No description"}
-                </p>
+                {editingId === companion.companion_id ? (
+                  <form
+                    className="flex flex-col gap-4"
+                    onSubmit={(event) =>
+                      handleSaveEdit(event, companion.companion_id)
+                    }
+                  >
+                    {editError ? (
+                      <div className="rounded-md border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-200">
+                        {editError}
+                      </div>
+                    ) : null}
 
-                {confirmDeleteId === companion.companion_id ? (
+                    <label className="flex flex-col gap-2 text-sm font-medium text-gray-200">
+                      Name
+                      <input
+                        type="text"
+                        required
+                        value={editName}
+                        disabled={isSavingEdit}
+                        className="rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100 placeholder:text-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 disabled:cursor-not-allowed disabled:opacity-60"
+                        placeholder="Companion name"
+                        onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                          setEditName(e.target.value)
+                        }
+                      />
+                    </label>
+
+                    <label className="flex flex-col gap-2 text-sm font-medium text-gray-200">
+                      Persona
+                      <textarea
+                        rows={3}
+                        value={editPersona}
+                        disabled={isSavingEdit}
+                        className="resize-y rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100 placeholder:text-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 disabled:cursor-not-allowed disabled:opacity-60"
+                        placeholder="Describe the companion's personality"
+                        onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
+                          setEditPersona(e.target.value)
+                        }
+                      />
+                    </label>
+
+                    <div className="flex justify-end gap-3">
+                      <button
+                        type="button"
+                        disabled={isSavingEdit}
+                        className="rounded-lg border border-gray-600 px-4 py-2 text-sm font-medium text-gray-300 transition hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 disabled:cursor-not-allowed disabled:opacity-50"
+                        onClick={cancelEdit}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isSavingEdit || !editName.trim()}
+                        className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 focus:ring-offset-gray-800 disabled:cursor-not-allowed disabled:bg-indigo-600 disabled:opacity-50"
+                      >
+                        {isSavingEdit ? "Saving..." : "Save"}
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <>
+                    <h3 className="text-lg font-semibold">{companion.name}</h3>
+                    <p className="mt-1 text-sm text-gray-400">
+                      {companion.persona ||
+                        companion.description ||
+                        "No description"}
+                    </p>
+                  </>
+                )}
+
+                {editingId !== companion.companion_id &&
+                confirmDeleteId === companion.companion_id ? (
                   <div className="mt-3 flex items-center gap-2 text-sm">
                     <span className="text-red-200">Are you sure?</span>
                     <button
@@ -202,7 +317,7 @@ export function CompanionSelector({
                       No
                     </button>
                   </div>
-                ) : (
+                ) : editingId !== companion.companion_id ? (
                   <div className="mt-3 flex items-center gap-2">
                     <button
                       type="button"
@@ -210,6 +325,13 @@ export function CompanionSelector({
                       onClick={() => onSelectCompanion(companion)}
                     >
                       Select
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-lg border border-gray-600 px-3 py-1.5 text-xs font-medium text-gray-300 transition hover:border-indigo-500 hover:text-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/60"
+                      onClick={() => startEdit(companion)}
+                    >
+                      Edit
                     </button>
                     <button
                       type="button"
@@ -221,7 +343,7 @@ export function CompanionSelector({
                       Delete
                     </button>
                   </div>
-                )}
+                ) : null}
               </div>
             ))}
           </div>

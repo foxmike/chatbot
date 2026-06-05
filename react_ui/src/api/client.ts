@@ -1432,7 +1432,7 @@ export async function updateCompanion(
   data: Partial<CompanionCreate>,
 ): Promise<Companion> {
   return requestJson<Companion>(`/companions/${companionId}`, {
-    method: "PATCH",
+    method: "PUT",
     body: JSON.stringify(data),
   });
 }

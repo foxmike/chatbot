@@ -22,6 +22,7 @@ dependencies = [
     "python-multipart",
     "PyJWT",
     "passlib[bcrypt]",
+    "bcrypt<4.1",
     "pydantic[email]",
 ]
 
