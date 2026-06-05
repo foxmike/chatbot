@@ -6,15 +6,16 @@ from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from pydantic import BaseModel
 
+from chatbot.auth.dependencies import CurrentUser, get_current_user
+from chatbot.auth.security import decode_access_token
 from chatbot.observability import metrics_collector, structured_logger
 from chatbot.observability.logs import LogEvent
 from chatbot.observability.metrics import ModelMetrics
 from chatbot.observability.tracing import TraceRecord, trace_collector
-from chatbot.auth.dependencies import get_current_user, CurrentUser
-from fastapi import Depends
+
 
 
 _ADMIN_ERROR = "Internal admin API error"
@@ -102,12 +103,35 @@ class UsageReportResponse(BaseModel):
     per_model: list[ModelMetricSummary]
 
 
-async def require_admin(current_user: CurrentUser = Depends(get_current_user)):
-    if current_user.email not in ["admin@localhost", "admin@example.com"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
-        )
+async def require_admin(
+    current_user: CurrentUser = Depends(get_current_user),
+    authorization: str | None = Header(default=None),
+) -> CurrentUser:
+    """Dependency that gates routes to admin users only.
+
+    Checks for admin access via, in order:
+      1. JWT token ``role`` claim equal to ``"admin"``  (role-based)
+      2. ``is_admin`` claim set to ``True``              (flag-based)
+      3. Hardcoded admin emails                          (legacy / dev fallback)
+    """
+    # ── role-based admin check ──────────────────────────────────────
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.removeprefix("Bearer ")
+        payload = decode_access_token(token)
+        if payload:
+            if payload.get("role") == "admin":
+                return current_user
+            if payload.get("is_admin") is True:
+                return current_user
+
+    # ── legacy / dev fallback ───────────────────────────────────────
+    if current_user.email in ("admin@localhost", "admin@example.com"):
+        return current_user
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Admin access required",
+    )
 
 
 @admin_router.get("/traces", response_model=TraceListResponse)
