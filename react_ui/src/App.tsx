@@ -16,7 +16,6 @@ import SettingsPanel from "./components/SettingsPanel";
 import { MemoryPanel } from "./components/MemoryPanel";
 import TimelinePanel from "./components/TimelinePanel";
 import CompanionSelector from "./components/CompanionSelector";
-import InitiativeSettings from "./components/InitiativeSettings";
 import { RoomSwitcher } from "./components/RoomSwitcher";
 import type { ApiError, CreateSessionResponse, Message, Session } from "./types";
 import type { RoomType } from "./api/client";
@@ -382,9 +381,6 @@ export default function App() {
         ),
         timeline: (
           <TimelinePanel sessionId={activeSessionId ?? ''} />
-        ),
-        initiative: (
-          <InitiativeSettings userId={user.user_id} />
         ),
         rooms: (
           <RoomSwitcher
