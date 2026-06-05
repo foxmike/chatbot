@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from datetime import datetime
-from uuid import uuid4
+from hashlib import sha256
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -38,6 +39,17 @@ class Outfit(BaseModel):
     visual_tags: list[str] = Field(default_factory=list)
     is_active: bool = False
     created_at: str = Field(default_factory=_utcnow_iso)
+
+
+class AppearanceContinuitySnapshot(BaseModel):
+    character_seed: int
+    character_description: str
+    visual_traits: list[str]
+    art_style: str
+    color_palette: list[str]
+    active_outfit: Outfit | None
+    prompt: str
+    negative_prompt: str
 
 
 class OutfitManager:
@@ -169,6 +181,29 @@ class AppearanceManager:
         full_negative = negative_prompt or ", ".join(self.DEFAULT_ANTI_TRAITS)
         return full_prompt, full_negative, self._profile.character_seed
 
+    def build_continuity_snapshot(
+        self,
+        scene_description: str,
+        negative_prompt: str | None = None,
+    ) -> AppearanceContinuitySnapshot:
+        prompt, full_negative, seed = self.build_generation_prompt(
+            scene_description,
+            negative_prompt=negative_prompt,
+        )
+        active_outfit = self._outfit_manager.get_active_outfit()
+        return AppearanceContinuitySnapshot(
+            character_seed=seed,
+            character_description=self._profile.character_description,
+            visual_traits=list(self._profile.visual_traits),
+            art_style=self._profile.art_style,
+            color_palette=list(self._profile.color_palette),
+            active_outfit=active_outfit.model_copy(deep=True)
+            if active_outfit is not None
+            else None,
+            prompt=prompt,
+            negative_prompt=full_negative,
+        )
+
     def lock_seed(self, seed: int) -> int:
         self._profile.character_seed = seed
         self._profile.touch()
@@ -178,9 +213,31 @@ class AppearanceManager:
         return self._outfit_manager
 
 
+def stable_character_seed(identity_key: str) -> int:
+    normalized_key = identity_key.strip()
+    if not normalized_key:
+        return AppearanceProfile().character_seed
+    digest = sha256(normalized_key.encode("utf-8")).digest()
+    return int.from_bytes(digest[:4], byteorder="big", signed=False)
+
+
+def stable_outfit_id(identity_key: str, outfit_name: str) -> str:
+    normalized_identity = identity_key.strip() or "default"
+    normalized_outfit = outfit_name.strip() or "default"
+    return str(
+        uuid5(
+            NAMESPACE_URL,
+            f"chatbot:outfit:{normalized_identity}:{normalized_outfit}",
+        )
+    )
+
+
 __all__ = [
+    "AppearanceContinuitySnapshot",
     "AppearanceManager",
     "AppearanceProfile",
     "Outfit",
     "OutfitManager",
+    "stable_character_seed",
+    "stable_outfit_id",
 ]
