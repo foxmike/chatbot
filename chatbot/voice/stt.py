@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+import httpx
+
 from chatbot.voice.base import STTProvider, VoiceTranscriptionRequest, VoiceTranscriptionResult
 
 
@@ -35,12 +37,23 @@ _SUPPORTED_AUDIO_FORMATS = frozenset(
 class STTAdapter(STTProvider):
     """Provider-neutral STT adapter for speech transcription requests."""
 
-    def __init__(self, provider_id: str, model_id: str) -> None:
+    def __init__(
+        self,
+        provider_id: str,
+        model_id: str,
+        *,
+        api_key: str = "",
+        base_url: str = "https://api.openai.com/v1",
+        timeout_seconds: float = 120.0,
+    ) -> None:
         if not self.validate_identifier(provider_id, model_id):
             raise ValueError(f"unsupported STT provider/model pair: {provider_id}/{model_id}")
 
         self.provider_id = provider_id
         self.model_id = model_id
+        self.api_key = api_key or ""
+        self.base_url = (base_url or "").rstrip("/")
+        self.timeout_seconds = timeout_seconds
 
     async def transcribe(self, request: VoiceTranscriptionRequest) -> VoiceTranscriptionResult:
         """Build a provider STT request from audio bytes and transcription options."""
@@ -78,10 +91,109 @@ class STTAdapter(STTProvider):
         return payload
 
     async def _call_provider(self, payload: Mapping[str, Any]) -> Mapping[str, Any]:
-        raise NotImplementedError(
-            "STT provider API calls are not implemented yet; "
-            f"would call {payload.get('provider')}/{payload.get('model')}"
-        )
+        """Call the STT provider API and return a normalized dict with text, confidence, and language."""
+        provider = payload.get("provider", "")
+
+        if provider == "openai":
+            return await self._call_openai_stt(payload)
+        if provider == "deepgram":
+            return await self._call_deepgram_stt(payload)
+
+        raise ValueError(f"unsupported STT provider: {provider}")
+
+    async def _call_openai_stt(self, payload: Mapping[str, Any]) -> Mapping[str, Any]:
+        model = payload.get("model", "whisper-1")
+        audio_data = payload.get("audio", b"")
+        audio_format = payload.get("audio_format", "wav")
+        language = payload.get("language")
+
+        data: dict[str, Any] = {
+            "model": model,
+        }
+        if language:
+            data["language"] = language
+        data["response_format"] = "verbose_json"
+        data["timestamp_granularities[]"] = "word"
+
+        files = {
+            "file": (_audio_filename(audio_format), audio_data, _audio_mime(audio_format)),
+        }
+
+        headers: dict[str, str] = {}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/audio/transcriptions",
+                    headers=headers,
+                    data=data,
+                    files=files,
+                    timeout=self.timeout_seconds,
+                )
+        except httpx.TimeoutException as exc:
+            raise TimeoutError("OpenAI STT request timed out") from exc
+        except httpx.HTTPError as exc:
+            raise RuntimeError(f"OpenAI STT request failed: {exc}") from exc
+
+        if response.status_code >= 400:
+            _raise_stt_http_error(response)
+
+        try:
+            body: Any = response.json()
+        except ValueError:
+            body = {"text": response.text.strip() or "", "confidence": 1.0}
+
+        if not isinstance(body, Mapping):
+            return {"text": str(body), "confidence": 1.0}
+
+        return dict(body)
+
+    async def _call_deepgram_stt(self, payload: Mapping[str, Any]) -> Mapping[str, Any]:
+        model = payload.get("model", "nova-2")
+        audio_data = payload.get("audio", b"")
+        audio_format = payload.get("audio_format", "wav")
+        language = payload.get("language")
+
+        params: dict[str, str] = {"model": model, "utterances": "true"}
+        if language:
+            params["language"] = language
+
+        headers: dict[str, str] = {
+            "Content-Type": _audio_mime(audio_format),
+        }
+        if self.api_key:
+            headers["Authorization"] = f"Token {self.api_key}"
+
+        base = self.base_url or "https://api.deepgram.com"
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{base}/v1/listen",
+                    headers=headers,
+                    content=audio_data,
+                    params=params,
+                    timeout=self.timeout_seconds,
+                )
+        except httpx.TimeoutException as exc:
+            raise TimeoutError("Deepgram STT request timed out") from exc
+        except httpx.HTTPError as exc:
+            raise RuntimeError(f"Deepgram STT request failed: {exc}") from exc
+
+        if response.status_code >= 400:
+            _raise_stt_http_error(response)
+
+        try:
+            body: Any = response.json()
+        except ValueError:
+            return {"text": response.text.strip() or "", "confidence": 0.0}
+
+        if not isinstance(body, Mapping):
+            return {"text": str(body), "confidence": 0.0}
+
+        return dict(body)
 
     def _to_transcription_result(
         self,
@@ -101,6 +213,52 @@ class STTAdapter(STTProvider):
 
 def _normalize_audio_format(audio_format: str) -> str:
     return str(audio_format or "").strip().lower().lstrip(".")
+
+
+def _audio_filename(audio_format: str) -> str:
+    ext = _normalize_audio_format(audio_format) or "wav"
+    return f"audio.{ext}"
+
+
+def _audio_mime(audio_format: str) -> str:
+    fmt = _normalize_audio_format(audio_format)
+    _MIME: dict[str, str] = {
+        "aac": "audio/aac",
+        "flac": "audio/flac",
+        "m4a": "audio/mp4",
+        "mp3": "audio/mpeg",
+        "mp4": "audio/mp4",
+        "mpeg": "audio/mpeg",
+        "mpga": "audio/mpeg",
+        "ogg": "audio/ogg",
+        "opus": "audio/opus",
+        "wav": "audio/wav",
+        "webm": "audio/webm",
+    }
+    return _MIME.get(fmt, "audio/wav")
+
+
+def _raise_stt_http_error(response: httpx.Response) -> None:
+    message = f"STT provider HTTP {response.status_code}: {response.text}"
+    try:
+        body = response.json()
+        if isinstance(body, Mapping):
+            error = body.get("error")
+            if isinstance(error, Mapping):
+                detail = error.get("message") or error.get("code") or error.get("type")
+                if detail:
+                    message = f"STT provider HTTP {response.status_code}: {detail}"
+            elif error is not None:
+                message = f"STT provider HTTP {response.status_code}: {error}"
+            elif body.get("message"):
+                message = f"STT provider HTTP {response.status_code}: {body['message']}"
+    except ValueError:
+        pass
+    if response.status_code in {401, 403}:
+        raise PermissionError(message)
+    if response.status_code == 429:
+        raise RuntimeError(message)
+    raise RuntimeError(message)
 
 
 def _confidence_value(value: Any) -> float:
