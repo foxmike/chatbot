@@ -13,6 +13,7 @@ import SessionSidebar from "./components/SessionSidebar";
 import AppShell from "./components/AppShell";
 import SettingsPanel from "./components/SettingsPanel";
 import { MemoryPanel } from "./components/MemoryPanel";
+import TimelinePanel from "./components/TimelinePanel";
 import CompanionSelector from "./components/CompanionSelector";
 import type { ApiError, CreateSessionResponse, Message, Session } from "./types";
 import { AuthScreen } from "./components/AuthScreen";
@@ -362,11 +363,7 @@ export default function App() {
           <MemoryPanel sessionId={activeSessionId ?? undefined} />
         ),
         timeline: (
-          <PanelStatus
-            title="Timeline"
-            status="Guarded"
-            detail="Timeline navigation is in place, but the continuity routes are not mounted until the backend route and schema checks are reconciled."
-          />
+          <TimelinePanel sessionId={activeSessionId ?? ''} />
         ),
         rooms: (
           <PanelStatus
