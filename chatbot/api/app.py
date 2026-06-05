@@ -13,6 +13,7 @@ from chatbot.api.admin import admin_router
 from chatbot.api.auth import auth_router
 from chatbot.api.rooms import rooms_router
 from chatbot.api.streaming import streaming_router
+from chatbot.api.companions import companion_router
 from chatbot.api.voice import voice_router
 from chatbot.config import get_settings
 from chatbot.providers.bootstrap import build_default_registry
@@ -36,6 +37,7 @@ def create_app() -> FastAPI:
     app.include_router(rooms_router)
     app.include_router(admin_router)
     app.include_router(auth_router)
+    app.include_router(companion_router)
     app.include_router(voice_router)
 
     @app.get("/")

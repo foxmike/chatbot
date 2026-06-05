@@ -18,7 +18,7 @@ from chatbot.voice.cadence import CadenceMapper
 from chatbot.voice.stt import STTAdapter
 from chatbot.voice.tts import TTSAdapter
 
-voice_router = APIRouter(prefix="/api/voice", tags=["voice"])
+voice_router = APIRouter(prefix="/voice", tags=["voice"])
 
 DEFAULT_TTS_PROVIDER = "openai"
 DEFAULT_TTS_MODEL = "tts-1"
