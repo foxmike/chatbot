@@ -13,6 +13,8 @@ from chatbot.observability import metrics_collector, structured_logger
 from chatbot.observability.logs import LogEvent
 from chatbot.observability.metrics import ModelMetrics
 from chatbot.observability.tracing import TraceRecord, trace_collector
+from chatbot.auth.dependencies import get_current_user, CurrentUser
+from fastapi import Depends
 
 
 _ADMIN_ERROR = "Internal admin API error"
@@ -100,11 +102,20 @@ class UsageReportResponse(BaseModel):
     per_model: list[ModelMetricSummary]
 
 
+async def require_admin(current_user: CurrentUser = Depends(get_current_user)):
+    if current_user.email not in ["admin@localhost", "admin@example.com"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+
+
 @admin_router.get("/traces", response_model=TraceListResponse)
 async def list_traces(
     session_id: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
+    current_user: CurrentUser = Depends(require_admin),
 ) -> TraceListResponse:
     try:
         offset = (page - 1) * page_size
@@ -130,7 +141,7 @@ async def list_traces(
 
 
 @admin_router.get("/traces/{trace_id}", response_model=TraceDetail)
-async def get_trace(trace_id: str) -> TraceDetail:
+async def get_trace(trace_id: str, current_user: CurrentUser = Depends(require_admin)) -> TraceDetail:
     try:
         trace = await trace_collector.get_trace(trace_id)
         if trace is None:
@@ -149,7 +160,7 @@ async def get_trace(trace_id: str) -> TraceDetail:
 
 
 @admin_router.get("/metrics/global", response_model=MetricsGlobal)
-async def get_global_metrics() -> MetricsGlobal:
+async def get_global_metrics(current_user: CurrentUser = Depends(require_admin)) -> MetricsGlobal:
     try:
         summary = await metrics_collector.get_global_summary()
         return MetricsGlobal(
@@ -169,7 +180,7 @@ async def get_global_metrics() -> MetricsGlobal:
 
 
 @admin_router.get("/metrics/models", response_model=ModelMetricsListResponse)
-async def get_model_metrics() -> ModelMetricsListResponse:
+async def get_model_metrics(current_user: CurrentUser = Depends(require_admin)) -> ModelMetricsListResponse:
     try:
         models = await metrics_collector.get_model_metrics_all()
         return ModelMetricsListResponse(
@@ -191,6 +202,7 @@ async def list_log_events(
     since: str | None = Query(default=None),
     limit: int = Query(default=100, ge=1),
     offset: int = Query(default=0, ge=0),
+    current_user: CurrentUser = Depends(require_admin),
 ) -> LogEventsListResponse:
     try:
         events = await structured_logger.query_events(
@@ -215,7 +227,7 @@ async def list_log_events(
 
 
 @admin_router.get("/usage", response_model=UsageReportResponse)
-async def get_usage_report() -> UsageReportResponse:
+async def get_usage_report(current_user: CurrentUser = Depends(require_admin)) -> UsageReportResponse:
     try:
         summary = await metrics_collector.get_global_summary()
         models = await metrics_collector.get_model_metrics_all()
@@ -236,7 +248,7 @@ async def get_usage_report() -> UsageReportResponse:
 
 
 @admin_router.get("/health")
-async def admin_health() -> dict[str, int | str]:
+async def admin_health(current_user: CurrentUser = Depends(require_admin)) -> dict[str, int | str]:
     try:
         return {
             "status": "ok",
