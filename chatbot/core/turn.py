@@ -262,9 +262,10 @@ class RetrieveStep(TurnStep):
         self._retrieval_engine = retrieval_engine
 
     async def run(self, ctx: TurnContext) -> TurnContext:
+        preloaded_history = list(ctx.history)
         if self._loader_cls is None:
-            logger.warning("WorkingMemoryLoader is unavailable; using empty history")
-            ctx.history = []
+            logger.warning("WorkingMemoryLoader is unavailable; using preloaded history")
+            ctx.history = preloaded_history
         else:
             store = _first_metadata_value(
                 ctx,
@@ -275,18 +276,19 @@ class RetrieveStep(TurnStep):
                 "db",
             )
             if store is None:
-                logger.warning("Working memory store is unavailable; using empty history")
-                ctx.history = []
+                logger.warning("Working memory store is unavailable; using preloaded history")
+                ctx.history = preloaded_history
             else:
                 try:
-                    ctx.history = await self._loader_cls(store).load(ctx.session_id)
+                    loaded_history = await self._loader_cls(store).load(ctx.session_id)
+                    ctx.history = loaded_history or preloaded_history
                 except Exception:
                     logger.warning(
                         "Working memory load failed for session %s",
                         ctx.session_id,
                         exc_info=True,
                     )
-                    ctx.history = []
+                    ctx.history = preloaded_history
 
         ctx.retrieved_memories = _coerce_memory_list(
             ctx.metadata.get("retrieved_memories")

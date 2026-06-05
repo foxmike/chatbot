@@ -90,10 +90,14 @@ async def _stream_turn(
     typing_active = False
     try:
         metadata = _stream_metadata(http_request)
+        metadata["session_id"] = request.session_id
+        metadata["session_record"] = db_session
+        metadata["db_session"] = db
         metadata["user_id"] = current_user.user_id
         metadata["companion_id"] = db_session.companion_id
 
         history = await _load_db_session_history(db, db_session.id)
+        _seed_stream_history_metadata(metadata, request.session_id, history)
 
         ctx = TurnContext(
             session_id=request.session_id,
@@ -174,9 +178,6 @@ async def _stream_turn(
         if response is None:
             response = str(ctx.metadata.get("pipeline_error", "No response"))
 
-        yield _sse_data({"type": "response", "text": response})
-        yield "data: [DONE]\n\n"
-
         await _persist_messages(
             db,
             db_session=db_session,
@@ -184,6 +185,9 @@ async def _stream_turn(
             user_message=request.message,
             assistant_message=response,
         )
+
+        yield _sse_data({"type": "response", "text": response})
+        yield "data: [DONE]\n\n"
     except HTTPException:
         if typing_active:
             yield _sse_data({"type": "typing", "status": "stopped"})
@@ -363,6 +367,24 @@ def _stream_metadata(http_request: Request | None) -> dict[str, Any]:
             metadata[metadata_key] = value
 
     return metadata
+
+
+def _seed_stream_history_metadata(
+    metadata: dict[str, Any],
+    session_id: str,
+    history: list[dict[str, Any]],
+) -> None:
+    if not history:
+        return
+    if any(
+        metadata.get(key) is not None
+        for key in ("working_memory_store", "working_memory", "memory_store")
+    ):
+        return
+
+    working_memory_store = {session_id: list(reversed(history))}
+    metadata["working_memory_store"] = working_memory_store
+    metadata["working_memory"] = working_memory_store
 
 
 def _first_state_value(http_request: Request, *names: str) -> Any | None:
