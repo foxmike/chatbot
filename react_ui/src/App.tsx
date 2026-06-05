@@ -17,6 +17,7 @@ import { MemoryPanel } from "./components/MemoryPanel";
 import TimelinePanel from "./components/TimelinePanel";
 import CompanionSelector from "./components/CompanionSelector";
 import { RoomSwitcher } from "./components/RoomSwitcher";
+import SceneControls from "./components/SceneControls";
 import type { ApiError, CreateSessionResponse, Message, Session } from "./types";
 import type { RoomType } from "./api/client";
 import { AuthScreen } from "./components/AuthScreen";
