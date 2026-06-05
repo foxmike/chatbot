@@ -22,6 +22,7 @@ from chatbot.db import async_session_factory
 from chatbot.perf.background import BackgroundTask
 from chatbot.perf.handlers import consolidate_handler, memory_extract_handler
 from chatbot.perf.worker import BackgroundWorker, start_worker
+from chatbot.memory.retrieval import build_retrieval_engine
 from chatbot.providers.bootstrap import build_default_registry
 
 _WORKER_SHUTDOWN_TIMEOUT_SECONDS = 10.0
@@ -30,6 +31,10 @@ _WORKER_SHUTDOWN_TIMEOUT_SECONDS = 10.0
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.provider_registry = build_default_registry(get_settings())
+    app.state.retrieval_engine = build_retrieval_engine(
+        async_session_factory,
+        get_settings(),
+    )
     worker: BackgroundWorker | None = None
 
     if _background_queue is not None:

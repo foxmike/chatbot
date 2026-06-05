@@ -1,19 +1,25 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+import logging
 import math
 import uuid
 from typing import Any, Literal, TYPE_CHECKING
+
+import httpx
 
 from chatbot.memory.embeddings import EmbeddingProvider
 from chatbot.memory.episodic import EpisodicTurn
 from chatbot.memory.vector_store import SearchResult, VectorStore
 
 if TYPE_CHECKING:
+    from chatbot.config import Settings
     from chatbot.rooms.room import Room
     from chatbot.rooms.scene import SceneState
+
+logger = logging.getLogger(__name__)
 
 
 _RESERVED_METADATA_KEYS = {"session_id", "role", "content", "token_count", "created_at"}
@@ -635,11 +641,152 @@ def build_room_context(room: Room, scene: SceneState | None = None) -> RoomMemor
     )
 
 
+class OpenRouterEmbeddingProvider(EmbeddingProvider):
+    """Concrete embedding provider backed by the OpenRouter embeddings API."""
+
+    __slots__ = ("_api_key", "_base_url", "_model", "_dimension")
+
+    _DEFAULT_DIMENSION = 1536
+
+    def __init__(
+        self,
+        api_key: str,
+        *,
+        base_url: str = "https://openrouter.ai/api/v1",
+        model: str = "openai/text-embedding-3-small",
+        dimension: int = _DEFAULT_DIMENSION,
+    ) -> None:
+        if not api_key:
+            raise ValueError("api_key must not be empty")
+        self._api_key = api_key
+        self._base_url = base_url.rstrip("/")
+        self._model = model
+        self._dimension = dimension
+
+    @property
+    def dimension(self) -> int:
+        return self._dimension
+
+    async def embed(self, texts: list[str]) -> list[list[float]]:
+        if not texts:
+            return []
+
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self._api_key}",
+        }
+        payload: dict[str, Any] = {
+            "model": self._model,
+            "input": texts,
+        }
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self._base_url}/embeddings",
+                    headers=headers,
+                    json=payload,
+                    timeout=30.0,
+                )
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            logger.error("OpenRouter embedding request failed: %s", exc)
+            raise
+
+        body = response.json()
+        data = body.get("data")
+        if not isinstance(data, list):
+            raise ValueError("OpenRouter embeddings response missing 'data' list")
+
+        return [
+            list(item["embedding"])
+            for item in data
+            if isinstance(item, Mapping) and "embedding" in item
+        ]
+
+
+class SessionAwareVectorStore(VectorStore):
+    """VectorStore adapter that creates PgvectorStore per-call using a session factory."""
+
+    __slots__ = ("_session_factory", "_table")
+
+    def __init__(
+        self,
+        session_factory: Callable[[], Any],
+        table: Any | None = None,
+    ) -> None:
+        self._session_factory = session_factory
+        # Defer PgvectorStore import to avoid circular imports at module level
+        self._table = table
+
+    async def add(
+        self,
+        ids: list[str],
+        embeddings: list[list[float]],
+        metadata: list[dict] | None,
+    ) -> None:
+        from chatbot.memory.pgvector_store import PgvectorStore
+
+        async with self._session_factory() as session:
+            store = PgvectorStore(session, self._table)
+            await store.add(ids, embeddings, metadata)
+
+    async def search(
+        self,
+        embedding: list[float],
+        top_k: int,
+        filter: dict | None,
+    ) -> list[SearchResult]:
+        from chatbot.memory.pgvector_store import PgvectorStore
+
+        async with self._session_factory() as session:
+            store = PgvectorStore(session, self._table)
+            return await store.search(embedding, top_k, filter)
+
+    async def delete(self, ids: list[str]) -> int:
+        from chatbot.memory.pgvector_store import PgvectorStore
+
+        async with self._session_factory() as session:
+            store = PgvectorStore(session, self._table)
+            return await store.delete(ids)
+
+    async def count(self) -> int:
+        from chatbot.memory.pgvector_store import PgvectorStore
+
+        async with self._session_factory() as session:
+            store = PgvectorStore(session, self._table)
+            return await store.count()
+
+
+def build_retrieval_engine(
+    session_factory: Callable[[], Any],
+    settings: Settings,
+    *,
+    table: Any | None = None,
+) -> RetrievalEngine:
+    """Build a RetrievalEngine wired to the application session factory and settings.
+
+    Uses *session_factory* (typically :data:`chatbot.db.async_session_factory`) to
+    create database sessions per operation and *settings* to configure the embedding
+    provider.
+    """
+    embedding_provider = OpenRouterEmbeddingProvider(
+        api_key=settings.openrouter_api_key,
+        base_url=getattr(settings, "embedding_base_url", settings.openrouter_base_url),
+        model=getattr(settings, "embedding_model", "openai/text-embedding-3-small"),
+    )
+    vector_store = SessionAwareVectorStore(session_factory, table)
+    return RetrievalEngine(vector_store, embedding_provider)
+
+
 __all__ = [
     "RetrievalEngine",
     "RetrievalFilter",
     "RetrievalResult",
     "RoomMemoryContext",
+    "OpenRouterEmbeddingProvider",
+    "SessionAwareVectorStore",
+    "build_retrieval_engine",
     "build_room_context",
     "retrieve",
 ]
