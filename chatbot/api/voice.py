@@ -128,7 +128,10 @@ def _validate_provider_ids(update: VoicePreferencesUpdate) -> None:
 
 
 @voice_router.post("/synthesize", response_model=SynthesizeResponse)
-async def synthesize(request: SynthesizeRequest) -> SynthesizeResponse:
+async def synthesize(
+    request: SynthesizeRequest,
+    current_user: CurrentUser = Depends(get_current_user)
+) -> SynthesizeResponse:
     """Synthesize speech audio from text with optional mood/mode cadence."""
     voice_params: dict[str, Any] = {}
     if request.mood is not None:
@@ -162,7 +165,10 @@ async def synthesize(request: SynthesizeRequest) -> SynthesizeResponse:
 
 
 @voice_router.post("/transcribe", response_model=TranscribeResponse)
-async def transcribe(request: TranscribeRequest) -> TranscribeResponse:
+async def transcribe(
+    request: TranscribeRequest,
+    current_user: CurrentUser = Depends(get_current_user)
+) -> TranscribeResponse:
     """Transcribe speech audio to text."""
     audio_data = base64.b64decode(request.audio_base64)
 
