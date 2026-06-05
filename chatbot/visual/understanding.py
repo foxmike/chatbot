@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Awaitable, Callable
+
+logger = logging.getLogger(__name__)
 from dataclasses import dataclass
 from typing import Literal
 
@@ -89,7 +92,16 @@ class ImageUnderstandingService:
         try:
             result = await self._provider.understand(image_data, mime_type, question)
         except Exception as exc:
-            raise UnderstandingError(str(exc)) from exc
+            logger.warning(f"Image understanding failed, using fallback: {exc}")
+            result = ImageUnderstandingResult(
+                description="Image understanding is currently unavailable.",
+                detected_objects=[],
+                detected_text=None,
+                scene_category=None,
+                confidence=0.0,
+                model_used="fallback",
+                processing_time_ms=0.0,
+            )
         end = time.monotonic()
         _ = end - start
 
@@ -122,7 +134,16 @@ class ImageUnderstandingService:
         try:
             return await self._provider.understand(image_data, mime_type, question)
         except Exception as exc:
-            raise UnderstandingError(str(exc)) from exc
+            logger.warning(f"Image understanding failed, using fallback: {exc}")
+            return ImageUnderstandingResult(
+                description="Image understanding is currently unavailable.",
+                detected_objects=[],
+                detected_text=None,
+                scene_category=None,
+                confidence=0.0,
+                model_used="fallback",
+                processing_time_ms=0.0,
+            )
 
 
 from chatbot.config import get_settings

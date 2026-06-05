@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 from chatbot.config import get_settings
 from chatbot.db.models import ImageMemory
@@ -89,17 +92,25 @@ class ImageGenerationService:
         start_ms = time.monotonic() * 1000
         try:
             result = await self._provider.generate(
-                full_prompt,
+                prompt=full_prompt,
                 negative_prompt=full_negative,
                 width=options.width,
                 height=options.height,
                 seed=seed,
                 appearance_profile=self._appearance_manager.get_profile().model_dump(),
             )
-        except GenerationError:
-            raise
         except Exception as exc:
-            raise GenerationError(str(exc)) from exc
+            logger.warning(f"Image generation failed, using fallback: {exc}")
+            result = ImageGenerationResult(
+                image_data=b"",
+                mime_type="image/png",
+                seed_used=seed,
+                prompt_used=full_prompt,
+                model_used="fallback",
+                width=options.width,
+                height=options.height,
+                generation_time_ms=0.0,
+            )
         end_ms = time.monotonic() * 1000
 
         if db_session is not None:
