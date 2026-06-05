@@ -733,7 +733,11 @@ class Notification(Base):
     body: Mapped[str] = mapped_column(sa.Text, nullable=False)
     read: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
     dismissed: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
-    extra_metadata: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
+    extra_metadata: Mapped[dict[str, object] | None] = mapped_column(
+        "ritual_metadata",
+        sa.JSON,
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True),
         nullable=False,
