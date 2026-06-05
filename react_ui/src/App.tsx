@@ -100,6 +100,11 @@ export default function App() {
     null,
   );
   const [callModeActive, setCallModeActive] = useState(false);
+  const [useStreamingChat, setUseStreamingChat] = useState(false);
+  const [streamRequest, setStreamRequest] = useState<{
+    sessionId: string;
+    message: string;
+  } | null>(null);
   const messages = activeSessionId ? messagesBySession[activeSessionId] ?? [] : [];
   const activeSession = sessions.find(
     (session) => session.session_id === activeSessionId,
@@ -206,6 +211,11 @@ export default function App() {
     }));
     setIsLoading(true);
 
+    if (useStreamingChat && !activeRoomId) {
+      setStreamRequest({ sessionId, message: trimmedMessage });
+      return;
+    }
+
     try {
       const response = await sendMessage(trimmedMessage, sessionId, activeRoomId ?? undefined);
       setMessagesBySession((currentMessages) => ({
@@ -227,6 +237,44 @@ export default function App() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleStreamComplete = (message: Message) => {
+    const completedRequest = streamRequest;
+
+    if (!completedRequest) {
+      setIsLoading(false);
+      return;
+    }
+
+    setMessagesBySession((currentMessages) => ({
+      ...currentMessages,
+      [completedRequest.sessionId]: [
+        ...(currentMessages[completedRequest.sessionId] ?? []),
+        message,
+      ],
+    }));
+    setStreamRequest(null);
+    setIsLoading(false);
+  };
+
+  const handleStreamError = (streamError: Error) => {
+    const failedRequest = streamRequest;
+
+    if (!failedRequest) {
+      setIsLoading(false);
+      return;
+    }
+
+    setMessagesBySession((currentMessages) => ({
+      ...currentMessages,
+      [failedRequest.sessionId]: [
+        ...(currentMessages[failedRequest.sessionId] ?? []),
+        createMessage("assistant", getErrorDetail(streamError)),
+      ],
+    }));
+    setStreamRequest(null);
+    setIsLoading(false);
   };
 
   const handleNewSession = async () => {
@@ -314,6 +362,7 @@ export default function App() {
     setMessagesBySession({});
     setError(null);
     setIsLoading(false);
+    setStreamRequest(null);
     setCallModeActive(false);
   };
 
@@ -339,7 +388,25 @@ export default function App() {
         </div>
       ) : null}
 
-      <MessageList messages={messages} isLoading={isLoading} />
+      <MessageList
+        messages={messages}
+        isLoading={isLoading}
+        streamRequest={streamRequest}
+        onStreamComplete={handleStreamComplete}
+        onStreamError={handleStreamError}
+      />
+      <div className="border-t border-gray-700 bg-gray-800 px-4 py-3">
+        <label className="flex items-center gap-3 text-sm font-medium text-gray-200">
+          <input
+            type="checkbox"
+            className="h-4 w-4 rounded border-gray-600 bg-gray-900 text-indigo-600 focus:ring-2 focus:ring-indigo-500"
+            checked={useStreamingChat && !activeRoomId}
+            disabled={isLoading || Boolean(activeRoomId)}
+            onChange={(event) => setUseStreamingChat(event.target.checked)}
+          />
+          <span>Stream responses</span>
+        </label>
+      </div>
       <ChatInput
         onSend={handleSend}
         disabled={isLoading || !activeSessionId}
