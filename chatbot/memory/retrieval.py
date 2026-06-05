@@ -59,6 +59,26 @@ class RetrievalResult:
     rank: int
     metadata_matches: dict[str, Any] = field(default_factory=dict)
 
+    def as_dict(self) -> dict[str, Any]:
+        result: dict[str, Any] = {
+            "id": self.turn.id,
+            "session_id": self.turn.session_id,
+            "role": self.turn.role,
+            "content": self.turn.content,
+            "score": self.score,
+            "vector_score": self.vector_score,
+            "rank": self.rank,
+        }
+        if self.turn.token_count is not None:
+            result["token_count"] = self.turn.token_count
+        if self.turn.created_at is not None:
+            result["created_at"] = self.turn.created_at.isoformat()
+        if self.turn.metadata:
+            result["metadata"] = dict(self.turn.metadata)
+        if self.metadata_matches:
+            result["metadata_matches"] = dict(self.metadata_matches)
+        return result
+
 
 class RetrievalEngine:
     def __init__(

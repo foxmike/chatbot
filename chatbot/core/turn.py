@@ -244,8 +244,13 @@ class ReceiveStep(TurnStep):
 class RetrieveStep(TurnStep):
     name = "retrieve"
 
-    def __init__(self, loader_cls: Any | None = WorkingMemoryLoader) -> None:
+    def __init__(
+        self,
+        loader_cls: Any | None = WorkingMemoryLoader,
+        retrieval_engine: Any | None = None,
+    ) -> None:
         self._loader_cls = loader_cls
+        self._retrieval_engine = retrieval_engine
 
     async def run(self, ctx: TurnContext) -> TurnContext:
         if self._loader_cls is None:
@@ -280,8 +285,15 @@ class RetrieveStep(TurnStep):
             or ctx.retrieved_memories
         )
 
-        retrieval_engine = ctx.metadata.get("retrieval_engine")
+        retrieval_engine = (
+            _first_metadata_value(ctx, "retrieval_engine", "memory_retriever")
+            or self._retrieval_engine
+        )
         if retrieval_engine is None:
+            _store_retrieved_memories(ctx)
+            return ctx
+        if not callable(getattr(retrieval_engine, "retrieve", None)):
+            logger.warning("Retrieval engine is unavailable; using existing memories")
             _store_retrieved_memories(ctx)
             return ctx
         try:
