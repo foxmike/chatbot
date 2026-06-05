@@ -12,9 +12,10 @@ import MessageList from "./components/MessageList";
 import SessionSidebar from "./components/SessionSidebar";
 import AppShell from "./components/AppShell";
 import SettingsPanel from "./components/SettingsPanel";
+import CompanionSelector from "./components/CompanionSelector";
 import type { ApiError, CreateSessionResponse, Message, Session } from "./types";
 import { AuthScreen } from "./components/AuthScreen";
-import type { User } from "./api/client";
+import type { Companion, User } from "./api/client";
 
 function buildSession(
   response: CreateSessionResponse,
@@ -85,13 +86,16 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [selectedCompanion, setSelectedCompanion] = useState<Companion | null>(
+    null,
+  );
   const messages = activeSessionId ? messagesBySession[activeSessionId] ?? [] : [];
   const activeSession = sessions.find(
     (session) => session.session_id === activeSessionId,
   );
 
   useEffect(() => {
-    if (!user) {
+    if (!user || !selectedCompanion) {
       return;
     }
 
@@ -132,7 +136,7 @@ export default function App() {
     return () => {
       isMounted = false;
     };
-  }, [user]);
+  }, [selectedCompanion, user]);
 
   useEffect(() => {
     if (!activeSessionId) {
@@ -285,8 +289,27 @@ export default function App() {
     }
   };
 
+  const handleCompanionLogout = () => {
+    setUser(null);
+    setSelectedCompanion(null);
+    setSessions([]);
+    setActiveSessionId(null);
+    setMessagesBySession({});
+    setError(null);
+    setIsLoading(false);
+  };
+
   if (!user) {
     return <AuthScreen onAuthenticated={setUser} />;
+  }
+
+  if (!selectedCompanion) {
+    return (
+      <CompanionSelector
+        onSelectCompanion={setSelectedCompanion}
+        onLogout={handleCompanionLogout}
+      />
+    );
   }
 
   const chatPanel = (
@@ -308,7 +331,9 @@ export default function App() {
   return (
     <AppShell
       user={user}
-      activeSessionTitle={activeSession?.title}
+      activeSessionTitle={
+        activeSession ? `${selectedCompanion.name}: ${activeSession.title}` : undefined
+      }
       sidebar={
         <SessionSidebar
           sessions={sessions}
@@ -324,7 +349,11 @@ export default function App() {
           <SettingsPanel
             user={user}
             activeSessionId={activeSessionId}
-            activeSessionTitle={activeSession?.title}
+            activeSessionTitle={
+              activeSession
+                ? `${selectedCompanion.name}: ${activeSession.title}`
+                : undefined
+            }
             sessionCount={sessions.length}
           />
         ),
