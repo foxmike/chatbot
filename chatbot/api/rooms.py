@@ -6,8 +6,10 @@ from dataclasses import asdict
 from typing import Any, Literal
 
 import sqlalchemy as sa
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+
+from chatbot.auth.dependencies import get_current_user, CurrentUser
 
 from chatbot.db import async_session_factory
 from chatbot.db.models import Room as RoomModel, Scene as SceneModel
