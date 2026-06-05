@@ -4,14 +4,19 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncIterator, Iterable, Mapping
+from datetime import datetime, timezone
 import inspect
 from time import perf_counter
 from typing import Any
+import uuid
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import StreamingResponse
 
+from chatbot.auth.dependencies import CurrentUser, get_current_user
 from chatbot.core import TurnContext, TurnStep
 from chatbot.core.turn import (
     _provider_config,
@@ -21,6 +26,8 @@ from chatbot.core.turn import (
     _store_llm_trace_metadata,
     build_default_pipeline,
 )
+from chatbot.db import get_db
+from chatbot.db.models import Message, Session
 
 
 class StreamRequest(BaseModel):
@@ -34,9 +41,38 @@ _STREAM_METHOD_NAMES = ("stream_complete", "complete_stream", "stream_tokens", "
 
 
 @streaming_router.post("/stream")
-async def stream_chat(http_request: Request, request: StreamRequest) -> StreamingResponse:
+async def stream_chat(
+    http_request: Request,
+    request: StreamRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    try:
+        sid = uuid.UUID(request.session_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        )
+
+    user_uuid = uuid.UUID(current_user.user_id)
+    stmt = select(Session).where(Session.id == sid, Session.user_id == user_uuid)
+    result = await db.execute(stmt)
+    db_session = result.scalar_one_or_none()
+    if db_session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        )
+
     return StreamingResponse(
-        _stream_turn(request, http_request=http_request),
+        _stream_turn(
+            request,
+            http_request=http_request,
+            current_user=current_user,
+            db=db,
+            db_session=db_session,
+        ),
         media_type="text/event-stream",
     )
 
@@ -45,20 +81,29 @@ async def _stream_turn(
     request: StreamRequest,
     *,
     http_request: Request | None = None,
+    current_user: CurrentUser,
+    db: AsyncSession,
+    db_session: Session,
 ) -> AsyncIterator[str]:
     typing_active = False
     try:
+        metadata = _stream_metadata(http_request)
+        metadata["user_id"] = current_user.user_id
+        metadata["companion_id"] = db_session.companion_id
+
+        history = await _load_db_session_history(db, db_session.id)
+
         ctx = TurnContext(
             session_id=request.session_id,
             user_message=request.message,
-            history=[],
+            history=history,
             persona={},
             retrieved_memories=[],
             compiled_context=None,
             provider_response=None,
             extracted_memories=[],
             final_response=None,
-            metadata=_stream_metadata(http_request),
+            metadata=metadata,
         )
         pipeline = build_default_pipeline()
 
@@ -129,6 +174,14 @@ async def _stream_turn(
 
         yield _sse_data({"type": "response", "text": response})
         yield "data: [DONE]\n\n"
+
+        await _persist_messages(
+            db,
+            db_session=db_session,
+            current_user=current_user,
+            user_message=request.message,
+            assistant_message=response,
+        )
     except Exception as exc:
         if typing_active:
             yield _sse_data({"type": "typing", "status": "stopped"})
@@ -316,6 +369,56 @@ def _first_state_value(http_request: Request, *names: str) -> Any | None:
         if value is not None:
             return value
     return None
+
+
+async def _load_db_session_history(
+    db: AsyncSession,
+    session_id: uuid.UUID,
+) -> list[dict[str, Any]]:
+    result = await db.execute(
+        select(Message)
+        .where(Message.session_id == session_id)
+        .where(Message.role.in_(("user", "assistant", "system", "tool")))
+        .order_by(Message.created_at.asc(), Message.id.asc())
+    )
+    return [
+        {
+            "role": message.role,
+            "content": message.content,
+        }
+        for message in result.scalars().all()
+    ]
+
+
+async def _persist_messages(
+    db: AsyncSession,
+    *,
+    db_session: Session,
+    current_user: CurrentUser,
+    user_message: str,
+    assistant_message: str,
+) -> None:
+    user_uuid = uuid.UUID(current_user.user_id)
+    db.add(
+        Message(
+            session_id=db_session.id,
+            user_id=user_uuid,
+            companion_id=db_session.companion_id,
+            role="user",
+            content=user_message,
+        )
+    )
+    db.add(
+        Message(
+            session_id=db_session.id,
+            user_id=user_uuid,
+            companion_id=db_session.companion_id,
+            role="assistant",
+            content=assistant_message,
+        )
+    )
+    db_session.updated_at = datetime.now(timezone.utc)
+    await db.commit()
 
 
 def _step_name(step: TurnStep) -> str:
