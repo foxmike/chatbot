@@ -515,10 +515,11 @@ export async function deleteSession(sessionId: string): Promise<void> {
 export function sendMessage(
   message: string,
   sessionId: string,
+  roomId?: string,
 ): Promise<ChatResponse> {
   return requestJson<ChatResponse>("/api/chat/", {
     method: "POST",
-    body: JSON.stringify({ message, session_id: sessionId }),
+    body: JSON.stringify({ message, session_id: sessionId, room_id: roomId }),
   });
 }
 
@@ -527,6 +528,7 @@ export async function streamChat(
   message: string,
   callbacks: StreamCallbacks,
   signal?: AbortSignal,
+  roomId?: string,
 ): Promise<void> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -540,7 +542,7 @@ export async function streamChat(
     response = await fetch(`${BASE_URL}${backendPath("/chat/stream")}`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ session_id: sessionId, message }),
+      body: JSON.stringify({ session_id: sessionId, message, room_id: roomId }),
       signal,
     });
   } catch (err: unknown) {

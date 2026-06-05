@@ -53,6 +53,7 @@ class ChatRequest(BaseModel):
     session_id: str
     message: str
     companion_id: str | None = None
+    room_id: str | None = None
 
 
 class ChatResponse(BaseModel):
@@ -123,6 +124,7 @@ async def chat(
     )
     ctx.metadata["user_id"] = current_user.user_id
     ctx.metadata["companion_id"] = companion_id
+    ctx.metadata["room_id"] = body.room_id
 
     ctx = await _run_pipeline(ctx)
     response = ctx.final_response
