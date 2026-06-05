@@ -12,6 +12,7 @@ import MessageList from "./components/MessageList";
 import SessionSidebar from "./components/SessionSidebar";
 import AppShell from "./components/AppShell";
 import SettingsPanel from "./components/SettingsPanel";
+import { MemoryPanel } from "./components/MemoryPanel";
 import CompanionSelector from "./components/CompanionSelector";
 import type { ApiError, CreateSessionResponse, Message, Session } from "./types";
 import { AuthScreen } from "./components/AuthScreen";
@@ -358,11 +359,7 @@ export default function App() {
           />
         ),
         memory: (
-          <PanelStatus
-            title="Memory"
-            status="Guarded"
-            detail="Memory controls are available from the shell after route prefix and auth scoping checks are complete."
-          />
+          <MemoryPanel sessionId={activeSessionId ?? undefined} />
         ),
         timeline: (
           <PanelStatus
