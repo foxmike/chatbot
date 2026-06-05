@@ -17,7 +17,9 @@ import { MemoryPanel } from "./components/MemoryPanel";
 import TimelinePanel from "./components/TimelinePanel";
 import CompanionSelector from "./components/CompanionSelector";
 import InitiativeSettings from "./components/InitiativeSettings";
+import { RoomSwitcher } from "./components/RoomSwitcher";
 import type { ApiError, CreateSessionResponse, Message, Session } from "./types";
+import type { RoomType } from "./api/client";
 import { AuthScreen } from "./components/AuthScreen";
 import type { Companion, User } from "./api/client";
 
@@ -86,6 +88,7 @@ function PanelStatus({
 export default function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [messagesBySession, setMessagesBySession] = useState<Record<string, Message[]>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -200,7 +203,7 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      const response = await sendMessage(trimmedMessage, sessionId);
+      const response = await sendMessage(trimmedMessage, sessionId, activeRoomId ?? undefined);
       setMessagesBySession((currentMessages) => ({
         ...currentMessages,
         [sessionId]: [
@@ -243,6 +246,11 @@ export default function App() {
 
   const handleSelectSession = (sessionId: string) => {
     setActiveSessionId(sessionId);
+    setError(null);
+  };
+
+  const handleRoomChange = (roomId: string, _roomType: RoomType) => {
+    setActiveRoomId(roomId);
     setError(null);
   };
 
@@ -298,6 +306,7 @@ export default function App() {
     setSelectedCompanion(null);
     setSessions([]);
     setActiveSessionId(null);
+    setActiveRoomId(null);
     setMessagesBySession({});
     setError(null);
     setIsLoading(false);
@@ -378,10 +387,10 @@ export default function App() {
           <InitiativeSettings userId={user.user_id} />
         ),
         rooms: (
-          <PanelStatus
-            title="Rooms"
-            status="Guarded"
-            detail="Room controls stay inactive until room ownership checks are verified for the authenticated user."
+          <RoomSwitcher
+            userId={user.user_id}
+            activeRoomId={activeRoomId}
+            onRoomChange={handleRoomChange}
           />
         ),
         voice: (
