@@ -19,6 +19,7 @@ import CompanionSelector from "./components/CompanionSelector";
 import { RoomSwitcher } from "./components/RoomSwitcher";
 import SceneControls from "./components/SceneControls";
 import { VoiceControls } from "./components/VoiceControls";
+import { CallMode } from "./components/CallMode";
 import type { ApiError, CreateSessionResponse, Message, Session } from "./types";
 import type { RoomType } from "./api/client";
 import { AuthScreen } from "./components/AuthScreen";
@@ -97,6 +98,7 @@ export default function App() {
   const [selectedCompanion, setSelectedCompanion] = useState<Companion | null>(
     null,
   );
+  const [callModeActive, setCallModeActive] = useState(false);
   const messages = activeSessionId ? messagesBySession[activeSessionId] ?? [] : [];
   const activeSession = sessions.find(
     (session) => session.session_id === activeSessionId,
@@ -311,6 +313,7 @@ export default function App() {
     setMessagesBySession({});
     setError(null);
     setIsLoading(false);
+    setCallModeActive(false);
   };
 
   if (!user) {
@@ -343,7 +346,14 @@ export default function App() {
   );
 
   return (
-    <AppShell
+    <>
+      {callModeActive && activeSessionId ? (
+        <CallMode
+          sessionId={activeSessionId}
+          onEnd={() => setCallModeActive(false)}
+        />
+      ) : null}
+      <AppShell
       user={user}
       activeSessionTitle={
         activeSession ? `${selectedCompanion.name}: ${activeSession.title}` : undefined
@@ -392,8 +402,16 @@ export default function App() {
           />
         ),
         voice: (
-          <div className="flex h-full items-center justify-center p-4">
+          <div className="flex h-full flex-col items-center justify-center gap-6 p-4">
             <VoiceControls onTranscription={handleSend} />
+            <button
+              type="button"
+              className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-900"
+              onClick={() => setCallModeActive(true)}
+              disabled={!activeSessionId}
+            >
+              Enter Call Mode
+            </button>
           </div>
         ),
         admin: (
@@ -405,5 +423,6 @@ export default function App() {
         ),
       }}
     />
+    </>
   );
 }
