@@ -1,6 +1,7 @@
 import type { User } from "../api/client";
 import { RelationshipSettings } from "./RelationshipSettings";
 import { CharacterCreator } from "./CharacterCreator";
+import { IdentityControls } from "./IdentityControls";
 
 interface SettingsPanelProps {
   user: User;
@@ -81,6 +82,7 @@ export function SettingsPanel({
           <>
             <RelationshipSettings sessionId={activeSessionId} />
             <CharacterCreator sessionId={activeSessionId} />
+            <IdentityControls sessionId={activeSessionId} />
           </>
         ) : (
           <section className="rounded-lg border border-gray-700 bg-gray-800 p-5">

@@ -214,6 +214,13 @@ export interface TranscribeResponse {
   languageDetected: string | null;
 }
 
+export interface IdentityEvolutionContext {
+  topic?: string;
+  current_interest?: string;
+  tone?: string;
+  sentiment_label?: "positive" | "negative";
+}
+
 // ---------------------------------------------------------------------------
 // Room & Scene types
 // ---------------------------------------------------------------------------
@@ -769,7 +776,7 @@ export function getIdentityState(sessionId: string): Promise<IdentityState> {
 
 export function evolveIdentity(
   sessionId: string,
-  context?: Record<string, unknown>,
+  context?: IdentityEvolutionContext,
 ): Promise<IdentityState> {
   return requestJson<IdentityState>(
     `/api/config/identity/${sessionId}/evolve`,
