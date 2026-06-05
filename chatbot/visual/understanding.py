@@ -125,9 +125,26 @@ class ImageUnderstandingService:
             raise UnderstandingError(str(exc)) from exc
 
 
+from chatbot.config import get_settings
+
 __all__ = [
     "ImageUnderstandingAdapter",
     "ImageUnderstandingService",
     "UnderstandingError",
     "UnderstandingOptions",
 ]
+
+
+def create_image_understanding_service() -> ImageUnderstandingService:
+    """Factory function to create ImageUnderstandingService using configured settings."""
+    from chatbot.providers.factory import create_provider
+    
+    settings = get_settings()
+    provider = create_provider(
+        provider_type="image_understanding",
+        provider_name=settings.image_understanding_provider,
+        model=settings.image_understanding_model,
+        api_key=settings.image_understanding_api_key,
+        base_url=settings.image_understanding_base_url,
+    )
+    return ImageUnderstandingService(provider)

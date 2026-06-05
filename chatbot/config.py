@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     image_generation_api_key: str = ""
     image_generation_base_url: str = "https://api.openai.com/v1"
 
+    # Image Understanding Configuration
+    image_understanding_provider: str = "openrouter"
+    image_understanding_model: str = "openrouter/moonshotai/kimi-k2-0905"
+    image_understanding_api_key: str = ""
+    image_understanding_base_url: str = "https://openrouter.ai/api/v1"
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 
