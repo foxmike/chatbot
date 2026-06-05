@@ -10,6 +10,7 @@ import ChatInput from "./components/ChatInput";
 import ChatMessage from "./components/ChatMessage";
 import MessageList from "./components/MessageList";
 import SessionSidebar from "./components/SessionSidebar";
+import { NotificationFeed } from "./components/NotificationFeed";
 import AppShell from "./components/AppShell";
 import SettingsPanel from "./components/SettingsPanel";
 import { MemoryPanel } from "./components/MemoryPanel";
@@ -337,13 +338,20 @@ export default function App() {
         activeSession ? `${selectedCompanion.name}: ${activeSession.title}` : undefined
       }
       sidebar={
-        <SessionSidebar
-          sessions={sessions}
-          activeSessionId={activeSessionId}
-          onSelect={handleSelectSession}
-          onNewSession={handleNewSession}
-          onDelete={handleDeleteSession}
-        />
+        <div className="flex h-full w-64 shrink-0 flex-col">
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <SessionSidebar
+              sessions={sessions}
+              activeSessionId={activeSessionId}
+              onSelect={handleSelectSession}
+              onNewSession={handleNewSession}
+              onDelete={handleDeleteSession}
+            />
+          </div>
+          <div className="shrink-0 border-t border-gray-700 bg-gray-800">
+            <NotificationFeed userId={user.user_id} />
+          </div>
+        </div>
       }
       chatPanel={chatPanel}
       panels={{
