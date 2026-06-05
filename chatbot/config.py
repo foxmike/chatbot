@@ -18,6 +18,20 @@ class Settings(BaseSettings):
     default_model: str = "google/gemma-4-31b-it"
     default_provider: str = "openrouter"
 
+    task_class_routing_enabled: bool = True
+    task_class_default_provider: str = "openrouter"
+    task_class_default_model: str = "google/gemma-4-31b-it"
+    task_class_casual_provider: str = "openrouter"
+    task_class_casual_model: str = "google/gemma-4-31b-it"
+    task_class_emotional_provider: str = "openrouter"
+    task_class_emotional_model: str = "openrouter/deepseek/deepseek-v4-pro"
+    task_class_summarize_provider: str = "openrouter"
+    task_class_summarize_model: str = "openrouter/deepseek/deepseek-v3.2"
+    task_class_extract_provider: str = "openrouter"
+    task_class_extract_model: str = "openrouter/qwen/qwen3-coder-next"
+    task_class_embed_provider: str = "openrouter"
+    task_class_embed_model: str = "openrouter/z-ai/glm-4.7-flash"
+
     embedding_provider: str = "openrouter"
     embedding_model: str = "openai/text-embedding-3-small"
 
@@ -49,6 +63,15 @@ class Settings(BaseSettings):
     image_understanding_base_url: str = "https://openrouter.ai/api/v1"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+
+    def task_class_routes(self) -> dict[str, tuple[str, str]]:
+        return {
+            "casual": (self.task_class_casual_provider, self.task_class_casual_model),
+            "emotional": (self.task_class_emotional_provider, self.task_class_emotional_model),
+            "summarize": (self.task_class_summarize_provider, self.task_class_summarize_model),
+            "extract": (self.task_class_extract_provider, self.task_class_extract_model),
+            "embed": (self.task_class_embed_provider, self.task_class_embed_model),
+        }
 
 
 @lru_cache

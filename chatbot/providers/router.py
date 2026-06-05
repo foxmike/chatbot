@@ -17,6 +17,14 @@ ProviderCollection = Mapping[str, Provider] | Sequence[Any] | ProviderRegistry
 _DEFAULT_PROVIDER_ID = "openrouter"
 _DEFAULT_MODEL_ID = "openrouter/deepseek/deepseek-v4-pro"
 
+_DEFAULT_TASK_CLASS_MODEL_IDS: Mapping[str, str] = {
+    "casual": "google/gemma-4-31b-it",
+    "emotional": "openrouter/deepseek/deepseek-v4-pro",
+    "summarize": "openrouter/deepseek/deepseek-v3.2",
+    "extract": "openrouter/qwen/qwen3-coder-next",
+    "embed": "openrouter/z-ai/glm-4.7-flash",
+}
+
 _KNOWN_MODEL_REGISTRY: Mapping[str, frozenset[str]] = {
     "openrouter": frozenset(
         {
@@ -55,11 +63,11 @@ class TaskClass(str, Enum):
 
 def _default_task_class_map() -> dict[str, tuple[str, str]]:
     return {
-        TaskClass.CASUAL.value: (_DEFAULT_PROVIDER_ID, _DEFAULT_MODEL_ID),
-        TaskClass.EMOTIONAL.value: (_DEFAULT_PROVIDER_ID, _DEFAULT_MODEL_ID),
-        TaskClass.SUMMARIZE.value: (_DEFAULT_PROVIDER_ID, _DEFAULT_MODEL_ID),
-        TaskClass.EXTRACT.value: (_DEFAULT_PROVIDER_ID, _DEFAULT_MODEL_ID),
-        TaskClass.EMBED.value: (_DEFAULT_PROVIDER_ID, _DEFAULT_MODEL_ID),
+        task_class.value: (
+            _DEFAULT_PROVIDER_ID,
+            _DEFAULT_TASK_CLASS_MODEL_IDS.get(task_class.value, _DEFAULT_MODEL_ID),
+        )
+        for task_class in TaskClass
     }
 
 
@@ -186,7 +194,7 @@ def select_model_for_task(
     """Select a validated provider/model pair for a task class."""
 
     if routing_config is None:
-        return _validated_or_default(_DEFAULT_PROVIDER_ID, _DEFAULT_MODEL_ID)
+        routing_config = task_class_routing_config_from_settings()
 
     if not routing_config.enabled:
         return _validated_or_default(
@@ -204,6 +212,44 @@ def select_model_for_task(
         model_id,
         fallback_provider_id=routing_config.default_provider_id,
         fallback_model_id=routing_config.default_model_id,
+    )
+
+
+def task_class_routing_config_from_settings(settings: Any | None = None) -> TaskClassRoutingConfig:
+    """Build task-class routing config from application settings."""
+
+    if settings is None:
+        settings = _load_settings()
+
+    if settings is None:
+        return TaskClassRoutingConfig()
+
+    default_provider_id = (
+        _settings_text(settings, "task_class_default_provider")
+        or _settings_text(settings, "default_provider")
+        or _DEFAULT_PROVIDER_ID
+    )
+    default_model_id = (
+        _settings_text(settings, "task_class_default_model")
+        or _settings_text(settings, "default_model")
+        or _DEFAULT_MODEL_ID
+    )
+
+    configured_routes = _settings_routes(settings)
+    class_map: dict[str, tuple[str, str]] = {}
+    for task_class in TaskClass:
+        fallback_model_id = _DEFAULT_TASK_CLASS_MODEL_IDS.get(task_class.value, default_model_id)
+        fallback_route = (default_provider_id, fallback_model_id)
+        class_map[task_class.value] = _coerce_route_value(
+            configured_routes.get(task_class.value),
+            fallback_route,
+        )
+
+    return TaskClassRoutingConfig(
+        enabled=_settings_bool(settings, "task_class_routing_enabled", default=True),
+        class_map=class_map,
+        default_provider_id=default_provider_id,
+        default_model_id=default_model_id,
     )
 
 
@@ -344,6 +390,81 @@ def _normalize_task_class(task_class: str) -> str:
     return task_class.strip().lower()
 
 
+def _load_settings() -> Any | None:
+    try:
+        from chatbot.config import get_settings
+    except ImportError:
+        return None
+
+    try:
+        return get_settings()
+    except Exception:
+        logger.warning("Unable to load settings for task-class routing", exc_info=True)
+        return None
+
+
+def _settings_routes(settings: Any) -> Mapping[str, Any]:
+    task_class_routes = getattr(settings, "task_class_routes", None)
+    if callable(task_class_routes):
+        routes = task_class_routes()
+        if isinstance(routes, Mapping):
+            return routes
+
+    routes = getattr(settings, "task_class_model_routes", None)
+    if isinstance(routes, Mapping):
+        return routes
+
+    return {}
+
+
+def _coerce_route_value(value: Any, fallback: tuple[str, str]) -> tuple[str, str]:
+    fallback_provider_id, fallback_model_id = fallback
+
+    if isinstance(value, Mapping):
+        provider_id = _text_or_default(
+            value.get("provider_id") or value.get("provider") or value.get("name"),
+            fallback_provider_id,
+        )
+        model_id = _text_or_default(value.get("model_id") or value.get("model"), fallback_model_id)
+        return provider_id, model_id
+
+    if isinstance(value, str):
+        return fallback_provider_id, value
+
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)) and len(value) == 2:
+        provider_id, model_id = value
+        return (
+            _text_or_default(provider_id, fallback_provider_id),
+            _text_or_default(model_id, fallback_model_id),
+        )
+
+    return fallback
+
+
+def _settings_text(settings: Any, name: str) -> str:
+    return _text_or_default(getattr(settings, name, None), "")
+
+
+def _text_or_default(value: Any, default: str) -> str:
+    if value is None:
+        return default
+    text = str(value).strip()
+    return text or default
+
+
+def _settings_bool(settings: Any, name: str, *, default: bool) -> bool:
+    value = getattr(settings, name, default)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    return bool(value)
+
+
 def _validated_or_default(
     provider_id: str,
     model_id: str,
@@ -393,5 +514,6 @@ __all__ = [
     "TaskClassRoutingConfig",
     "select",
     "select_model_for_task",
+    "task_class_routing_config_from_settings",
     "validate_identifier",
 ]
