@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     stt_api_key: str = ""
     stt_base_url: str = "https://api.openai.com/v1"
 
+    # Image Generation Configuration
+    image_generation_provider: str = "diffusion"
+    image_generation_model: str = "stable-diffusion-v1-5"
+    image_generation_api_key: str = ""
+    image_generation_base_url: str = "https://api.openai.com/v1"
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 

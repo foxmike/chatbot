@@ -6,6 +6,7 @@ import time
 import uuid
 from dataclasses import dataclass
 
+from chatbot.config import get_settings
 from chatbot.db.models import ImageMemory
 from chatbot.visual.appearance import AppearanceManager
 from chatbot.visual.base import (
@@ -39,6 +40,9 @@ class DiffusionProvider(ImageGenerationProvider):
     def __init__(self, model_identifier: str) -> None:
         parsed = validate_model_identifier(model_identifier)
         super().__init__(parsed)
+        settings = get_settings()
+        self.api_key = settings.image_generation_api_key
+        self.base_url = settings.image_generation_base_url
 
     async def generate(
         self,
