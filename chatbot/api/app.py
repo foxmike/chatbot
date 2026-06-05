@@ -1,9 +1,13 @@
+import asyncio
 from collections.abc import Mapping
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
 from fastapi import FastAPI
 
 from chatbot import __version__
+from chatbot.agency.notifications import Notification, NotificationQueue
+from chatbot.agency.scheduler import ProactiveAction, Scheduler
 from chatbot.api.config import config_router
 from chatbot.api.health import router as health_router
 from chatbot.api.chat import _background_queue, chat_router
@@ -26,6 +30,7 @@ from chatbot.memory.retrieval import build_retrieval_engine
 from chatbot.providers.bootstrap import build_default_registry
 
 _WORKER_SHUTDOWN_TIMEOUT_SECONDS = 10.0
+_SCHEDULER_POLLING_INTERVAL_SECONDS = 300
 
 
 @asynccontextmanager
@@ -36,6 +41,7 @@ async def lifespan(app: FastAPI):
         get_settings(),
     )
     worker: BackgroundWorker | None = None
+    scheduler_task: asyncio.Task[None] | None = None
 
     if _background_queue is not None:
         worker = await start_worker(
@@ -48,11 +54,57 @@ async def lifespan(app: FastAPI):
         app.state.background_queue = _background_queue
         app.state.background_worker = worker
 
+    scheduler_task = await _start_scheduler(app)
+
     try:
         yield
     finally:
+        if scheduler_task is not None:
+            await _stop_scheduler(scheduler_task, app.state.scheduler)
+        if hasattr(app.state, "_scheduler_db_session"):
+            await app.state._scheduler_db_session.close()
         if worker is not None:
             await worker.shutdown(timeout_seconds=_WORKER_SHUTDOWN_TIMEOUT_SECONDS)
+
+
+async def _start_scheduler(app: FastAPI) -> asyncio.Task[None]:
+    """Create a DB-backed scheduler and start its runtime loop."""
+    db_session = async_session_factory()
+    app.state._scheduler_db_session = db_session
+
+    scheduler = Scheduler(
+        db_session=db_session,
+        polling_interval_seconds=_SCHEDULER_POLLING_INTERVAL_SECONDS,
+    )
+    app.state.scheduler = scheduler
+
+    async def _on_action(action: ProactiveAction) -> None:
+        notification_queue = NotificationQueue(db_session)
+        notification = Notification(
+            notification_id=action.action_id,
+            user_id=action.user_id,
+            notif_type=action.action_type,
+            title=action.message,
+            body=action.message,
+            created_at=datetime.now(timezone.utc).isoformat(),
+        )
+        initiative_level = scheduler.get_initiative_level(action.user_id)
+        await notification_queue.enqueue_async(
+            action.user_id,
+            notification,
+            initiative_level,
+        )
+
+    return asyncio.create_task(scheduler.run_loop(action_handler=_on_action))
+
+
+async def _stop_scheduler(task: asyncio.Task[None], scheduler: Scheduler) -> None:
+    scheduler.stop()
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
 
 
 async def _memory_extract_handler(task: BackgroundTask) -> None:

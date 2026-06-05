@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import datetime, time, timezone
+from datetime import datetime, time, timedelta, timezone
 from typing import Any, Literal
 import uuid
 
@@ -204,12 +205,57 @@ class Scheduler:
             await self._db_session.delete(model)
             await self._db_session.commit()
 
-    async def run_loop(self) -> None:
+    def _active_user_ids(self) -> set[str]:
+        return {e.user_id for e in self._events}
+
+    async def _active_user_ids_async(self) -> set[str]:
+        if self._db_session is None:
+            return self._active_user_ids()
+        window = datetime.now(timezone.utc) + timedelta(
+            seconds=self.polling_interval_seconds * 2
+        )
+        result = await self._db_session.execute(
+            sa.select(AgencyTimeline.user_id.distinct()).where(
+                AgencyTimeline.occurs_at <= window
+            )
+        )
+        return {row[0] for row in result.all()}
+
+    def _process_user_sync(self, user_id: str) -> ProactiveAction | None:
+        if not self.should_initiate(user_id):
+            return None
+        return self.decide_action(user_id)
+
+    async def _process_user_async(self, user_id: str) -> ProactiveAction | None:
+        if not self.should_initiate(user_id):
+            return None
+        return await self.decide_action_async(user_id)
+
+    async def run_loop(
+        self,
+        action_handler: Callable[[ProactiveAction], Awaitable[None]] | None = None,
+    ) -> None:
+        """Run the scheduler polling loop.
+
+        Each cycle iterates active users, decides proactive actions,
+        and passes them to *action_handler* if provided. The loop
+        sleeps for *polling_interval_seconds* between ticks and can
+        be stopped via :meth:`stop`.
+        """
+        use_async = self._db_session is not None
         while not self._stop_event.is_set():
-            active_user_ids = {e.user_id for e in self._events}
-            for user_id in active_user_ids:
-                if self.should_initiate(user_id):
-                    self.decide_action(user_id)
+            if use_async:
+                user_ids = await self._active_user_ids_async()
+                for user_id in user_ids:
+                    action = await self._process_user_async(user_id)
+                    if action is not None and action_handler is not None:
+                        await action_handler(action)
+            else:
+                user_ids = self._active_user_ids()
+                for user_id in user_ids:
+                    action = self._process_user_sync(user_id)
+                    if action is not None and action_handler is not None:
+                        await action_handler(action)
             try:
                 await asyncio.wait_for(
                     self._stop_event.wait(),
@@ -218,10 +264,12 @@ class Scheduler:
             except asyncio.TimeoutError:
                 pass
 
+    def stop(self) -> None:
+        """Signal the runtime loop to exit at the next tick."""
+        self._stop_event.set()
 
-def _seconds_delta(seconds: int) -> Any:
-    from datetime import timedelta
 
+def _seconds_delta(seconds: int) -> timedelta:
     return timedelta(seconds=seconds)
 
 
