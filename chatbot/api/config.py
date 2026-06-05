@@ -11,11 +11,13 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from chatbot.auth.dependencies import CurrentUser, get_current_user
 from chatbot.db import get_db
 from chatbot.db.models import (
     CharacterProfileModel,
     IdentityStateModel,
     RelationshipConfigModel,
+    Session,
 )
 from chatbot.soul.character import (
     CommunicationStyle,
@@ -104,8 +106,10 @@ class IdentityEvolutionRequest(BaseModel):
 )
 async def get_relationship_config(
     session_id: UUID,
+    current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> RelationshipConfigResponse:
+    await _verify_session_ownership(db, session_id, current_user.user_id)
     model = await _get_latest_relationship_model(db, session_id)
     config = _relationship_from_model(model) if model is not None else RelationshipConfig.defaults()
     return _relationship_response(config)
@@ -118,8 +122,10 @@ async def get_relationship_config(
 async def put_relationship_config(
     session_id: UUID,
     body: RelationshipConfigRequest,
+    current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> RelationshipConfigResponse:
+    await _verify_session_ownership(db, session_id, current_user.user_id)
     model = await _get_latest_relationship_model(db, session_id)
     current = _relationship_from_model(model) if model is not None else RelationshipConfig.defaults()
     config_data = _relationship_to_dict(current)
@@ -142,8 +148,10 @@ async def put_relationship_config(
 )
 async def get_character_profile(
     session_id: UUID,
+    current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> CharacterProfileResponse:
+    await _verify_session_ownership(db, session_id, current_user.user_id)
     model = await _get_latest_character_model(db, session_id)
     profile = _character_from_model(model) if model is not None else CharacterProfile.defaults()
     return _character_response(profile)
@@ -156,8 +164,10 @@ async def get_character_profile(
 async def put_character_profile(
     session_id: UUID,
     body: CharacterProfileRequest,
+    current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> CharacterProfileResponse:
+    await _verify_session_ownership(db, session_id, current_user.user_id)
     model = await _get_latest_character_model(db, session_id)
     current = _character_from_model(model) if model is not None else CharacterProfile.defaults()
     profile_data = _character_to_dict(current)
@@ -180,8 +190,10 @@ async def put_character_profile(
 )
 async def get_identity_state(
     session_id: UUID,
+    current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> IdentityStateResponse:
+    await _verify_session_ownership(db, session_id, current_user.user_id)
     model = await _get_latest_identity_model(db, session_id)
     state = _identity_from_model(model) if model is not None else IdentityState.defaults()
     return _identity_response(state)
@@ -194,8 +206,10 @@ async def get_identity_state(
 async def evolve_identity_state(
     session_id: UUID,
     body: IdentityEvolutionRequest | None = Body(default=None),
+    current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> IdentityStateResponse:
+    await _verify_session_ownership(db, session_id, current_user.user_id)
     model = await _get_latest_identity_model(db, session_id)
     state = _identity_from_model(model) if model is not None else IdentityState.defaults()
     context = body.turn_context if body is not None else {}
@@ -213,8 +227,10 @@ async def evolve_identity_state(
 )
 async def reset_identity_mood(
     session_id: UUID,
+    current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> IdentityStateResponse:
+    await _verify_session_ownership(db, session_id, current_user.user_id)
     model = await _get_latest_identity_model(db, session_id)
     state = _identity_from_model(model) if model is not None else IdentityState.defaults()
     state.mood = IdentityState.defaults().mood
@@ -223,6 +239,24 @@ async def reset_identity_mood(
     await _commit_or_session_not_found(db)
     await db.refresh(model)
     return _identity_response(_identity_from_model(model))
+
+
+async def _verify_session_ownership(
+    db: AsyncSession,
+    session_id: UUID,
+    user_id: str,
+) -> None:
+    """Verify that a session exists and belongs to the current user."""
+    from uuid import UUID as _UUID
+    result = await db.execute(
+        select(Session).where(Session.id == session_id, Session.user_id == _UUID(user_id))
+    )
+    session = result.scalar_one_or_none()
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        )
 
 
 async def _get_latest_relationship_model(
