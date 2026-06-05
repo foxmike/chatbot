@@ -139,6 +139,7 @@ async def put_relationship_config(
     _write_relationship_model(model, config)
     await _commit_or_session_not_found(db)
     await db.refresh(model)
+    await _invalidate_persona_cache(db, session_id)
     return _relationship_response(_relationship_from_model(model))
 
 
@@ -181,6 +182,7 @@ async def put_character_profile(
     _write_character_model(model, profile)
     await _commit_or_session_not_found(db)
     await db.refresh(model)
+    await _invalidate_persona_cache(db, session_id)
     return _character_response(_character_from_model(model))
 
 
@@ -218,6 +220,7 @@ async def evolve_identity_state(
     model = _upsert_identity_model(db, session_id, model, state)
     await _commit_or_session_not_found(db)
     await db.refresh(model)
+    await _invalidate_persona_cache(db, session_id)
     return _identity_response(_identity_from_model(model))
 
 
@@ -238,6 +241,7 @@ async def reset_identity_mood(
     model = _upsert_identity_model(db, session_id, model, state)
     await _commit_or_session_not_found(db)
     await db.refresh(model)
+    await _invalidate_persona_cache(db, session_id)
     return _identity_response(_identity_from_model(model))
 
 
@@ -421,3 +425,27 @@ async def _commit_or_session_not_found(db: AsyncSession) -> None:
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found",
         ) from exc
+
+
+async def _invalidate_persona_cache(
+    db: AsyncSession,
+    session_id: UUID,
+) -> None:
+    """Invalidate the persona cache for the session's (user, companion) key."""
+    from chatbot.db.models import Session as _Session
+
+    result = await db.execute(select(_Session).where(_Session.id == session_id))
+    session = result.scalar_one_or_none()
+    if session is None:
+        return
+
+    user_id = str(session.user_id)
+    companion_id = session.companion_id
+
+    try:
+        from chatbot.api.chat import _persona_cache
+    except ImportError:
+        return
+
+    if _persona_cache is not None:
+        await _persona_cache.invalidate(user_id, companion_id)
