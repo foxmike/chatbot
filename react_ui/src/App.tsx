@@ -18,6 +18,7 @@ import TimelinePanel from "./components/TimelinePanel";
 import CompanionSelector from "./components/CompanionSelector";
 import { RoomSwitcher } from "./components/RoomSwitcher";
 import SceneControls from "./components/SceneControls";
+import { VoiceControls } from "./components/VoiceControls";
 import type { ApiError, CreateSessionResponse, Message, Session } from "./types";
 import type { RoomType } from "./api/client";
 import { AuthScreen } from "./components/AuthScreen";
@@ -391,11 +392,9 @@ export default function App() {
           />
         ),
         voice: (
-          <PanelStatus
-            title="Voice"
-            status="Guarded"
-            detail="Voice controls stay inactive until provider configuration and speech routes are verified."
-          />
+          <div className="flex h-full items-center justify-center p-4">
+            <VoiceControls onTranscription={handleSend} />
+          </div>
         ),
         admin: (
           <PanelStatus
