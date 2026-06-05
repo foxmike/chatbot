@@ -186,10 +186,10 @@ async def update_initiative(
     )
 
 
-@agency_router.get(
-    "/notifications", response_model=NotificationListResponse
-)
+@agency_router.get("/notifications", response_model=NotificationListResponse)
+@agency_router.get("/notifications/{user_id}", response_model=NotificationListResponse)
 async def get_notifications(
+    user_id: str | None = None,
     since: str | None = None,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

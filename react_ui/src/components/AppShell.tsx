@@ -14,6 +14,7 @@ export type AppPanelKey =
 interface AppShellProps {
   user: User;
   activeSessionTitle?: string;
+  companionSwitcher?: ReactNode;
   sidebar: ReactNode;
   chatPanel: ReactNode;
   panels: Record<Exclude<AppPanelKey, "chat">, ReactNode>;
@@ -32,6 +33,7 @@ const panelTabs: { key: AppPanelKey; label: string }[] = [
 export function AppShell({
   user,
   activeSessionTitle,
+  companionSwitcher,
   sidebar,
   chatPanel,
   panels,
@@ -53,11 +55,12 @@ export function AppShell({
       <main className="flex min-w-0 flex-1 flex-col bg-gray-900">
         <header className="shrink-0 border-b border-gray-700 bg-gray-900/95">
           <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="min-w-0">
+            <div className="flex min-w-0 flex-col gap-0.5">
               <p className="truncate text-xs font-medium uppercase tracking-wide text-gray-500">
                 {user.username}
               </p>
-              <h1 className="truncate text-base font-semibold text-gray-100">
+              {companionSwitcher}
+              <h1 className="truncate text-sm text-gray-400">
                 {activeSessionTitle ?? "No active chat"}
               </h1>
             </div>

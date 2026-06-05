@@ -1,6 +1,6 @@
 """Add provenance and privacy columns to semantic_facts.
 Revision ID: 0004
-Revises: 95005655ed55
+Revises: 0002_emotional_state
 Create Date: 2026-06-03
 """
 from __future__ import annotations
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 revision: str = "0004"
-down_revision: str | None = "95005655ed55"
+down_revision: str | None = "0002"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

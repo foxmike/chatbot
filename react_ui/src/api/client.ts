@@ -454,14 +454,18 @@ function dispatchSseEvent(rawEvent: string, onEvent: (event: StreamEvent) => voi
   onEvent(event);
 }
 
-export function createSession(title?: string): Promise<CreateSessionResponse> {
+export function createSession(title?: string, companionId?: string): Promise<CreateSessionResponse> {
+  const body: Record<string, string> = {};
+  if (title !== undefined) body.title = title;
+  if (companionId !== undefined) body.companion_id = companionId;
   return requestJson<CreateSessionResponse>("/api/sessions/", {
     method: "POST",
-    body: JSON.stringify(title === undefined ? {} : { title }),
+    body: JSON.stringify(body),
   });
 }
 
-export function listSessions(): Promise<Session[]> {
+export function listSessions(companionId?: string): Promise<Session[]> {
+  const url = companionId ? `/api/sessions/?companion_id=${companionId}` : "/api/sessions/";
   return requestJson<
     Array<{
       session_id: string;
@@ -469,7 +473,7 @@ export function listSessions(): Promise<Session[]> {
       created_at: string;
       message_count: number;
     }>
-  >("/api/sessions/", {
+  >(url, {
     method: "GET",
   }).then((sessions) =>
     sessions.map((session, index) => ({

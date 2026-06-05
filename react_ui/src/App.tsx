@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   createSession,
   deleteSession,
   getSessionMessages,
+  listCompanions,
   listSessions,
   sendMessage,
 } from "./api/client";
@@ -61,6 +62,85 @@ function createMessage(role: Message["role"], content: string): Message {
     content,
     timestamp: new Date().toISOString(),
   };
+}
+
+function CompanionSwitcher({
+  current,
+  onSwitch,
+}: {
+  current: Companion;
+  onSwitch: (companion: Companion) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [companions, setCompanions] = useState<Companion[]>([]);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    listCompanions().then(setCompanions).catch(() => {});
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium text-gray-200 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-bold text-white">
+          {current.name[0].toUpperCase()}
+        </span>
+        <span className="max-w-[120px] truncate">{current.name}</span>
+        <svg className="h-3 w-3 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full z-50 mt-1 w-48 rounded-lg border border-gray-700 bg-gray-800 py-1 shadow-xl">
+          {companions.length === 0 ? (
+            <p className="px-3 py-2 text-xs text-gray-500">Loading…</p>
+          ) : (
+            companions.map((companion) => {
+              const isActive = companion.companion_id === current.companion_id;
+              return (
+                <button
+                  key={companion.companion_id}
+                  type="button"
+                  className={`flex w-full items-center gap-2 px-3 py-2 text-sm transition hover:bg-gray-700 ${isActive ? "text-indigo-400" : "text-gray-200"}`}
+                  onClick={() => {
+                    if (!isActive) onSwitch(companion);
+                    setOpen(false);
+                  }}
+                >
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-bold text-white">
+                    {companion.name[0].toUpperCase()}
+                  </span>
+                  <span className="truncate">{companion.name}</span>
+                  {isActive && (
+                    <svg className="ml-auto h-3.5 w-3.5 shrink-0 text-indigo-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 const ADMIN_PASSWORD = "admin";
@@ -151,7 +231,7 @@ export default function App() {
 
     async function initializeSession() {
       try {
-        const existingSessions = await listSessions();
+        const existingSessions = await listSessions(selectedCompanion?.companion_id);
 
         if (!isMounted) {
           return;
@@ -164,7 +244,7 @@ export default function App() {
           return;
         }
 
-        const response = await createSession("Chat 1");
+        const response = await createSession("Chat 1", selectedCompanion?.companion_id);
         const session = buildSession(response, "Chat 1");
         setSessions([session]);
         setActiveSessionId(session.session_id);
@@ -312,7 +392,7 @@ export default function App() {
   const handleNewSession = async () => {
     try {
       const title = `Chat ${sessions.length + 1}`;
-      const response = await createSession(title);
+      const response = await createSession(title, selectedCompanion?.companion_id);
       const session = buildSession(response, title);
 
       setSessions((currentSessions) => [...currentSessions, session]);
@@ -370,7 +450,7 @@ export default function App() {
         return;
       }
 
-      const response = await createSession("Chat 1");
+      const response = await createSession("Chat 1", selectedCompanion?.companion_id);
       const nextSession = buildSession(response, "Chat 1");
       setSessions([nextSession]);
       setActiveSessionId(nextSession.session_id);
@@ -383,6 +463,14 @@ export default function App() {
       console.error("Failed to delete session", deleteError);
       setError(getErrorDetail(deleteError));
     }
+  };
+
+  const handleSwitchCompanion = (companion: Companion) => {
+    setSessions([]);
+    setActiveSessionId(null);
+    setMessagesBySession({});
+    setError(null);
+    setSelectedCompanion(companion);
   };
 
   const handleCompanionLogout = () => {
@@ -456,6 +544,9 @@ export default function App() {
       ) : null}
       <AppShell
       user={user}
+      companionSwitcher={
+        <CompanionSwitcher current={selectedCompanion} onSwitch={handleSwitchCompanion} />
+      }
       activeSessionTitle={
         activeSession ? `${selectedCompanion.name}: ${activeSession.title}` : undefined
       }

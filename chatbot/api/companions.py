@@ -18,7 +18,7 @@ companion_router = APIRouter(prefix="/companions", tags=["companions"])
 
 
 @companion_router.post(
-    "/",
+    "",
     response_model=CompanionResponse,
     status_code=status.HTTP_201_CREATED,
 )
@@ -31,7 +31,7 @@ async def create_companion(
     return await manager.create(current_user.user_id, body)
 
 
-@companion_router.get("/", response_model=CompanionListResponse)
+@companion_router.get("", response_model=CompanionListResponse)
 async def list_companions(
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

@@ -310,9 +310,11 @@ class RetrieveStep(TurnStep):
         try:
             results = await self._do_retrieve(ctx, retrieval_engine)
             ctx.retrieved_memories = _coerce_memory_list(results)
-        except Exception:
+        except Exception as exc:
             logger.warning(
-                "Memory retrieval failed for session %s", ctx.session_id, exc_info=True
+                "Memory retrieval failed for session %s: %s",
+                ctx.session_id,
+                exc,
             )
             ctx.retrieved_memories = []
         _store_retrieved_memories(ctx)

@@ -197,12 +197,12 @@ def make_consolidate_handler(
         for sid in session_ids:
             try:
                 await worker.run_consolidation(sid)
-            except Exception:
-                logger.exception(
-                    "Consolidation failed for session_id=%s",
+            except Exception as exc:
+                logger.warning(
+                    "Consolidation failed for session_id=%s: %s",
                     sid,
+                    exc,
                 )
-                raise
 
     return handler
 

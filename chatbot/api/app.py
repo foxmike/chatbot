@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
 from fastapi import FastAPI
+from starlette.middleware.cors import CORSMiddleware
 
 from chatbot import __version__
 from chatbot.agency.notifications import Notification, NotificationQueue
@@ -122,7 +123,14 @@ async def _memory_extract_handler(task: BackgroundTask) -> None:
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Chatbot API", version=__version__, lifespan=lifespan)
+    app = FastAPI(title="Chatbot API", version=__version__, lifespan=lifespan, redirect_slashes=False)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:5173", "http://localhost:3000"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     app.include_router(health_router)
     app.include_router(config_router, prefix="/config", tags=["config"])
     app.include_router(sessions_router)

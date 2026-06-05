@@ -725,6 +725,22 @@ class OpenRouterEmbeddingProvider(EmbeddingProvider):
         ]
 
 
+class DisabledEmbeddingProvider(EmbeddingProvider):
+    """Embedding provider used when no LLM embedding provider is configured."""
+
+    __slots__ = ("_reason",)
+
+    def __init__(self, reason: str) -> None:
+        self._reason = reason
+
+    @property
+    def dimension(self) -> int:
+        return 0
+
+    async def embed(self, texts: list[str]) -> list[list[float]]:
+        raise RuntimeError(self._reason)
+
+
 class SessionAwareVectorStore(VectorStore):
     """VectorStore adapter that creates PgvectorStore per-call using a session factory."""
 
@@ -790,11 +806,16 @@ def build_retrieval_engine(
     create database sessions per operation and *settings* to configure the embedding
     provider.
     """
-    embedding_provider = OpenRouterEmbeddingProvider(
-        api_key=settings.openrouter_api_key,
-        base_url=getattr(settings, "embedding_base_url", settings.openrouter_base_url),
-        model=getattr(settings, "embedding_model", "openai/text-embedding-3-small"),
-    )
+    if settings.openrouter_api_key:
+        embedding_provider: EmbeddingProvider = OpenRouterEmbeddingProvider(
+            api_key=settings.openrouter_api_key,
+            base_url=getattr(settings, "embedding_base_url", settings.openrouter_base_url),
+            model=getattr(settings, "embedding_model", "openai/text-embedding-3-small"),
+        )
+    else:
+        embedding_provider = DisabledEmbeddingProvider(
+            "Memory retrieval skipped because no embedding provider API key is configured"
+        )
     vector_store = SessionAwareVectorStore(session_factory, table)
     return RetrievalEngine(vector_store, embedding_provider)
 

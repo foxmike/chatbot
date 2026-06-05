@@ -178,22 +178,65 @@ class PgvectorStore(VectorStore):
 
         for name, value in filter.items():
             column = self.table.c.get(name)
+            if column is None and name == "session_id":
+                stmt = self._apply_session_filter(stmt, value)
+                continue
             if column is None:
                 raise ValueError(f"Unknown filter column: {name}")
 
-            if self._is_iterable_filter_value(value):
-                values = list(value)
-                if not values:
-                    return stmt.where(sa.false())
-                stmt = stmt.where(
-                    column.in_([self._coerce_column_value(column, item) for item in values])
-                )
-            elif value is None:
-                stmt = stmt.where(column.is_(None))
-            else:
-                stmt = stmt.where(column == self._coerce_column_value(column, value))
+            stmt = self._apply_column_filter(stmt, column, value)
 
         return stmt
+
+    def _apply_session_filter(
+        self,
+        stmt: sa.sql.Select[Any],
+        value: Any,
+    ) -> sa.sql.Select[Any]:
+        column = self.table.c.get("session_id")
+        if column is not None:
+            return self._apply_column_filter(stmt, column, value)
+
+        source_message_id = self.table.c.get("source_message_id")
+        if self.table.name != models.SemanticFact.__tablename__ or source_message_id is None:
+            raise ValueError("Unknown filter column: session_id")
+
+        message_table = models.Message.__table__
+        message_session_id = message_table.c.session_id
+        if self._is_iterable_filter_value(value):
+            values = list(value)
+            if not values:
+                return stmt.where(sa.false())
+            session_values = [
+                self._coerce_column_value(message_session_id, item) for item in values
+            ]
+            message_ids = sa.select(message_table.c.id).where(
+                message_session_id.in_(session_values)
+            )
+        elif value is None:
+            message_ids = sa.select(message_table.c.id).where(message_session_id.is_(None))
+        else:
+            message_ids = sa.select(message_table.c.id).where(
+                message_session_id == self._coerce_column_value(message_session_id, value)
+            )
+        return stmt.where(source_message_id.in_(message_ids))
+
+    def _apply_column_filter(
+        self,
+        stmt: sa.sql.Select[Any],
+        column: sa.Column[Any],
+        value: Any,
+    ) -> sa.sql.Select[Any]:
+        if self._is_iterable_filter_value(value):
+            values = list(value)
+            if not values:
+                return stmt.where(sa.false())
+            return stmt.where(
+                column.in_([self._coerce_column_value(column, item) for item in values])
+            )
+        if value is None:
+            return stmt.where(column.is_(None))
+        return stmt.where(column == self._coerce_column_value(column, value))
 
     @staticmethod
     def _is_iterable_filter_value(value: object) -> bool:
