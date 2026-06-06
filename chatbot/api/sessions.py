@@ -10,9 +10,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from chatbot.auth.dependencies import CurrentUser, get_current_user
-from chatbot.companions.companion import CompanionManager
 from chatbot.db import get_db
-from chatbot.db.models import Message, Session
+from chatbot.db.models import Companion, CharacterProfileModel, IdentityStateModel, Message, Session
+from chatbot.soul.evolution import IdentityState
 
 
 class SessionCreateRequest(BaseModel):
@@ -59,21 +59,28 @@ async def create_session(
     db: AsyncSession = Depends(get_db),
 ) -> SessionCreateResponse:
     companion_id = body.companion_id
+    companion_orm: Companion | None = None
+
     if companion_id is not None:
-        companion_mgr = CompanionManager(db)
-        companion = await companion_mgr.get(current_user.user_id, companion_id)
-        if companion is None:
+        companion_orm = await _get_companion_orm(db, current_user.user_id, companion_id)
+        if companion_orm is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Companion not found",
             )
 
+    # Session.id is assigned by the Python-side default=uuid.uuid4 immediately,
+    # so child rows can reference session.id before the INSERT is flushed.
     session = Session(
         user_id=uuid.UUID(current_user.user_id),
         companion_id=companion_id,
         title=body.title or "New Chat",
     )
     db.add(session)
+
+    if companion_orm is not None:
+        _seed_session_from_companion(db, session.id, companion_orm)
+
     await db.commit()
     await db.refresh(session)
     return SessionCreateResponse(
@@ -229,3 +236,72 @@ async def _get_owned_session(
         select(Session).where(Session.id == session_id, Session.user_id == user_id)
     )
     return result.scalar_one_or_none()
+
+
+async def _get_companion_orm(
+    db: AsyncSession,
+    user_id: str,
+    companion_id: str,
+) -> Companion | None:
+    result = await db.execute(
+        select(Companion).where(
+            Companion.companion_id == companion_id,
+            Companion.user_id == uuid.UUID(user_id),
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+# Communication-style weights mirror IdentityState evolution constants.
+_COMM_STYLE_WEIGHTS: dict[str, float] = {
+    "concise": 0.35,
+    "verbose": 0.7,
+    "storyteller": 0.65,
+    "question_driven": 0.55,
+    "aphoristic": 0.45,
+}
+
+
+def _seed_session_from_companion(
+    db: AsyncSession,
+    session_id: uuid.UUID,
+    companion: Companion,
+) -> None:
+    """Seed CharacterProfileModel and IdentityStateModel from a companion's profile."""
+    profile = companion.to_character_profile()
+
+    db.add(
+        CharacterProfileModel(
+            session_id=session_id,
+            name=profile.name,
+            backstory=profile.backstory,
+            personality_sliders=dict(profile.personality_sliders),
+            humor_style=profile.humor_style,
+            communication_style=profile.communication_style,
+            favorite_topics=list(profile.favorite_topics),
+        )
+    )
+
+    base = IdentityState.defaults()
+    fixed = {
+        **base.fixed,
+        "name": profile.name,
+        "backstory": profile.backstory,
+        "humor_style": profile.humor_style,
+    }
+    slow = {
+        **base.slow,
+        "communication_style_weight": _COMM_STYLE_WEIGHTS.get(
+            profile.communication_style, 0.5
+        ),
+        "favorite_topics": list(profile.favorite_topics),
+        **{k: float(v) for k, v in profile.personality_sliders.items()},
+    }
+    db.add(
+        IdentityStateModel(
+            session_id=session_id,
+            fixed=fixed,
+            slow=slow,
+            mood={**base.mood},
+        )
+    )

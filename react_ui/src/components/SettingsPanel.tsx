@@ -3,7 +3,7 @@ import type { Companion, User } from "../api/client";
 import { listCompanions, listSessions } from "../api/client";
 import type { Session } from "../types";
 import { RelationshipSettings } from "./RelationshipSettings";
-import { CharacterCreator } from "./CharacterCreator";
+import { CompanionEditor } from "./CompanionEditor";
 import { IdentityControls } from "./IdentityControls";
 
 type Tab = "account" | "companion" | "session";
@@ -209,22 +209,17 @@ export function SettingsPanel({
 
         {/* ── Companion tab ──────────────────────────────────────────── */}
         {activeTab === "companion" && (
-          <>
-            {sessionsLoading ? (
-              <div className="rounded-lg border border-gray-700 bg-gray-800 p-5 text-sm text-gray-400">
-                Loading companion data…
-              </div>
-            ) : panelSession ? (
-              <CharacterCreator sessionId={panelSession.session_id} />
-            ) : (
-              <section className="rounded-lg border border-gray-700 bg-gray-800 p-5">
-                <p className="text-sm text-gray-400">
-                  No session found for {panelCompanion.name}. Start a
-                  conversation first to unlock companion profile editing.
-                </p>
-              </section>
-            )}
-          </>
+          <CompanionEditor
+            companionId={panelCompanion.companion_id}
+            onSave={(updated) => {
+              setPanelCompanion(updated);
+              setCompanions((prev) =>
+                prev.map((c) =>
+                  c.companion_id === updated.companion_id ? updated : c,
+                ),
+              );
+            }}
+          />
         )}
 
         {/* ── Session tab ────────────────────────────────────────────── */}

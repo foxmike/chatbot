@@ -29,6 +29,11 @@ export interface Companion {
   persona: string | null;
   description: string | null;
   avatar_url: string | null;
+  backstory: string | null;
+  personality_sliders: Record<string, number> | null;
+  humor_style: string | null;
+  communication_style: string | null;
+  favorite_topics: string[] | null;
 }
 
 export interface CompanionCreate {
@@ -36,6 +41,11 @@ export interface CompanionCreate {
   persona: string | null;
   description: string | null;
   avatar_url: string | null;
+  backstory?: string | null;
+  personality_sliders?: Record<string, number> | null;
+  humor_style?: string | null;
+  communication_style?: string | null;
+  favorite_topics?: string[] | null;
 }
 
 export interface MemoryItem {

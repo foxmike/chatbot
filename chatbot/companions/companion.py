@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
@@ -24,6 +25,11 @@ class CompanionCreateRequest(BaseModel):
     persona: str | None = None
     description: str | None = None
     avatar_url: str | None = None
+    backstory: str | None = None
+    personality_sliders: dict[str, float] | None = None
+    humor_style: str | None = None
+    communication_style: str | None = None
+    favorite_topics: list[str] | None = None
 
 
 class CompanionDisplay(BaseModel):
@@ -38,6 +44,11 @@ class CompanionResponse(BaseModel):
     persona: str | None
     description: str | None
     avatar_url: str | None
+    backstory: str | None
+    personality_sliders: dict[str, float] | None
+    humor_style: str | None
+    communication_style: str | None
+    favorite_topics: list[str] | None
     display: CompanionDisplay
     created_at: str
     updated_at: str | None
@@ -59,6 +70,11 @@ COMPANION_MODEL_DEFINITIONS: dict[str, dict[str, dict]] = {
         "persona": {"type": "Text", "nullable": True},
         "description": {"type": "Text", "nullable": True},
         "avatar_url": {"type": "String(512)", "nullable": True},
+        "backstory": {"type": "Text", "nullable": True},
+        "personality_sliders": {"type": "JSON", "nullable": True},
+        "humor_style": {"type": "String(20)", "nullable": True},
+        "communication_style": {"type": "String(30)", "nullable": True},
+        "favorite_topics": {"type": "JSON", "nullable": True},
         "created_at": {"type": "DateTime", "default": "func.now()"},
         "updated_at": {"type": "DateTime", "onupdate": "func.now()"},
     },
@@ -132,6 +148,11 @@ def _row_to_companion(row: object) -> CompanionResponse:
         persona=persona,
         description=description,
         avatar_url=avatar_url,
+        backstory=m.get("backstory"),
+        personality_sliders=m.get("personality_sliders"),
+        humor_style=m.get("humor_style"),
+        communication_style=m.get("communication_style"),
+        favorite_topics=m.get("favorite_topics"),
         display=_build_companion_display(
             companion_id=companion_id,
             name=name,
@@ -152,8 +173,16 @@ class CompanionManager:
     async def create(self, user_id: str, data: CompanionCreateRequest) -> CompanionResponse:
         companion_id = str(uuid4())
         stmt = text(
-            """INSERT INTO companions (companion_id, user_id, name, persona, description, avatar_url, created_at)
-               VALUES (:companion_id, :user_id, :name, :persona, :description, :avatar_url, now())
+            """INSERT INTO companions (
+                   companion_id, user_id, name, persona, description, avatar_url,
+                   backstory, personality_sliders, humor_style, communication_style,
+                   favorite_topics, created_at
+               )
+               VALUES (
+                   :companion_id, :user_id, :name, :persona, :description, :avatar_url,
+                   :backstory, :personality_sliders::jsonb, :humor_style, :communication_style,
+                   :favorite_topics::jsonb, now()
+               )
                RETURNING *"""
         )
         result = await self._session.execute(
@@ -165,6 +194,19 @@ class CompanionManager:
                 persona=data.persona,
                 description=data.description,
                 avatar_url=data.avatar_url,
+                backstory=data.backstory,
+                personality_sliders=(
+                    json.dumps(data.personality_sliders)
+                    if data.personality_sliders is not None
+                    else None
+                ),
+                humor_style=data.humor_style,
+                communication_style=data.communication_style,
+                favorite_topics=(
+                    json.dumps(data.favorite_topics)
+                    if data.favorite_topics is not None
+                    else None
+                ),
             ),
         )
         row = result.fetchone()
@@ -202,7 +244,13 @@ class CompanionManager:
         stmt = text(
             """UPDATE companions
                SET name = :name, persona = :persona, description = :description,
-                   avatar_url = :avatar_url, updated_at = now()
+                   avatar_url = :avatar_url,
+                   backstory = :backstory,
+                   personality_sliders = :personality_sliders::jsonb,
+                   humor_style = :humor_style,
+                   communication_style = :communication_style,
+                   favorite_topics = :favorite_topics::jsonb,
+                   updated_at = now()
                WHERE companion_id = :companion_id
                RETURNING *"""
         )
@@ -213,6 +261,19 @@ class CompanionManager:
                 persona=data.persona,
                 description=data.description,
                 avatar_url=data.avatar_url,
+                backstory=data.backstory,
+                personality_sliders=(
+                    json.dumps(data.personality_sliders)
+                    if data.personality_sliders is not None
+                    else None
+                ),
+                humor_style=data.humor_style,
+                communication_style=data.communication_style,
+                favorite_topics=(
+                    json.dumps(data.favorite_topics)
+                    if data.favorite_topics is not None
+                    else None
+                ),
                 companion_id=companion_id,
             ),
         )

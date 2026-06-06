@@ -117,6 +117,13 @@ class Companion(Base):
     persona: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(sa.String(512), nullable=True)
+    backstory: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    personality_sliders: Mapped[dict[str, object] | None] = mapped_column(
+        sa.JSON, nullable=True
+    )
+    humor_style: Mapped[str | None] = mapped_column(sa.String(20), nullable=True)
+    communication_style: Mapped[str | None] = mapped_column(sa.String(30), nullable=True)
+    favorite_topics: Mapped[list[str] | None] = mapped_column(sa.JSON, nullable=True)
     appearance_id: Mapped[str | None] = mapped_column(
         sa.ForeignKey(
             "appearances.appearance_id",
@@ -138,6 +145,34 @@ class Companion(Base):
     )
 
     user: Mapped[User] = relationship(back_populates="companions")
+
+    def to_character_profile(self) -> "CharacterProfile":
+        from chatbot.soul.character import CharacterProfile  # local import avoids circular dep
+        defaults = CharacterProfile.defaults()
+        return CharacterProfile(
+            name=self.name,
+            backstory=(
+                self.backstory if self.backstory is not None else defaults.backstory
+            ),
+            personality_sliders=(
+                {k: float(v) for k, v in self.personality_sliders.items()}  # type: ignore[arg-type]
+                if self.personality_sliders is not None
+                else dict(defaults.personality_sliders)
+            ),
+            humor_style=(
+                self.humor_style if self.humor_style is not None else defaults.humor_style
+            ),
+            communication_style=(
+                self.communication_style
+                if self.communication_style is not None
+                else defaults.communication_style
+            ),
+            favorite_topics=(
+                list(self.favorite_topics)
+                if self.favorite_topics is not None
+                else list(defaults.favorite_topics)
+            ),
+        )
 
 
 class ImageMemory(Base):
