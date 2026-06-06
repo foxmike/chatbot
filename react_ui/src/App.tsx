@@ -231,6 +231,11 @@ export default function App() {
     sessionId: string;
     message: string;
   } | null>(null);
+
+  const queueRef = useRef<Array<{ text: string; sessionId: string; roomId: string | null; streaming: boolean }>>([]);
+  const processingRef = useRef(false);
+  const streamSettleRef = useRef<{ sessionId: string; resolve: () => void; reject: (err: Error) => void } | null>(null);
+
   const messages = activeSessionId ? messagesBySession[activeSessionId] ?? [] : [];
   const activeSession = sessions.find(
     (session) => session.session_id === activeSessionId,
@@ -319,7 +324,55 @@ export default function App() {
     };
   }, [activeSessionId]);
 
-  const handleSend = async (message: string) => {
+  const processQueue = async () => {
+    if (processingRef.current) return;
+    processingRef.current = true;
+
+    while (queueRef.current.length > 0) {
+      const item = queueRef.current.shift()!;
+      const { text, sessionId, roomId, streaming } = item;
+
+      setIsLoading(true);
+      try {
+        if (streaming) {
+          try {
+            await new Promise<void>((resolve, reject) => {
+              streamSettleRef.current = { sessionId, resolve, reject };
+              setStreamRequest({ sessionId, message: text });
+            });
+          } catch {
+            console.error("Streaming failed for queued message, skipping");
+          }
+        } else {
+          try {
+            const response = await sendMessage(text, sessionId, roomId ?? undefined);
+            setMessagesBySession((currentMessages) => ({
+              ...currentMessages,
+              [sessionId]: [
+                ...(currentMessages[sessionId] ?? []),
+                createMessage("assistant", response.response),
+              ],
+            }));
+          } catch (messageError) {
+            console.error("Failed to send message", messageError);
+            setMessagesBySession((currentMessages) => ({
+              ...currentMessages,
+              [sessionId]: [
+                ...(currentMessages[sessionId] ?? []),
+                createMessage("assistant", getErrorDetail(messageError)),
+              ],
+            }));
+          }
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    processingRef.current = false;
+  };
+
+  const handleSend = (message: string) => {
     const trimmedMessage = message.trim();
     const sessionId = activeSessionId;
 
@@ -335,72 +388,49 @@ export default function App() {
         createMessage("user", trimmedMessage),
       ],
     }));
-    setIsLoading(true);
 
-    if (useStreamingChat && !activeRoomId) {
-      setStreamRequest({ sessionId, message: trimmedMessage });
-      return;
-    }
+    queueRef.current.push({
+      text: trimmedMessage,
+      sessionId,
+      roomId: activeRoomId,
+      streaming: useStreamingChat && !activeRoomId,
+    });
 
-    try {
-      const response = await sendMessage(trimmedMessage, sessionId, activeRoomId ?? undefined);
-      setMessagesBySession((currentMessages) => ({
-        ...currentMessages,
-        [sessionId]: [
-          ...(currentMessages[sessionId] ?? []),
-          createMessage("assistant", response.response),
-        ],
-      }));
-    } catch (messageError) {
-      console.error("Failed to send message", messageError);
-      setMessagesBySession((currentMessages) => ({
-        ...currentMessages,
-        [sessionId]: [
-          ...(currentMessages[sessionId] ?? []),
-          createMessage("assistant", getErrorDetail(messageError)),
-        ],
-      }));
-    } finally {
-      setIsLoading(false);
-    }
+    processQueue();
   };
 
   const handleStreamComplete = (message: Message) => {
-    const completedRequest = streamRequest;
+    const pending = streamSettleRef.current;
+    streamSettleRef.current = null;
 
-    if (!completedRequest) {
-      setIsLoading(false);
-      return;
-    }
+    if (!pending) return;
 
     setMessagesBySession((currentMessages) => ({
       ...currentMessages,
-      [completedRequest.sessionId]: [
-        ...(currentMessages[completedRequest.sessionId] ?? []),
+      [pending.sessionId]: [
+        ...(currentMessages[pending.sessionId] ?? []),
         message,
       ],
     }));
     setStreamRequest(null);
-    setIsLoading(false);
+    pending.resolve();
   };
 
   const handleStreamError = (streamError: Error) => {
-    const failedRequest = streamRequest;
+    const pending = streamSettleRef.current;
+    streamSettleRef.current = null;
 
-    if (!failedRequest) {
-      setIsLoading(false);
-      return;
-    }
+    if (!pending) return;
 
     setMessagesBySession((currentMessages) => ({
       ...currentMessages,
-      [failedRequest.sessionId]: [
-        ...(currentMessages[failedRequest.sessionId] ?? []),
+      [pending.sessionId]: [
+        ...(currentMessages[pending.sessionId] ?? []),
         createMessage("assistant", getErrorDetail(streamError)),
       ],
     }));
     setStreamRequest(null);
-    setIsLoading(false);
+    pending.reject(streamError);
   };
 
   const handleNewSession = async () => {
@@ -480,6 +510,9 @@ export default function App() {
   };
 
   const handleSwitchCompanion = (companion: Companion) => {
+    queueRef.current = [];
+    processingRef.current = false;
+    streamSettleRef.current = null;
     setSessions([]);
     setActiveSessionId(null);
     setMessagesBySession({});
@@ -488,6 +521,9 @@ export default function App() {
   };
 
   const handleCompanionLogout = () => {
+    queueRef.current = [];
+    processingRef.current = false;
+    streamSettleRef.current = null;
     setUser(null);
     setSelectedCompanion(null);
     setSessions([]);
@@ -543,7 +579,7 @@ export default function App() {
       </div>
       <ChatInput
         onSend={handleSend}
-        disabled={isLoading || !activeSessionId}
+        disabled={!activeSessionId}
       />
     </div>
   );
@@ -585,12 +621,9 @@ export default function App() {
         settings: (
           <SettingsPanel
             user={user}
+            selectedCompanion={selectedCompanion}
+            sessions={sessions}
             activeSessionId={activeSessionId}
-            activeSessionTitle={
-              activeSession
-                ? `${selectedCompanion.name}: ${activeSession.title}`
-                : undefined
-            }
             sessionCount={sessions.length}
           />
         ),

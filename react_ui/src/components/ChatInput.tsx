@@ -30,6 +30,7 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
 
     onSend(trimmedMessage);
     setMessage("");
+    textareaRef.current?.focus();
 
     requestAnimationFrame(() => {
       const textarea = textareaRef.current;
@@ -48,6 +49,7 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
           rows={1}
           value={message}
           disabled={disabled}
+          autoFocus
           placeholder="Type a message..."
           className="max-h-40 min-h-11 flex-1 resize-none overflow-y-auto rounded-lg border border-gray-600 bg-gray-900 px-4 py-3 text-sm leading-5 text-gray-100 placeholder:text-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 disabled:cursor-not-allowed disabled:opacity-60"
           onChange={(event) => setMessage(event.target.value)}

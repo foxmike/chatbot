@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import asdict, is_dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from time import perf_counter
 from typing import Any
 import uuid
@@ -131,6 +131,8 @@ async def chat(
     if response is None:
         response = str(ctx.metadata.get("pipeline_error", "No response"))
 
+    user_msg_ts = datetime.now(timezone.utc)
+    assistant_msg_ts = max(datetime.now(timezone.utc), user_msg_ts + timedelta(milliseconds=1))
     db.add(
         Message(
             session_id=sid,
@@ -138,6 +140,7 @@ async def chat(
             companion_id=db_session.companion_id or companion_id,
             role="user",
             content=body.message,
+            created_at=user_msg_ts,
         )
     )
     db.add(
@@ -147,6 +150,7 @@ async def chat(
             companion_id=db_session.companion_id or companion_id,
             role="assistant",
             content=response,
+            created_at=assistant_msg_ts,
         )
     )
     db_session.updated_at = datetime.now(timezone.utc)

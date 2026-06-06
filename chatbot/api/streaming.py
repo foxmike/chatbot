@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncIterator, Iterable, Mapping
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import inspect
 from time import perf_counter
 from typing import Any
@@ -427,6 +427,8 @@ async def _persist_messages(
     assistant_message: str,
 ) -> None:
     user_uuid = uuid.UUID(current_user.user_id)
+    user_msg_ts = datetime.now(timezone.utc)
+    assistant_msg_ts = max(datetime.now(timezone.utc), user_msg_ts + timedelta(milliseconds=1))
     db.add(
         Message(
             session_id=db_session.id,
@@ -434,6 +436,7 @@ async def _persist_messages(
             companion_id=db_session.companion_id,
             role="user",
             content=user_message,
+            created_at=user_msg_ts,
         )
     )
     db.add(
@@ -443,6 +446,7 @@ async def _persist_messages(
             companion_id=db_session.companion_id,
             role="assistant",
             content=assistant_message,
+            created_at=assistant_msg_ts,
         )
     )
     db_session.updated_at = datetime.now(timezone.utc)
