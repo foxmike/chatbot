@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
-import { getCompanion, updateCompanion } from "../api/client";
+import { getCompanion, updateCompanion, getAccessToken } from "../api/client";
 import type { Companion } from "../api/client";
 import type { ApiError } from "../types";
 
@@ -41,6 +41,7 @@ interface EditorForm {
   humor_style: string;
   communication_style: string;
   favorite_topics: string[];
+  avatar_url: string | null;
 }
 
 const emptyForm: EditorForm = {
@@ -51,6 +52,7 @@ const emptyForm: EditorForm = {
   humor_style: "witty",
   communication_style: "concise",
   favorite_topics: [],
+  avatar_url: null,
 };
 
 function companionToForm(c: Companion): EditorForm {
@@ -64,6 +66,7 @@ function companionToForm(c: Companion): EditorForm {
     humor_style: c.humor_style ?? "witty",
     communication_style: c.communication_style ?? "concise",
     favorite_topics: c.favorite_topics ?? [],
+    avatar_url: c.avatar_url ?? null,
   };
 }
 
@@ -98,9 +101,62 @@ export function CompanionEditor({ companionId, onSave }: CompanionEditorProps) {
   const [topicInput, setTopicInput] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const clearSavedRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleAvatarUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === "string") {
+        set("avatar_url", reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRegenerateAvatar = async () => {
+    setRegenerating(true);
+    setError(null);
+    try {
+      const token = getAccessToken();
+      const response = await fetch("/api/visual/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          prompt: `Avatar portrait of ${form.name || "Companion"}`,
+        }),
+      });
+
+      if (!response.ok) {
+        let errMsg = `Failed to generate avatar: ${response.statusText}`;
+        try {
+          const body = await response.json();
+          if (body && typeof body.detail === "string") {
+            errMsg = body.detail;
+          }
+        } catch {
+          // ignore
+        }
+        throw new Error(errMsg);
+      }
+
+      const data = await response.json();
+      const dataUrl = `data:${data.mime_type};base64,${data.image_base64}`;
+      set("avatar_url", dataUrl);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to regenerate avatar.");
+    } finally {
+      setRegenerating(false);
+    }
+  };
 
   useEffect(() => {
     let alive = true;
@@ -155,7 +211,7 @@ export function CompanionEditor({ companionId, onSave }: CompanionEditorProps) {
         name: form.name.trim() || "Companion",
         persona: form.persona.trim() || null,
         description: null,
-        avatar_url: null,
+        avatar_url: form.avatar_url,
         backstory: form.backstory.trim() || null,
         personality_sliders: form.personality_sliders,
         humor_style: form.humor_style || null,
@@ -193,6 +249,58 @@ export function CompanionEditor({ companionId, onSave }: CompanionEditorProps) {
             {error}
           </div>
         )}
+
+        {/* ── Avatar Upload & Regenerate ────────────────────────────── */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+          {form.avatar_url ? (
+            <img
+              src={form.avatar_url}
+              alt="Avatar preview"
+              className="h-20 w-20 rounded-full object-cover ring-2 ring-gray-600 shadow-md"
+            />
+          ) : (
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-indigo-700 text-2xl font-bold text-white ring-2 ring-indigo-500/50 shadow-md">
+              {form.name ? form.name.charAt(0).toUpperCase() : "?"}
+            </div>
+          )}
+          
+          <div className="flex flex-wrap gap-2">
+            <label
+              htmlFor="avatar-upload-input"
+              className={`cursor-pointer rounded-lg bg-gray-700 px-4 py-2 text-sm font-medium text-gray-200 transition hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 ${(saving || regenerating) ? "opacity-50 cursor-not-allowed" : ""}`}
+            >
+              Upload Avatar
+              <input
+                id="avatar-upload-input"
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={saving || regenerating}
+                onChange={handleAvatarUpload}
+              />
+            </label>
+
+            <button
+              type="button"
+              disabled={saving || regenerating}
+              onClick={handleRegenerateAvatar}
+              className="rounded-lg bg-gray-700 px-4 py-2 text-sm font-medium text-gray-200 transition hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 focus:ring-offset-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {regenerating ? "Regenerating…" : "Regenerate Avatar"}
+            </button>
+            
+            {form.avatar_url && (
+              <button
+                type="button"
+                disabled={saving || regenerating}
+                onClick={() => set("avatar_url", null)}
+                className="rounded-lg bg-red-950/40 border border-red-800 px-4 py-2 text-sm font-medium text-red-200 transition hover:bg-red-900/40 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+        </div>
 
         <label className={LABEL}>
           Name
