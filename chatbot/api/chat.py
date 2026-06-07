@@ -206,7 +206,7 @@ def build_default_pipeline() -> Any:
 async def _run_pipeline(ctx: TurnContext) -> TurnContext:
     try:
         pipeline = build_default_pipeline()
-        return await pipeline.run(ctx)
+        return await pipeline.execute_turn(ctx, update_identity=True)
     except ImportError as exc:
         ctx.metadata["pipeline_import_error"] = str(exc)
         return await _FallbackPipeline().run(ctx)

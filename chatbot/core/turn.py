@@ -1044,19 +1044,32 @@ class TurnPipeline:
         if persona_cache is not None:
             self._configure_persona_cache(persona_cache)
 
-    async def run(self, ctx: TurnContext) -> TurnContext:
-        return await self.execute_turn(ctx)
+    async def run(self, ctx: TurnContext, *, update_identity: bool = True) -> TurnContext:
+        return await self.execute_turn(ctx, update_identity=update_identity)
 
-    async def execute_turn(self, ctx: TurnContext) -> TurnContext:
+    async def execute_turn(self, ctx: TurnContext, *, update_identity: bool = True) -> TurnContext:
+        steps = self._active_steps(update_identity=update_identity)
         if self._background_queue is not None:
             if _room_id_present(ctx):
-                return await self._run_steps(ctx, self._steps)
+                return await self._run_steps(ctx, steps)
 
-            ctx = await self.run_fast(ctx)
+            ctx = await self._run_fast_path(ctx, update_identity=update_identity)
             await self.enqueue_deferred(ctx)
             return ctx
 
-        return await self._run_steps(ctx, self._steps)
+        return await self._run_steps(ctx, steps)
+
+    def _active_steps(self, *, update_identity: bool = True) -> list[TurnStep]:
+        if update_identity:
+            return list(self._steps)
+        return [s for s in self._steps if _step_name(s) != "update_identity"]
+
+    async def _run_fast_path(self, ctx: TurnContext, *, update_identity: bool = True) -> TurnContext:
+        step_names = ROOM_FAST_PATH_STEPS if _room_id_present(ctx) else FAST_PATH_STEPS
+        names = list(step_names)
+        if not update_identity and "update_identity" in names:
+            names.remove("update_identity")
+        return await self._run_steps(ctx, self._selected_steps(names))
 
     async def run_fast(self, ctx: TurnContext) -> TurnContext:
         step_names = ROOM_FAST_PATH_STEPS if _room_id_present(ctx) else FAST_PATH_STEPS
