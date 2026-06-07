@@ -13,7 +13,8 @@
   "model": "Gemini 3.5 Flash (Medium)",
   "verification_profile": "none",
   "allowed_write_paths": [
-    "alembic/versions"
+    "migrations/versions",
+    "migrations"
   ],
   "forbidden_changes": [
     "modify files outside alembic/versions",
