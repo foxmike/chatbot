@@ -992,11 +992,14 @@ class TurnPipeline:
         steps: list[TurnStep],
         persona_cache: PersonaCache | None = None,
         background_queue: BackgroundQueue | None = None,
+        consolidation_threshold: int = 5,
     ) -> None:
         self._steps = list(steps)
         self._persona_cache = persona_cache
         self._background_queue = background_queue
+        self._consolidation_threshold = max(1, consolidation_threshold)
         self._last_ctx: TurnContext | None = None
+        self._session_turn_counts: dict[str, int] = {}
         if persona_cache is not None:
             self._configure_persona_cache(persona_cache)
 
@@ -1019,7 +1022,14 @@ class TurnPipeline:
         if self._background_queue is None:
             return
 
+        session_id = ctx.session_id
+        turn_count = self._session_turn_counts.get(session_id, 0) + 1
+        self._session_turn_counts[session_id] = turn_count
+
         for step_name in DEFERRED_STEPS:
+            if step_name == "consolidate" and turn_count < self._consolidation_threshold:
+                continue
+
             await self._background_queue.enqueue(
                 BackgroundTask(
                     task_id=str(uuid.uuid4()),
@@ -1028,6 +1038,9 @@ class TurnPipeline:
                     created_at=datetime.now(timezone.utc).isoformat(),
                 )
             )
+
+        if turn_count >= self._consolidation_threshold:
+            self._session_turn_counts[session_id] = 0
 
     async def _run_steps(
         self,
@@ -1132,6 +1145,7 @@ class _IdentityTurnStep(TurnStep):
 def build_default_pipeline(
     persona_cache: PersonaCache | None = None,
     background_queue: BackgroundQueue | None = None,
+    consolidation_threshold: int = 5,
 ) -> TurnPipeline:
     if WorkingMemoryLoader is None:
         logger.warning("WorkingMemoryLoader import failed; RetrieveStep will use fallback")
@@ -1168,6 +1182,7 @@ def build_default_pipeline(
         ],
         persona_cache=persona_cache,
         background_queue=background_queue,
+        consolidation_threshold=consolidation_threshold,
     )
 
 

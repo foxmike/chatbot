@@ -149,9 +149,9 @@ async def consolidate_handler(task: BackgroundTask) -> None:
 
 
 def make_consolidate_handler(
-    provider: Provider,
     memory_store: Any,
     *,
+    provider: Provider | None = None,
     coalescing_window_seconds: float = 60.0,
     recent_entry_limit: int = 50,
 ) -> TaskHandler:
@@ -163,10 +163,12 @@ def make_consolidate_handler(
 
     Parameters
     ----------
-    provider:
-        Completion provider used for summarization and contradiction resolution.
     memory_store:
         Backing store for memory entries and consolidation metadata.
+    provider:
+        Completion provider used for summarization and contradiction resolution.
+        When *None* (default) the default provider from application settings
+        is used.
     coalescing_window_seconds:
         Minimum interval between successive consolidation runs for the same
         session (default ``60.0``).
@@ -174,6 +176,9 @@ def make_consolidate_handler(
         Maximum recent entries to consider during contradiction resolution
         (default ``50``).
     """
+
+    if provider is None:
+        provider = _default_consolidation_provider()
 
     worker = ConsolidationWorker(
         provider=provider,
@@ -205,6 +210,28 @@ def make_consolidate_handler(
                 )
 
     return handler
+
+
+def _default_consolidation_provider() -> Provider:
+    """Return the default LLM provider from application settings."""
+
+    try:
+        from chatbot.config import get_settings
+    except ImportError:
+        raise RuntimeError(
+            "Unable to import chatbot.config; ensure the settings module is available"
+        )
+
+    try:
+        from chatbot.providers.bootstrap import build_default_registry
+    except ImportError:
+        raise RuntimeError(
+            "Unable to import chatbot.providers.bootstrap; ensure the provider bootstrap is available"
+        )
+
+    settings = get_settings()
+    registry = build_default_registry(settings)
+    return registry.get(settings.default_provider)
 
 
 __all__ = ["consolidate_handler", "make_consolidate_handler", "memory_extract_handler"]
