@@ -27,7 +27,8 @@ from chatbot.core.turn import (
     build_default_pipeline,
 )
 from chatbot.db import get_db
-from chatbot.db.models import Message, Session
+from chatbot.companions.companion import CompanionManager
+from chatbot.db.models import IdentityStateModel, Message, Session
 
 
 class StreamRequest(BaseModel):
@@ -96,6 +97,11 @@ async def _stream_turn(
         metadata["user_id"] = current_user.user_id
         metadata["companion_id"] = db_session.companion_id
 
+        character_profile = await _load_stream_companion_profile(
+            db, db_session, current_user.user_id
+        )
+        identity_state = await _load_stream_session_identity(db, sid)
+
         history = await _load_db_session_history(db, db_session.id)
         _seed_stream_history_metadata(metadata, request.session_id, history)
 
@@ -111,6 +117,11 @@ async def _stream_turn(
             final_response=None,
             metadata=metadata,
         )
+        if character_profile is not None:
+            ctx.metadata["character_profile"] = character_profile
+        if identity_state is not None:
+            ctx.metadata["identity_state"] = identity_state
+
         pipeline = build_default_pipeline()
 
         yield _sse_data({"type": "typing", "status": "started"})
@@ -458,6 +469,53 @@ def _step_name(step: TurnStep) -> str:
     if isinstance(name, str) and name:
         return name
     return step.__class__.__name__
+
+
+async def _load_stream_companion_profile(
+    db: AsyncSession,
+    db_session: Session,
+    user_id: str,
+) -> dict[str, Any] | None:
+    """Load companion character profile dict from the session-bound companion."""
+    companion_id = db_session.companion_id
+    if companion_id is None:
+        return None
+    try:
+        companion_mgr = CompanionManager(db)
+        companion = await companion_mgr.get(user_id, str(companion_id))
+    except Exception:
+        return None
+    if companion is None:
+        return None
+    return _companion_to_profile_dict(companion)
+
+
+def _companion_to_profile_dict(companion: Any) -> dict[str, Any]:
+    return {
+        "name": getattr(companion, "name", "Companion"),
+        "backstory": getattr(companion, "backstory", None) or "",
+        "personality_sliders": getattr(companion, "personality_sliders", None) or {},
+        "humor_style": getattr(companion, "humor_style", None) or "witty",
+        "communication_style": getattr(companion, "communication_style", None) or "concise",
+        "favorite_topics": getattr(companion, "favorite_topics", None) or [],
+    }
+
+
+async def _load_stream_session_identity(
+    db: AsyncSession,
+    session_id: uuid.UUID,
+) -> Any:
+    """Return the most recent IdentityStateModel row for *session_id*, or None."""
+    try:
+        result = await db.execute(
+            select(IdentityStateModel)
+            .where(IdentityStateModel.session_id == session_id)
+            .order_by(IdentityStateModel.last_updated.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+    except Exception:
+        return None
 
 
 def _sse_data(payload: dict) -> str:
