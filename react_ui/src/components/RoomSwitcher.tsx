@@ -4,8 +4,9 @@ import {
   createRoom,
   deleteRoom,
   listRooms,
+  listCompanions,
 } from "../api/client";
-import type { RoomData, RoomType } from "../api/client";
+import type { RoomData, RoomType, Companion } from "../api/client";
 import type { ApiError } from "../types";
 
 interface RoomSwitcherProps {
@@ -64,6 +65,8 @@ export function RoomSwitcher({
   const [isFetching, setIsFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [companions, setCompanions] = useState<Companion[]>([]);
+
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newRoomType, setNewRoomType] = useState<RoomType>("one_on_one_chat");
   const [newDisplayName, setNewDisplayName] = useState("");
@@ -90,8 +93,21 @@ export function RoomSwitcher({
     }
   };
 
+  const loadCompanions = async () => {
+    try {
+      const result = await listCompanions();
+      setCompanions(result);
+      if (result.length > 0) {
+        setNewCompanionId(result[0].companion_id);
+      }
+    } catch (err) {
+      console.error("Failed to load companions", err);
+    }
+  };
+
   useEffect(() => {
     loadRooms();
+    loadCompanions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
@@ -115,7 +131,7 @@ export function RoomSwitcher({
       setShowCreateModal(false);
       setNewRoomType("one_on_one_chat");
       setNewDisplayName("");
-      setNewCompanionId("");
+      setNewCompanionId(companions.length > 0 ? companions[0].companion_id : "");
     } catch (err) {
       console.error("Failed to create room", err);
       setCreateError(getErrorDetail(err));
@@ -257,6 +273,11 @@ export function RoomSwitcher({
           className="flex items-center gap-2 self-start rounded-lg border border-gray-600 px-3 py-2 text-sm font-medium text-gray-300 transition hover:border-indigo-500 hover:bg-gray-700 hover:text-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/60"
           onClick={() => {
             setCreateError(null);
+            if (companions.length > 0) {
+              setNewCompanionId(companions[0].companion_id);
+            } else {
+              setNewCompanionId("");
+            }
             setShowCreateModal(true);
           }}
         >
@@ -323,17 +344,22 @@ export function RoomSwitcher({
               </label>
 
               <label className="flex flex-col gap-2 text-sm font-medium text-gray-200">
-                Companion ID (optional)
-                <input
-                  type="text"
+                Companion
+                <select
                   value={newCompanionId}
                   disabled={isCreating}
-                  className="rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100 placeholder:text-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 disabled:cursor-not-allowed disabled:opacity-60"
-                  placeholder="Leave blank for default"
-                  onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  className="rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 disabled:cursor-not-allowed disabled:opacity-60"
+                  onChange={(e: ChangeEvent<HTMLSelectElement>) =>
                     setNewCompanionId(e.target.value)
                   }
-                />
+                >
+                  <option value="">No Companion / Default</option>
+                  {companions.map((companion) => (
+                    <option key={companion.companion_id} value={companion.companion_id}>
+                      {companion.name}
+                    </option>
+                  ))}
+                </select>
               </label>
 
               <div className="flex justify-end gap-3 pt-2">
