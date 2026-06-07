@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import asdict, is_dataclass
 from datetime import datetime, timedelta, timezone
+import logging
 from time import perf_counter
 from typing import Any
 import uuid
@@ -20,6 +21,8 @@ from chatbot.companions.companion import CompanionManager
 from chatbot.core.steps import StepResult, TurnContext
 from chatbot.db import get_db
 from chatbot.db.models import IdentityStateModel, Message, Session
+
+logger = logging.getLogger(__name__)
 
 try:
     from chatbot.core.turn import build_default_pipeline as _core_build_default_pipeline
@@ -142,6 +145,7 @@ async def chat(
     if identity_state is not None:
         ctx.metadata["identity_state"] = identity_state
 
+    await _prepare_memory_workflow(request, ctx, db, sid)
     ctx = await _run_pipeline(ctx)
     response = ctx.final_response
     if response is None:
@@ -258,6 +262,132 @@ def _build_metadata(
         metadata["working_memory"] = working_memory_store
 
     return metadata
+
+
+async def _prepare_memory_workflow(
+    request: Request,
+    ctx: TurnContext,
+    db: AsyncSession,
+    session_id: uuid.UUID,
+) -> None:
+    """Wire embeddings and retrieval before the turn pipeline reaches the LLM."""
+    await _generate_recent_message_embeddings(db, session_id, ctx)
+
+    retrieval_engine = _metadata_retrieval_engine(ctx.metadata)
+    if retrieval_engine is None:
+        retrieval_engine = _build_chat_retrieval_engine(request, db)
+
+    if retrieval_engine is not None:
+        ctx.metadata["retrieval_engine"] = retrieval_engine
+        ctx.metadata["memory_retriever"] = retrieval_engine
+
+
+async def _generate_recent_message_embeddings(
+    db: AsyncSession,
+    session_id: uuid.UUID,
+    ctx: TurnContext,
+    limit: int = 20,
+) -> None:
+    try:
+        from chatbot.memory.embedding import generate_embedding
+    except ImportError:
+        return
+
+    try:
+        result = await db.execute(
+            select(Message)
+            .where(Message.session_id == session_id)
+            .where(Message.role.in_(("user", "assistant")))
+            .where(Message.embedding.is_(None))
+            .order_by(Message.created_at.desc(), Message.id.desc())
+            .limit(limit)
+        )
+        messages = list(result.scalars().all())
+    except Exception:
+        logger.warning(
+            "Message embedding target load failed for session %s",
+            session_id,
+            exc_info=True,
+        )
+        return
+
+    generated = 0
+    for message in messages:
+        try:
+            embedding = await generate_embedding(db, message)
+        except Exception:
+            logger.warning(
+                "Message embedding generation failed for message %s",
+                getattr(message, "id", ""),
+                exc_info=True,
+            )
+            continue
+        if embedding:
+            generated += 1
+
+    if messages:
+        ctx.metadata["message_embeddings_checked"] = len(messages)
+    if generated:
+        ctx.metadata["message_embeddings_generated"] = generated
+
+
+def _metadata_retrieval_engine(metadata: Mapping[str, Any]) -> Any | None:
+    for key in ("retrieval_engine", "memory_retriever"):
+        candidate = metadata.get(key)
+        if callable(getattr(candidate, "retrieve", None)):
+            return candidate
+    return None
+
+
+def _build_chat_retrieval_engine(request: Request, db: AsyncSession) -> Any | None:
+    try:
+        from chatbot.config import get_settings
+        from chatbot.memory.pgvector_store import PgvectorStore
+        from chatbot.memory.retrieval import (
+            DisabledEmbeddingProvider,
+            OpenRouterEmbeddingProvider,
+            RetrievalEngine,
+        )
+    except ImportError:
+        return None
+
+    vector_store = _first_state_value(
+        request,
+        "memory_vector_store",
+        "vector_store",
+        "vectorstore",
+    )
+    if vector_store is None or not callable(getattr(vector_store, "search", None)):
+        vector_store = PgvectorStore(db, Message)
+
+    embeddings = _first_state_value(
+        request,
+        "embedding_provider",
+        "embeddings",
+        "memory_embeddings",
+    )
+    if embeddings is None or not callable(getattr(embeddings, "embed", None)):
+        settings = get_settings()
+        if settings.openrouter_api_key:
+            embeddings = OpenRouterEmbeddingProvider(
+                api_key=settings.openrouter_api_key,
+                base_url=getattr(
+                    settings,
+                    "embedding_base_url",
+                    settings.openrouter_base_url,
+                ),
+                model=getattr(
+                    settings,
+                    "embedding_model",
+                    "openai/text-embedding-3-small",
+                ),
+            )
+        else:
+            embeddings = DisabledEmbeddingProvider(
+                "Memory retrieval skipped because no embedding provider API key is configured"
+            )
+
+    return RetrievalEngine(vector_store, embeddings)
 
 
 def _load_session_history(
