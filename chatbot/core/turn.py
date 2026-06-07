@@ -96,8 +96,10 @@ except ImportError:
     CharacterProfile = None  # type: ignore[assignment]
 
 try:
+    from chatbot.soul import evolution
     from chatbot.soul.evolution import IdentityState
 except ImportError:
+    evolution = None  # type: ignore[assignment]
     IdentityState = None  # type: ignore[assignment]
 
 try:
@@ -147,6 +149,7 @@ FAST_PATH_STEPS: list[str] = [
     "compile_context",
     "call_provider",
     "respond",
+    "update_identity",
 ]
 ROOM_FAST_PATH_STEPS: list[str] = [
     "receive",
@@ -155,6 +158,7 @@ ROOM_FAST_PATH_STEPS: list[str] = [
     "compile_context",
     "call_provider",
     "respond",
+    "update_identity",
 ]
 DEFERRED_STEPS: list[str] = ["extract_memory", "consolidate"]
 
@@ -745,6 +749,43 @@ class RespondStep(TurnStep):
         return ctx
 
 
+class UpdateIdentityStep(TurnStep):
+    name = "update_identity"
+
+    async def run(self, ctx: TurnContext) -> TurnContext:
+        if evolution is None or IdentityStateModel is None:
+            return ctx
+        if ctx.final_response is None:
+            return ctx
+
+        identity = await _identity_model_for_update(ctx)
+        if identity is None:
+            return ctx
+
+        conversation = _full_turn_conversation(ctx)
+        try:
+            updated_identity = evolution.calculate_drift(identity, conversation)
+            updated_mood = evolution.calculate_mood(updated_identity, conversation)
+        except Exception:
+            logger.warning(
+                "Identity update failed for session %s",
+                ctx.session_id,
+                exc_info=True,
+            )
+            return ctx
+
+        now = datetime.now(timezone.utc)
+        updated_identity.last_updated = now
+        ctx.metadata["previous_identity_state"] = _coerce_identity_state(identity)
+        ctx.metadata["identity_state_model"] = updated_identity
+        ctx.metadata["identity_state"] = _coerce_identity_state(updated_identity)
+        ctx.metadata["mood_state"] = updated_mood
+
+        _persist_identity_session_mapping(ctx, updated_identity, updated_mood)
+        await _persist_db_identity_state(ctx, identity, updated_identity, updated_mood)
+        return ctx
+
+
 class RoomContextStep(TurnStep):
     name = "room_context"
 
@@ -1004,6 +1045,9 @@ class TurnPipeline:
             self._configure_persona_cache(persona_cache)
 
     async def run(self, ctx: TurnContext) -> TurnContext:
+        return await self.execute_turn(ctx)
+
+    async def execute_turn(self, ctx: TurnContext) -> TurnContext:
         if self._background_queue is not None:
             if _room_id_present(ctx):
                 return await self._run_steps(ctx, self._steps)
@@ -1049,6 +1093,7 @@ class TurnPipeline:
     ) -> TurnContext:
         step_results: list[StepResult] = []
         ctx.metadata["step_results"] = step_results
+        ctx.metadata.setdefault("full_conversation_history", list(ctx.history))
         self._last_ctx = ctx
         trace_id = await _start_turn_trace(ctx)
 
@@ -1179,6 +1224,7 @@ def build_default_pipeline(
             SceneMemoryGateStep(),
             TimelineUpdateStep(),
             RespondStep(),
+            UpdateIdentityStep(),
         ],
         persona_cache=persona_cache,
         background_queue=background_queue,
@@ -2367,6 +2413,57 @@ def _current_identity_state(ctx: TurnContext) -> Any | None:
     return None
 
 
+def _current_identity_state_model(ctx: TurnContext) -> Any | None:
+    for key in (
+        "identity_state_model",
+        "identity_state",
+        "current_identity_state",
+        "persona_identity_state",
+    ):
+        model = _coerce_identity_state_model(ctx.metadata.get(key), ctx)
+        if model is not None:
+            return model
+
+    for value in (
+        _read_session_field(ctx, "identity_state"),
+        _read_session_field(ctx, "identity_states"),
+    ):
+        model = _coerce_identity_state_model(value, ctx)
+        if model is not None:
+            return model
+    return None
+
+
+def _coerce_identity_state_model(value: Any, ctx: TurnContext) -> Any | None:
+    if value is None or IdentityStateModel is None:
+        return None
+    if isinstance(value, IdentityStateModel):
+        return value
+    if isinstance(value, Mapping):
+        state = _identity_state_from_mapping(value)
+        if state is None:
+            return None
+        session_id = value.get("session_id", ctx.session_id)
+        last_updated = value.get("last_updated")
+        return _identity_model_from_state(
+            state,
+            session_id=session_id,
+            identity_id=value.get("id"),
+            last_updated=last_updated,
+        )
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        for item in reversed(list(value)):
+            model = _coerce_identity_state_model(item, ctx)
+            if model is not None:
+                return model
+        return None
+
+    state = _coerce_identity_state(value)
+    if state is None:
+        return None
+    return _identity_model_from_state(state, session_id=ctx.session_id)
+
+
 def _coerce_character_profile(value: Any) -> Any | None:
     if value is None:
         return None
@@ -2485,6 +2582,33 @@ def _identity_state_from_mapping(value: Mapping[str, Any]) -> Any | None:
         return None
 
 
+def _identity_model_from_state(
+    state: Any,
+    *,
+    session_id: Any,
+    identity_id: Any | None = None,
+    last_updated: Any | None = None,
+) -> Any | None:
+    if IdentityStateModel is None:
+        return None
+
+    kwargs: dict[str, Any] = {
+        "session_id": _coerce_uuid(session_id) or session_id,
+        "fixed": dict(getattr(state, "fixed", {})),
+        "slow": dict(getattr(state, "slow", {})),
+        "mood": dict(getattr(state, "mood", {})),
+        "last_updated": _coerce_datetime(last_updated),
+    }
+    coerced_id = _coerce_uuid(identity_id)
+    if coerced_id is not None:
+        kwargs["id"] = coerced_id
+    try:
+        return IdentityStateModel(**kwargs)
+    except Exception:
+        logger.warning("Identity state model creation failed", exc_info=True)
+        return None
+
+
 async def _load_character_profile(db_session: Any, session_id: uuid.UUID) -> Any | None:
     if CharacterProfileModel is None:
         return None
@@ -2511,6 +2635,11 @@ async def _load_character_profile(db_session: Any, session_id: uuid.UUID) -> Any
 
 
 async def _load_identity_state(db_session: Any, session_id: uuid.UUID) -> Any | None:
+    model = await _load_identity_state_model(db_session, session_id)
+    return _coerce_identity_state(model)
+
+
+async def _load_identity_state_model(db_session: Any, session_id: uuid.UUID) -> Any | None:
     if IdentityStateModel is None:
         return None
     try:
@@ -2526,10 +2655,129 @@ async def _load_identity_state(db_session: Any, session_id: uuid.UUID) -> Any | 
         )
         scalar = getattr(result, "scalar_one_or_none", None)
         if callable(scalar):
-            return _coerce_identity_state(scalar())
+            return scalar()
     except Exception:
         logger.warning("Identity state DB load failed", exc_info=True)
     return None
+
+
+async def _identity_model_for_update(ctx: TurnContext) -> Any | None:
+    identity = _current_identity_state_model(ctx)
+    if identity is not None:
+        return identity
+
+    db_session = _db_session(ctx)
+    session_id = _coerce_uuid(ctx.session_id)
+    if db_session is not None and session_id is not None:
+        identity = await _load_identity_state_model(db_session, session_id)
+        if identity is not None:
+            return identity
+
+    state = _current_identity_state(ctx)
+    if state is None and IdentityState is not None:
+        try:
+            state = IdentityState.defaults()
+        except Exception:
+            logger.warning("Default identity state creation failed", exc_info=True)
+            return None
+    if state is None:
+        return None
+    return _identity_model_from_state(state, session_id=ctx.session_id)
+
+
+def _full_turn_conversation(ctx: TurnContext) -> list[Any]:
+    conversation: list[Any] = []
+    history = ctx.metadata.get("full_conversation_history", ctx.history)
+    if isinstance(history, (str, bytes)) or not isinstance(history, Sequence):
+        history = ctx.history
+    for message in history:
+        coerced = _conversation_message_from_value(message, ctx)
+        if coerced is not None:
+            conversation.append(coerced)
+
+    now = datetime.now(timezone.utc)
+    if ctx.user_message.strip():
+        conversation.append(
+            _conversation_message(
+                ctx,
+                role="user",
+                content=ctx.user_message.strip(),
+                created_at=now,
+            )
+        )
+    if ctx.final_response:
+        conversation.append(
+            _conversation_message(
+                ctx,
+                role="assistant",
+                content=ctx.final_response,
+                created_at=now,
+            )
+        )
+    return conversation
+
+
+def _conversation_message_from_value(value: Any, ctx: TurnContext) -> Any | None:
+    if isinstance(value, Mapping):
+        role = value.get("role")
+        content = value.get("content")
+        created_at = value.get("created_at")
+    else:
+        role = getattr(value, "role", None)
+        content = getattr(value, "content", None)
+        created_at = getattr(value, "created_at", None)
+
+    if role is None or content is None:
+        return None
+    role_text = str(role).strip()
+    content_text = str(content).strip()
+    if not role_text or not content_text:
+        return None
+    return _conversation_message(
+        ctx,
+        role=role_text,
+        content=content_text,
+        created_at=_coerce_datetime(created_at),
+    )
+
+
+def _conversation_message(
+    ctx: TurnContext,
+    *,
+    role: str,
+    content: str,
+    created_at: datetime,
+) -> Any:
+    session_id = _coerce_uuid(ctx.session_id) or ctx.session_id
+    user_id = _coerce_uuid(_read_session_field(ctx, "user_id")) or _coerce_uuid(
+        ctx.metadata.get("user_id")
+    )
+    companion_id = _read_session_field(ctx, "companion_id") or ctx.metadata.get("companion_id")
+
+    if Message is not None:
+        try:
+            return Message(
+                session_id=session_id,
+                user_id=user_id,
+                companion_id=companion_id,
+                role=role,
+                content=content,
+                created_at=created_at,
+            )
+        except Exception:
+            logger.warning("Conversation message model creation failed", exc_info=True)
+
+    class ConversationMessage:
+        pass
+
+    message = ConversationMessage()
+    message.session_id = session_id
+    message.user_id = user_id
+    message.companion_id = companion_id
+    message.role = role
+    message.content = content
+    message.created_at = created_at
+    return message
 
 
 def _assemble_persona_prompt(
@@ -3106,6 +3354,83 @@ async def _persist_db_emotional_state(
         )
 
 
+def _persist_identity_session_mapping(
+    ctx: TurnContext,
+    identity_state: Any | None,
+    mood_state: Any | None,
+) -> None:
+    values: dict[str, Any] = {}
+    if identity_state is not None:
+        values["identity_state"] = _identity_model_value(identity_state)
+    if mood_state is not None:
+        values["mood_state"] = _json_safe(mood_state)
+    if not values:
+        return
+
+    session = ctx.metadata.get("session")
+    if isinstance(session, dict):
+        session.update(values)
+
+    for key in ("session_store", "sessions_store"):
+        session_store = ctx.metadata.get(key)
+        if isinstance(session_store, dict):
+            stored_session = session_store.get(ctx.session_id)
+            if isinstance(stored_session, dict):
+                stored_session.update(values)
+
+
+async def _persist_db_identity_state(
+    ctx: TurnContext,
+    previous_identity: Any,
+    updated_identity: Any,
+    mood_state: Any | None,
+) -> None:
+    db_session = _db_session(ctx)
+    if db_session is None or IdentityStateModel is None:
+        return
+
+    session_id = _coerce_uuid(ctx.session_id)
+    if session_id is None:
+        logger.warning(
+            "Skipping identity state DB persistence for non-UUID session %s",
+            ctx.session_id,
+        )
+        return
+
+    try:
+        target = await _load_identity_state_model(db_session, session_id)
+        if target is None and isinstance(previous_identity, IdentityStateModel):
+            target = previous_identity
+            target.session_id = session_id
+        if target is None:
+            target = IdentityStateModel(session_id=session_id)
+
+        target.fixed = dict(getattr(updated_identity, "fixed", {}))
+        target.slow = dict(getattr(updated_identity, "slow", {}))
+        target.mood = dict(getattr(updated_identity, "mood", {}))
+        target.last_updated = getattr(
+            updated_identity,
+            "last_updated",
+            datetime.now(timezone.utc),
+        )
+        db_session.add(target)
+
+        if mood_state is not None:
+            session_record = await _load_db_session_record(db_session, session_id, ctx)
+            if session_record is not None:
+                session_record.mood_state = _json_safe(mood_state)
+
+        await _flush_or_commit(db_session)
+        ctx.metadata["identity_state_model"] = target
+        ctx.metadata["identity_state"] = _coerce_identity_state(target)
+    except Exception:
+        logger.warning(
+            "Identity state persistence failed for session %s",
+            ctx.session_id,
+            exc_info=True,
+        )
+
+
 async def _load_db_session_record(
     db_session: Any,
     session_id: uuid.UUID,
@@ -3152,6 +3477,24 @@ def _emotional_state_values(
     if mode is not None:
         values["conversation_mode"] = _mode_value(mode)
     return values
+
+
+def _identity_model_value(identity_state: Any) -> dict[str, Any]:
+    value = {
+        "fixed": _json_safe(dict(getattr(identity_state, "fixed", {}))),
+        "slow": _json_safe(dict(getattr(identity_state, "slow", {}))),
+        "mood": _json_safe(dict(getattr(identity_state, "mood", {}))),
+    }
+    identity_id = getattr(identity_state, "id", None)
+    if identity_id is not None:
+        value["id"] = str(identity_id)
+    session_id = getattr(identity_state, "session_id", None)
+    if session_id is not None:
+        value["session_id"] = str(session_id)
+    last_updated = getattr(identity_state, "last_updated", None)
+    if last_updated is not None:
+        value["last_updated"] = _json_safe(last_updated)
+    return value
 
 
 def _db_session(ctx: TurnContext) -> Any | None:
