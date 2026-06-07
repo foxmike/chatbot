@@ -71,7 +71,7 @@ async def generate_embedding(
 
     except Exception as e:
         logger.error(f"Error generating or storing embedding: {e}", exc_info=True)
-        raise
+        return []
 
 
 __all__ = ["generate_embedding"]
