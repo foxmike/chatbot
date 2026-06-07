@@ -2,15 +2,23 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from hashlib import sha256
+from typing import TYPE_CHECKING
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field
 
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
 
 def _utcnow_iso() -> str:
-    return datetime.utcnow().isoformat()
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _utcnow_dt() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class AppearanceProfile(BaseModel):
@@ -53,7 +61,12 @@ class AppearanceContinuitySnapshot(BaseModel):
 
 
 class OutfitManager:
-    def __init__(self, outfits: list[Outfit] | None = None) -> None:
+    def __init__(
+        self,
+        outfits: list[Outfit] | None = None,
+        session: AsyncSession | None = None,
+    ) -> None:
+        self._session = session
         if outfits is None:
             outfits = [
                 Outfit(
@@ -110,6 +123,85 @@ class OutfitManager:
         if was_active and self._outfits:
             self._outfits[0].is_active = True
 
+    # --- Database persistence ---
+
+    @classmethod
+    async def load_from_db(
+        cls,
+        appearance_id: str,
+        session: AsyncSession,
+    ) -> OutfitManager:
+        """Load outfits from the database for a given appearance_id."""
+        from sqlalchemy import select
+
+        from chatbot.db.models import OutfitRecord
+
+        stmt = (
+            select(OutfitRecord)
+            .where(OutfitRecord.appearance_id == appearance_id)
+            .order_by(OutfitRecord.created_at)
+        )
+        result = await session.execute(stmt)
+        records = result.scalars().all()
+
+        outfits: list[Outfit] = []
+        for rec in records:
+            outfits.append(
+                Outfit(
+                    outfit_id=rec.outfit_id,
+                    name=rec.name,
+                    description=rec.description,
+                    visual_tags=list(rec.visual_tags) if rec.visual_tags else [],
+                    is_active=rec.is_active,
+                    created_at=rec.created_at.isoformat()
+                    if rec.created_at
+                    else _utcnow_iso(),
+                )
+            )
+
+        if not outfits:
+            outfits = [
+                Outfit(
+                    name="default",
+                    description="Default outfit",
+                    is_active=True,
+                )
+            ]
+
+        return cls(outfits=outfits, session=session)
+
+    async def save_to_db(self, appearance_id: str) -> None:
+        """Persist all outfits to the database for a given appearance_id."""
+        if self._session is None:
+            return
+
+        from sqlalchemy import delete, select
+
+        from chatbot.db.models import OutfitRecord
+
+        # Delete existing outfits for this appearance
+        del_stmt = delete(OutfitRecord).where(
+            OutfitRecord.appearance_id == appearance_id
+        )
+        await self._session.execute(del_stmt)
+
+        # Insert current outfits
+        for outfit in self._outfits:
+            record = OutfitRecord(
+                outfit_id=outfit.outfit_id,
+                appearance_id=appearance_id,
+                name=outfit.name,
+                description=outfit.description,
+                visual_tags=list(outfit.visual_tags),
+                is_active=outfit.is_active,
+                created_at=datetime.fromisoformat(outfit.created_at)
+                if outfit.created_at
+                else _utcnow_dt(),
+            )
+            self._session.add(record)
+
+        await self._session.flush()
+
 
 class AppearanceManager:
     DEFAULT_ANTI_TRAITS = [
@@ -131,9 +223,13 @@ class AppearanceManager:
         self,
         profile: AppearanceProfile | None = None,
         outfit_manager: OutfitManager | None = None,
+        session: AsyncSession | None = None,
     ) -> None:
+        self._session = session
         self._profile = profile or AppearanceProfile()
-        self._outfit_manager = outfit_manager or OutfitManager()
+        self._outfit_manager = outfit_manager or OutfitManager(session=session)
+        self._appearance_id: str | None = None
+        self._companion_id: str | None = None
 
     def get_profile(self) -> AppearanceProfile:
         return self._profile
@@ -211,6 +307,125 @@ class AppearanceManager:
 
     def get_outfit_manager(self) -> OutfitManager:
         return self._outfit_manager
+
+    # --- Database persistence ---
+
+    @property
+    def appearance_id(self) -> str | None:
+        return self._appearance_id
+
+    @property
+    def companion_id(self) -> str | None:
+        return self._companion_id
+
+    @classmethod
+    async def load_from_db(
+        cls,
+        companion_id: str,
+        session: AsyncSession,
+    ) -> AppearanceManager:
+        """Load an appearance profile and outfits from the database for a companion."""
+        from sqlalchemy import select
+
+        from chatbot.db.models import Appearance, OutfitRecord
+
+        # Look up appearance by companion_id
+        stmt = (
+            select(Appearance)
+            .where(Appearance.companion_id == companion_id)
+        )
+        result = await session.execute(stmt)
+        appearance_record = result.scalar_one_or_none()
+
+        if appearance_record is None:
+            # Create default profile for this companion
+            profile = AppearanceProfile()
+            outfit_manager = OutfitManager(session=session)
+            manager = cls(
+                profile=profile,
+                outfit_manager=outfit_manager,
+                session=session,
+            )
+            manager._companion_id = companion_id
+            return manager
+
+        profile = AppearanceProfile(
+            character_seed=appearance_record.character_seed,
+            character_description=appearance_record.character_description,
+            visual_traits=list(appearance_record.visual_traits)
+            if appearance_record.visual_traits
+            else [],
+            art_style=appearance_record.art_style,
+            color_palette=list(appearance_record.color_palette)
+            if appearance_record.color_palette
+            else [],
+            created_at=appearance_record.created_at.isoformat()
+            if appearance_record.created_at
+            else _utcnow_iso(),
+            updated_at=appearance_record.updated_at.isoformat()
+            if appearance_record.updated_at
+            else None,
+        )
+
+        outfit_manager = await OutfitManager.load_from_db(
+            appearance_id=appearance_record.appearance_id,
+            session=session,
+        )
+
+        manager = cls(
+            profile=profile,
+            outfit_manager=outfit_manager,
+            session=session,
+        )
+        manager._appearance_id = appearance_record.appearance_id
+        manager._companion_id = companion_id
+        return manager
+
+    async def save_to_db(self) -> None:
+        """Persist the current appearance profile and outfits to the database."""
+        if self._session is None:
+            return
+
+        from sqlalchemy import select
+
+        from chatbot.db.models import Appearance
+
+        if self._appearance_id is None:
+            self._appearance_id = str(uuid4())
+
+        # Upsert appearance record
+        stmt = select(Appearance).where(
+            Appearance.appearance_id == self._appearance_id
+        )
+        result = await self._session.execute(stmt)
+        record = result.scalar_one_or_none()
+
+        if record is None:
+            record = Appearance(
+                appearance_id=self._appearance_id,
+                companion_id=self._companion_id,
+                character_seed=self._profile.character_seed,
+                character_description=self._profile.character_description,
+                visual_traits=list(self._profile.visual_traits),
+                art_style=self._profile.art_style,
+                color_palette=list(self._profile.color_palette),
+                created_at=_utcnow_dt(),
+                updated_at=_utcnow_dt() if self._profile.updated_at else None,
+            )
+            self._session.add(record)
+        else:
+            record.companion_id = self._companion_id
+            record.character_seed = self._profile.character_seed
+            record.character_description = self._profile.character_description
+            record.visual_traits = list(self._profile.visual_traits)
+            record.art_style = self._profile.art_style
+            record.color_palette = list(self._profile.color_palette)
+            record.updated_at = _utcnow_dt()
+
+        await self._session.flush()
+
+        # Persist outfits
+        await self._outfit_manager.save_to_db(self._appearance_id)
 
 
 def stable_character_seed(identity_key: str) -> int:
