@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "task_id": "e.6",
+  "phase": "E",
+  "phase_id": "e",
+  "title": "Auto-generate avatar on companion creation in companions API",
+  "description": "Modify companion creation to auto-generate avatars using visual system.\n\nBefore editing, inspect: chatbot/api/companions.py and companion.py",
+  "acceptance_criteria": [
+    "Companion creation auto-generates avatar via generation.py",
+    "Avatar URL stored in companion records"
+  ],
+  "selected_backend": "codex_cli",
+  "model": "gpt-5.5",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/companions.py",
+    "chatbot/companions/companion.py"
+  ],
+  "forbidden_changes": [
+    "block companion creation on avatar generation"
+  ],
+  "dependencies": [
+    "e.1"
+  ],
+  "task_timeout_seconds": 900
+}

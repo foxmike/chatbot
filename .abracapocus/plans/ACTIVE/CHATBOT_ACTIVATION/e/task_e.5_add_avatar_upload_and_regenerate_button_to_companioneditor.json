@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "task_id": "e.5",
+  "phase": "E",
+  "phase_id": "e",
+  "title": "Add avatar upload and regenerate button to CompanionEditor",
+  "description": "Implement upload and regenerate functionality in CompanionEditor.\n\nBefore editing, inspect: react_ui/src/components/CompanionEditor.tsx",
+  "acceptance_criteria": [
+    "CompanionEditor has avatar upload control",
+    "CompanionEditor has Regenerate Avatar button"
+  ],
+  "selected_backend": "antigravity_cli",
+  "model": "gemini-3.5-flash",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/components/CompanionEditor.tsx"
+  ],
+  "forbidden_changes": [
+    "modify other companion creation logic",
+    "introduce new dependencies"
+  ],
+  "dependencies": [
+    "e.4"
+  ],
+  "task_timeout_seconds": 900
+}

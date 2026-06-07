@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "task_id": "a.2",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Wire character profile and identity state into turn.py prompt assembly",
+  "description": "Update chatbot/core/turn.py's _assemble_persona_prompt method to call the modified assembler from persona_prompt.py with CharacterProfile and IdentityState objects.\n\nBefore editing, inspect:\n- Current _assemble_persona_prompt implementation in turn.py\n- Where CharacterProfile and IdentityState objects are available",
+  "acceptance_criteria": [
+    "turn.py's _assemble_persona_prompt consumes CharacterProfile and IdentityState",
+    "python -m py_compile chatbot/core/turn.py passes"
+  ],
+  "selected_backend": "codex_cli",
+  "model": "gpt-5.5",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/core/turn.py"
+  ],
+  "forbidden_changes": [
+    "modify files outside chatbot/core/turn.py",
+    "change existing message persistence logic"
+  ],
+  "dependencies": [
+    "a.1"
+  ],
+  "task_timeout_seconds": 900
+}

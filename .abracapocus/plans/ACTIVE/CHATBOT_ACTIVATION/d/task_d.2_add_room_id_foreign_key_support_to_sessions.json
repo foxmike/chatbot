@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "task_id": "d.2",
+  "phase": "D",
+  "phase_id": "d",
+  "title": "Add room_id foreign key support to sessions",
+  "description": "Add room_id foreign key to Session model. Update session queries to include room filtering.\n\nBefore editing, inspect:\n- chatbot/api/sessions.py (existing Session model)\n- chatbot/rooms/room.py (Room primary key)",
+  "acceptance_criteria": [
+    "chatbot/api/sessions.py includes room_id foreign key",
+    "python -m py_compile chatbot/api/sessions.py passes"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/sessions.py"
+  ],
+  "forbidden_changes": [
+    "modify room schema",
+    "alter foreign key constraints"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

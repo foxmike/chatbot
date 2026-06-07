@@ -1,0 +1,31 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "app-compile-check",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/visual/generation.py",
+          "chatbot/visual/appearance.py",
+          "chatbot/api/visual.py",
+          "chatbot/api/companions.py",
+          "chatbot/companions/companion.py"
+        ]
+      },
+      {
+        "name": "ui-type-check",
+        "command": [
+          "yarn",
+          "tsc",
+          "--noEmit",
+          "react_ui/src/components/CompanionInfoPanel.tsx",
+          "react_ui/src/components/CompanionEditor.tsx",
+          "react_ui/src/components/CompanionSelector.tsx",
+          "react_ui/src/App.tsx"
+        ]
+      }
+    ]
+  }
+}

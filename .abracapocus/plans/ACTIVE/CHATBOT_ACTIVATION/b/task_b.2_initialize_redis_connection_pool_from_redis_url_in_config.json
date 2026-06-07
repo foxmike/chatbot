@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "task_id": "b.2",
+  "phase": "b",
+  "title": "Initialize Redis connection pool from REDIS_URL in config",
+  "description": "Set up Redis connection pool using REDIS_URL environment variable. Before editing, inspect: existing config structure and environment management.",
+  "acceptance_criteria": [
+    "Redis connection pool initialized from REDIS_URL",
+    "Graceful failure handling when Redis unavailable",
+    "py_compile chatbot/config.py passes"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/config.py"
+  ],
+  "forbidden_changes": [
+    "modify Redis interface",
+    "add new environment variables"
+  ],
+  "task_timeout_seconds": 600,
+  "phase_id": "b",
+  "dependencies": []
+}

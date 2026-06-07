@@ -1,0 +1,14 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "redis_connection_check",
+        "command": [
+          "python",
+          "-c",
+          "\"import sys; from chatbot.config import redis_pool; sys.exit(0 if redis_pool else 1)\""
+        ]
+      }
+    ]
+  }
+}

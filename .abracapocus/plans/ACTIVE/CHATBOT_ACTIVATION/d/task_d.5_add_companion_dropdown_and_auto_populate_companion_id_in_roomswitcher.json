@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "task_id": "d.5",
+  "phase": "D",
+  "phase_id": "d",
+  "title": "Add companion dropdown and auto-populate companion_id in RoomSwitcher",
+  "description": "Replace text input with companion dropdown in RoomSwitcher. Auto-populate companion_id.\n\nBefore editing, inspect:\n- react_ui/src/components/RoomSwitcher.tsx (existing UI)\n- chatbot/api/companions.py (companion data structure)",
+  "acceptance_criteria": [
+    "RoomSwitcher displays companion dropdown",
+    "companion_id auto-populates on selection"
+  ],
+  "selected_backend": "antigravity_cli",
+  "model": "gemini-3.5-flash",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/components/RoomSwitcher.tsx"
+  ],
+  "forbidden_changes": [
+    "modify unrelated sidebar components",
+    "alter companion data format"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

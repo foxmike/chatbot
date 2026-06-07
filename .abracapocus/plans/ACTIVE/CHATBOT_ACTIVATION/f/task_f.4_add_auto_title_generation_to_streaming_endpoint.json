@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "task_id": "f.4",
+  "phase": "F",
+  "phase_id": "f",
+  "title": "Add auto-title generation to streaming endpoint",
+  "description": "Modify chatbot/api/streaming.py to generate conversation titles after first messages (same logic as f.3). Before editing, inspect: current streaming endpoint implementation.\n\nSync with chat.py implementation pattern but maintain streaming constraints.",
+  "acceptance_criteria": [
+    "chatbot/api/streaming.py generates conversation titles",
+    "python -m py_compile chatbot/api/streaming.py passes",
+    "Implementation matches f.3 logic"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/streaming.py"
+  ],
+  "forbidden_changes": [
+    "modify chatbot/api/chat.py implementation",
+    "change core logic from f.3"
+  ],
+  "dependencies": [
+    "f.3"
+  ],
+  "task_timeout_seconds": 900
+}

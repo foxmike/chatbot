@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "task_id": "f.2",
+  "phase": "F",
+  "phase_id": "f",
+  "title": "Remove or conditionalize create_all in app startup",
+  "description": "Modify chatbot/api/app.py to remove SQLAlchemy's create_all() call from application startup. Before editing, inspect: the current database initialization logic in chatbot/api/app.py.\n\nEnsure tables are only created via migrations by either:\n1. Removing the db.create_all() call entirely\n2. Making it conditional (e.g., based on an env var)\n\nAfter changes, import must still work.",
+  "acceptance_criteria": [
+    "chatbot/api/app.py no longer calls db.create_all() unconditionally at startup",
+    "python -m py_compile chatbot/api/app.py passes"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/app.py"
+  ],
+  "forbidden_changes": [
+    "modify database models",
+    "change migration files",
+    "modify files other than allowed_write_paths"
+  ],
+  "dependencies": [
+    "f.1"
+  ],
+  "task_timeout_seconds": 600
+}

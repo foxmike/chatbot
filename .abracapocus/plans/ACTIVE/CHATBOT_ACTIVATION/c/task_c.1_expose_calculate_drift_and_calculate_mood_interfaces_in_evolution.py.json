@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "task_id": "c.1",
+  "phase": "C",
+  "phase_id": "c",
+  "title": "Expose calculate_drift and calculate_mood interfaces in evolution.py",
+  "description": "Update chatbot/soul/evolution.py to expose public interfaces for identity drift and mood calculations.\n\nBefore editing, inspect:\n- current evolution.py implementation\n- IdentityStateModel and MoodState class signatures\n- Input/output conventions for pure functions",
+  "acceptance_criteria": [
+    "chatbot/soul/evolution.py defines calculate_drift(identity: IdentityStateModel, conversation: list[Message]) -> IdentityStateModel",
+    "chatbot/soul/evolution.py defines calculate_mood(identity: IdentityStateModel, conversation: list[Message]) -> MoodState",
+    "Functions are pure (no side effects, deterministic output for same input)",
+    "python -m py_compile chatbot/soul/evolution.py passes"
+  ],
+  "selected_backend": "antigravity_cli",
+  "model": "gemini-3.5-flash",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/soul/evolution.py"
+  ],
+  "forbidden_changes": [
+    "modify files outside chatbot/soul/",
+    "add third-party dependencies",
+    "introduce I/O operations"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

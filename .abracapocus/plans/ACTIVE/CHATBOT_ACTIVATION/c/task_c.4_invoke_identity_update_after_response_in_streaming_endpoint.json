@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "task_id": "c.4",
+  "phase": "C",
+  "phase_id": "c",
+  "title": "Invoke identity update after response in streaming endpoint",
+  "description": "Update chatbot/api/streaming.py to trigger turn pipeline updates for streaming responses (handle SSE event completion).\n\nBefore editing, inspect:\n- handle_stream_chat_request() termination workflow\n- Final message processing sequence\n- Response lifecycle hooks",
+  "acceptance_criteria": [
+    "streaming.py invokes TurnPipeline updates on SSE stream completion",
+    "Full conversation history is passed to evolution functions",
+    "Works with existing message chunking mechanism",
+    "python -m py_compile chatbot/api/streaming.py passes"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/streaming.py"
+  ],
+  "forbidden_changes": [
+    "modify chat.py implementation",
+    "change streaming protocol logic",
+    "introduce blocking calls"
+  ],
+  "dependencies": [
+    "c.2"
+  ],
+  "task_timeout_seconds": 900
+}

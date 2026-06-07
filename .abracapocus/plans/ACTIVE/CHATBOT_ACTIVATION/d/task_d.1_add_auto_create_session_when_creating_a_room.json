@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "task_id": "d.1",
+  "phase": "D",
+  "phase_id": "d",
+  "title": "Add auto-create session when creating a room",
+  "description": "Modify Room model to auto-create a new session when a room is created. Link session to room via foreign key.\n\nBefore editing, inspect:\n- chatbot/rooms/room.py (Room model implementation)\n- chatbot/api/sessions.py (session creation logic)",
+  "acceptance_criteria": [
+    "chatbot/rooms/room.py auto-creates session on room creation",
+    "python -m py_compile chatbot/rooms/room.py passes"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/rooms/room.py"
+  ],
+  "forbidden_changes": [
+    "modify unrelated models",
+    "alter session creation interface"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

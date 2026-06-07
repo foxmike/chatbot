@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "task_id": "b.7",
+  "phase": "b",
+  "title": "Configure consolidation worker with default provider and wire enqueue trigger",
+  "description": "Enable background memory consolidation and triggering. Before editing, inspect: worker implementation and conversation length tracking.",
+  "acceptance_criteria": [
+    "Consolidation worker uses default LLM provider",
+    "enqueue_consolidation() triggers after conversation threshold",
+    "py_compile chatbot/consolidation/worker.py passes"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/consolidation/worker.py",
+    "chatbot/perf/handlers.py"
+  ],
+  "forbidden_changes": [
+    "modify core memory logic",
+    "add new LLM providers"
+  ],
+  "task_timeout_seconds": 600,
+  "phase_id": "b",
+  "dependencies": []
+}

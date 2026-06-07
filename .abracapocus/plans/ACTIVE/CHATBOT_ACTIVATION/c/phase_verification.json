@@ -1,0 +1,13 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "end-to-end_identity_flow",
+        "command": [
+          "pytest",
+          "tests/test_identity_flow.py::test_identity_drift_after_chat"
+        ]
+      }
+    ]
+  }
+}

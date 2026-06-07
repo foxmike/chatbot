@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "task_id": "a.4",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Load companion profile and identity from DB in streaming endpoint",
+  "description": "Update chatbot/api/streaming.py to load companion profile and identity state from database and pass to turn assembly logic.\n\nBefore editing, inspect:\n- Streaming endpoint architecture\n- How session identifiers are handled",
+  "acceptance_criteria": [
+    "streaming.py passes character profile/identity to turn assembly",
+    "python -m py_compile chatbot/api/streaming.py passes",
+    "Existing streaming behavior remains unchanged"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/streaming.py"
+  ],
+  "forbidden_changes": [
+    "modify files outside chatbot/api/streaming.py",
+    "change existing chat behavior"
+  ],
+  "dependencies": [
+    "a.2"
+  ],
+  "task_timeout_seconds": 900
+}

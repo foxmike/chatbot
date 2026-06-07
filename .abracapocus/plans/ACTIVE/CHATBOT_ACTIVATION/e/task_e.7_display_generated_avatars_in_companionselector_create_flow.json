@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "task_id": "e.7",
+  "phase": "E",
+  "phase_id": "e",
+  "title": "Display generated avatars in CompanionSelector create flow",
+  "description": "Add avatar display to companion creation UI.\n\nBefore editing, inspect: react_ui/src/components/CompanionSelector.tsx",
+  "acceptance_criteria": [
+    "CompanionSelector shows avatars in create flow"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/components/CompanionSelector.tsx"
+  ],
+  "forbidden_changes": [
+    "modify existing selection logic",
+    "alter existing companion data flow"
+  ],
+  "dependencies": [
+    "e.6"
+  ],
+  "task_timeout_seconds": 900
+}

@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "task_id": "b.1",
+  "phase": "b",
+  "title": "Create async embedding generation and pgvector storage function",
+  "description": "Implement async embedding generation using pgvector storage. Before editing, inspect: existing message structure, vector database schema, and performance requirements.",
+  "acceptance_criteria": [
+    "Asynchronous generate_embedding() exists in chatbot/memory/embedding.py",
+    "Embeddings stored in pgvector with proper dimension metadata",
+    "py_compile chatbot/memory/embedding.py passes"
+  ],
+  "selected_backend": "antigravity_cli",
+  "model": "gemini-3.5-flash",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/memory/embedding.py"
+  ],
+  "forbidden_changes": [
+    "modify message schema",
+    "add new dependencies"
+  ],
+  "task_timeout_seconds": 600,
+  "phase_id": "b",
+  "dependencies": []
+}

@@ -1,0 +1,14 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "db-migration",
+        "command": [
+          "bash",
+          "-c",
+          "make reset-db && make migrate"
+        ]
+      }
+    ]
+  }
+}

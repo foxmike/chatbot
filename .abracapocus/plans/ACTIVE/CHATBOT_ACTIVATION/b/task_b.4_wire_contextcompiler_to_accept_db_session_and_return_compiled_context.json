@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "task_id": "b.4",
+  "phase": "b",
+  "title": "Wire ContextCompiler to accept db session and return compiled context",
+  "description": "Modify ContextCompiler to use database session for vector lookups. Before editing, inspect: current query logic and context window constraints.",
+  "acceptance_criteria": [
+    "ContextCompiler accepts active database session",
+    "Relevant memories retrieved within token limits",
+    "py_compile chatbot/memory/context_compiler.py passes"
+  ],
+  "selected_backend": "antigravity_cli",
+  "model": "gemini-3.5-flash",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/memory/context_compiler.py"
+  ],
+  "forbidden_changes": [
+    "modify embedding storage",
+    "add new vector databases"
+  ],
+  "task_timeout_seconds": 600,
+  "phase_id": "b",
+  "dependencies": []
+}

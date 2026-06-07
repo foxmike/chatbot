@@ -18,10 +18,26 @@
       "risk_notes": "chat.py and streaming.py are the two main request handlers; changes must preserve existing message persistence and streaming behavior. turn.py is a large shared file; edits must be surgical to _assemble_persona_prompt only.",
       "estimated_task_count": 4,
       "task_hints": [
-        {"title": "Update persona prompt assembler to accept character profile and identity state", "selected_backend": "antigravity_cli"},
-        {"title": "Wire character profile and identity state into turn.py prompt assembly", "selected_backend": "codex_cli"},
-        {"title": "Load companion profile and identity from DB in chat endpoint", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
-        {"title": "Load companion profile and identity from DB in streaming endpoint", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"}
+        {
+          "title": "Update persona prompt assembler to accept character profile and identity state",
+          "selected_backend": "antigravity_cli",
+          "model": "gemini-3.5-flash"
+        },
+        {
+          "title": "Wire character profile and identity state into turn.py prompt assembly",
+          "selected_backend": "codex_cli",
+          "model": "gpt-5.5"
+        },
+        {
+          "title": "Load companion profile and identity from DB in chat endpoint",
+          "selected_backend": "pi_cli",
+          "model": "openrouter/deepseek/deepseek-v4-pro"
+        },
+        {
+          "title": "Load companion profile and identity from DB in streaming endpoint",
+          "selected_backend": "pi_cli",
+          "model": "openrouter/deepseek/deepseek-v4-pro"
+        }
       ]
     },
     {
@@ -41,13 +57,41 @@
       "risk_notes": "chat.py and streaming.py modified again after phase A; phase ordering provides serialization. Redis connection must fail gracefully if Redis is unavailable. Embedding generation should not block the response.",
       "estimated_task_count": 7,
       "task_hints": [
-        {"title": "Create async embedding generation and pgvector storage function", "selected_backend": "antigravity_cli"},
-        {"title": "Initialize Redis connection pool from REDIS_URL in config", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
-        {"title": "Fix ExtractMemoryStep in turn.py to call embedding function", "selected_backend": "codex_cli"},
-        {"title": "Wire ContextCompiler to accept db session and return compiled context", "selected_backend": "antigravity_cli"},
-        {"title": "Add embedding generation and context compilation to chat endpoint", "selected_backend": "codex_cli"},
-        {"title": "Add embedding generation and context compilation to streaming endpoint", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
-        {"title": "Configure consolidation worker with default provider and wire enqueue trigger", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"}
+        {
+          "title": "Create async embedding generation and pgvector storage function",
+          "selected_backend": "antigravity_cli",
+          "model": "gemini-3.5-flash"
+        },
+        {
+          "title": "Initialize Redis connection pool from REDIS_URL in config",
+          "selected_backend": "pi_cli",
+          "model": "openrouter/deepseek/deepseek-v4-pro"
+        },
+        {
+          "title": "Fix ExtractMemoryStep in turn.py to call embedding function",
+          "selected_backend": "codex_cli",
+          "model": "gpt-5.5"
+        },
+        {
+          "title": "Wire ContextCompiler to accept db session and return compiled context",
+          "selected_backend": "antigravity_cli",
+          "model": "gemini-3.5-flash"
+        },
+        {
+          "title": "Add embedding generation and context compilation to chat endpoint",
+          "selected_backend": "codex_cli",
+          "model": "gpt-5.5"
+        },
+        {
+          "title": "Add embedding generation and context compilation to streaming endpoint",
+          "selected_backend": "pi_cli",
+          "model": "openrouter/deepseek/deepseek-v4-pro"
+        },
+        {
+          "title": "Configure consolidation worker with default provider and wire enqueue trigger",
+          "selected_backend": "pi_cli",
+          "model": "openrouter/deepseek/deepseek-v4-pro"
+        }
       ]
     },
     {
@@ -63,10 +107,26 @@
       "risk_notes": "turn.py is modified again; phase ordering serializes. Evolution calculations should be lightweight and not block the response.",
       "estimated_task_count": 4,
       "task_hints": [
-        {"title": "Expose calculate_drift and calculate_mood interfaces in evolution.py", "selected_backend": "antigravity_cli"},
-        {"title": "Add post-response identity update step to turn pipeline", "selected_backend": "codex_cli"},
-        {"title": "Invoke identity update after response in chat endpoint", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
-        {"title": "Invoke identity update after response in streaming endpoint", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"}
+        {
+          "title": "Expose calculate_drift and calculate_mood interfaces in evolution.py",
+          "selected_backend": "antigravity_cli",
+          "model": "gemini-3.5-flash"
+        },
+        {
+          "title": "Add post-response identity update step to turn pipeline",
+          "selected_backend": "codex_cli",
+          "model": "gpt-5.5"
+        },
+        {
+          "title": "Invoke identity update after response in chat endpoint",
+          "selected_backend": "pi_cli",
+          "model": "openrouter/deepseek/deepseek-v4-pro"
+        },
+        {
+          "title": "Invoke identity update after response in streaming endpoint",
+          "selected_backend": "pi_cli",
+          "model": "openrouter/deepseek/deepseek-v4-pro"
+        }
       ]
     },
     {
@@ -89,16 +149,56 @@
       "risk_notes": "This phase touches many shared files. chat.py, streaming.py, turn.py, App.tsx, and client.ts are all fan-in points that must be serialized. Phase ordering after A/B/C ensures prior changes are stable.",
       "estimated_task_count": 10,
       "task_hints": [
-        {"title": "Add auto-create session when creating a room", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
-        {"title": "Add room_id foreign key support to sessions", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
-        {"title": "Create ScenePanel component for roleplay room scene management", "selected_backend": "antigravity_cli"},
-        {"title": "Wire room-session linking and room-type prompt templates in rooms API", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
-        {"title": "Add companion dropdown and auto-populate companion_id in RoomSwitcher", "selected_backend": "antigravity_cli"},
-        {"title": "Add room message filtering and room-type prompt injection to chat endpoint", "selected_backend": "codex_cli"},
-        {"title": "Wire RoomContextStep scene injection into system prompt in turn.py", "selected_backend": "codex_cli"},
-        {"title": "Add room message filtering to streaming endpoint", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
-        {"title": "Add room-session API calls to frontend client", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
-        {"title": "Convert sidebar to rooms and mount ScenePanel in App.tsx", "selected_backend": "codex_cli"}
+        {
+          "title": "Add auto-create session when creating a room",
+          "selected_backend": "pi_cli",
+          "model": "openrouter/deepseek/deepseek-v4-pro"
+        },
+        {
+          "title": "Add room_id foreign key support to sessions",
+          "selected_backend": "pi_cli",
+          "model": "openrouter/deepseek/deepseek-v4-pro"
+        },
+        {
+          "title": "Create ScenePanel component for roleplay room scene management",
+          "selected_backend": "antigravity_cli",
+          "model": "gemini-3.5-flash"
+        },
+        {
+          "title": "Wire room-session linking and room-type prompt templates in rooms API",
+          "selected_backend": "pi_cli",
+          "model": "openrouter/deepseek/deepseek-v4-pro"
+        },
+        {
+          "title": "Add companion dropdown and auto-populate companion_id in RoomSwitcher",
+          "selected_backend": "antigravity_cli",
+          "model": "gemini-3.5-flash"
+        },
+        {
+          "title": "Add room message filtering and room-type prompt injection to chat endpoint",
+          "selected_backend": "codex_cli",
+          "model": "gpt-5.5"
+        },
+        {
+          "title": "Wire RoomContextStep scene injection into system prompt in turn.py",
+          "selected_backend": "codex_cli",
+          "model": "gpt-5.5"
+        },
+        {
+          "title": "Add room message filtering to streaming endpoint",
+          "selected_backend": "pi_cli",
+          "model": "openrouter/deepseek/deepseek-v4-pro"
+        },
+        {
+          "title": "Add room-session API calls to frontend client",
+          "selected_backend": "pi_cli",
+          "model": "openrouter/deepseek/deepseek-v4-pro"
+        },
+        {
+          "title": "Convert sidebar to rooms and mount ScenePanel in App.tsx",
+          "selected_backend": "codex_cli",
+          "model": "gpt-5.5"
+        }
       ]
     },
     {
@@ -120,14 +220,46 @@
       "risk_notes": "App.tsx and client.ts are fan-in files modified in phase D; phase ordering serializes. Image generation calls OpenRouter and may be slow; avatar generation should be async and not block companion creation.",
       "estimated_task_count": 8,
       "task_hints": [
-        {"title": "Wire OpenRouter image generation provider in generation.py", "selected_backend": "codex_cli"},
-        {"title": "Switch appearance system to DB-backed storage", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
-        {"title": "Create CompanionInfoPanel with avatar and profile display", "selected_backend": "antigravity_cli"},
-        {"title": "Update visual API endpoints to use DB-backed appearance", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
-        {"title": "Add avatar upload and regenerate button to CompanionEditor", "selected_backend": "antigravity_cli"},
-        {"title": "Auto-generate avatar on companion creation in companions API", "selected_backend": "codex_cli"},
-        {"title": "Display generated avatars in CompanionSelector create flow", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
-        {"title": "Mount CompanionInfoPanel and display avatars next to messages in App.tsx", "selected_backend": "codex_cli"}
+        {
+          "title": "Wire OpenRouter image generation provider in generation.py",
+          "selected_backend": "codex_cli",
+          "model": "gpt-5.5"
+        },
+        {
+          "title": "Switch appearance system to DB-backed storage",
+          "selected_backend": "pi_cli",
+          "model": "openrouter/deepseek/deepseek-v4-pro"
+        },
+        {
+          "title": "Create CompanionInfoPanel with avatar and profile display",
+          "selected_backend": "antigravity_cli",
+          "model": "gemini-3.5-flash"
+        },
+        {
+          "title": "Update visual API endpoints to use DB-backed appearance",
+          "selected_backend": "pi_cli",
+          "model": "openrouter/deepseek/deepseek-v4-pro"
+        },
+        {
+          "title": "Add avatar upload and regenerate button to CompanionEditor",
+          "selected_backend": "antigravity_cli",
+          "model": "gemini-3.5-flash"
+        },
+        {
+          "title": "Auto-generate avatar on companion creation in companions API",
+          "selected_backend": "codex_cli",
+          "model": "gpt-5.5"
+        },
+        {
+          "title": "Display generated avatars in CompanionSelector create flow",
+          "selected_backend": "pi_cli",
+          "model": "openrouter/deepseek/deepseek-v4-pro"
+        },
+        {
+          "title": "Mount CompanionInfoPanel and display avatars next to messages in App.tsx",
+          "selected_backend": "codex_cli",
+          "model": "gpt-5.5"
+        }
       ]
     },
     {
@@ -143,14 +275,34 @@
         ".env.example"
       ],
       "async_notes": "Wave 1: clean alembic/versions/ and generate initial migration. Update chatbot/api/app.py (remove create_all). Update chatbot/voice/tts.py and chatbot/voice/stt.py (wire API keys). Update .env.example. All disjoint. Wave 2: update chatbot/api/chat.py (auto-title generation). Wave 3: update chatbot/api/streaming.py (auto-title, serialized after chat.py).",
-      "risk_notes": "Migration consolidation is destructive — existing databases need make reset-db. Voice API keys may not be available; adapters should fail clearly when unconfigured.",
+      "risk_notes": "Migration consolidation is destructive \u2014 existing databases need make reset-db. Voice API keys may not be available; adapters should fail clearly when unconfigured.",
       "estimated_task_count": 5,
       "task_hints": [
-        {"title": "Delete broken migrations and generate clean initial migration", "selected_backend": "antigravity_cli"},
-        {"title": "Remove or conditionalize create_all in app startup", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
-        {"title": "Add auto-title generation to chat endpoint after first messages", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
-        {"title": "Add auto-title generation to streaming endpoint", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
-        {"title": "Wire TTS and STT API key env vars into voice adapters", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"}
+        {
+          "title": "Delete broken migrations and generate clean initial migration",
+          "selected_backend": "antigravity_cli",
+          "model": "gemini-3.5-flash"
+        },
+        {
+          "title": "Remove or conditionalize create_all in app startup",
+          "selected_backend": "pi_cli",
+          "model": "openrouter/deepseek/deepseek-v4-pro"
+        },
+        {
+          "title": "Add auto-title generation to chat endpoint after first messages",
+          "selected_backend": "pi_cli",
+          "model": "openrouter/deepseek/deepseek-v4-pro"
+        },
+        {
+          "title": "Add auto-title generation to streaming endpoint",
+          "selected_backend": "pi_cli",
+          "model": "openrouter/deepseek/deepseek-v4-pro"
+        },
+        {
+          "title": "Wire TTS and STT API key env vars into voice adapters",
+          "selected_backend": "pi_cli",
+          "model": "openrouter/deepseek/deepseek-v4-pro"
+        }
       ]
     }
   ]

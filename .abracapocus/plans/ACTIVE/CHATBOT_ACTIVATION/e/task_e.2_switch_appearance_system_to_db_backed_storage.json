@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "task_id": "e.2",
+  "phase": "E",
+  "phase_id": "e",
+  "title": "Switch appearance system to DB-backed storage",
+  "description": "Modify chatbot/visual/appearance.py to use database storage for avatar metadata.\n\nBefore editing, inspect: chatbot/visual/appearance.py and DB schema",
+  "acceptance_criteria": [
+    "chatbot/visual/appearance.py uses database for avatar storage",
+    "python -m py_compile chatbot/visual/appearance.py passes"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/visual/appearance.py"
+  ],
+  "forbidden_changes": [
+    "modify database schema directly",
+    "change external interfaces"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "task_id": "a.3",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Load companion profile and identity from DB in chat endpoint",
+  "description": "Update chatbot/api/chat.py to load companion profile and identity state from database and pass to turn assembly logic.\n\nBefore editing, inspect:\n- Database access patterns in chat.py\n- How session context is managed",
+  "acceptance_criteria": [
+    "chat.py passes character profile/identity to turn assembly",
+    "python -m py_compile chatbot/api/chat.py passes",
+    "Existing message persistence behavior remains unchanged"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/chat.py"
+  ],
+  "forbidden_changes": [
+    "modify files outside chatbot/api/chat.py",
+    "change existing streaming behavior"
+  ],
+  "dependencies": [
+    "a.2"
+  ],
+  "task_timeout_seconds": 900
+}

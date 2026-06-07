@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "task_id": "b.3",
+  "phase": "b",
+  "title": "Fix ExtractMemoryStep in turn.py to call embedding function",
+  "description": "Update ExtractMemoryStep to invoke generate_embedding(). Before editing, inspect: existing turn pipeline steps and message processing flow.",
+  "acceptance_criteria": [
+    "ExtractMemoryStep calls generate_embedding() for messages",
+    "Embedding generation doesn't block response pipeline",
+    "py_compile chatbot/core/turn.py passes"
+  ],
+  "selected_backend": "codex_cli",
+  "model": "gpt-5.5",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/core/turn.py"
+  ],
+  "forbidden_changes": [
+    "modify unrelated steps",
+    "change message schema"
+  ],
+  "task_timeout_seconds": 600,
+  "phase_id": "b",
+  "dependencies": []
+}

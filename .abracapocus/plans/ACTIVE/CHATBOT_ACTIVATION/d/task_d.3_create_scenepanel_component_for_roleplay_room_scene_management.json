@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "task_id": "d.3",
+  "phase": "D",
+  "phase_id": "d",
+  "title": "Create ScenePanel component for roleplay room scene management",
+  "description": "Implement ScenePanel component for creating, editing, and selecting roleplay scenes.\n\nBefore editing, inspect:\n- react_ui/src/components/ScenePanel.tsx (new file creation)\n- chatbot/api/rooms.py (room type definitions)",
+  "acceptance_criteria": [
+    "react_ui/src/components/ScenePanel.tsx exists",
+    "Component exports React component with scene management UI"
+  ],
+  "selected_backend": "antigravity_cli",
+  "model": "gemini-3.5-flash",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/components/ScenePanel.tsx"
+  ],
+  "forbidden_changes": [
+    "modify unrelated UI components",
+    "introduce new dependencies"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

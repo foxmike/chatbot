@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "task_id": "d.4",
+  "phase": "D",
+  "phase_id": "d",
+  "title": "Wire room-session linking and room-type prompt templates in rooms API",
+  "description": "Update rooms API to include room-type prompt templates and session linking logic.\n\nBefore editing, inspect:\n- chatbot/api/rooms.py (existing rooms API)\n- chatbot/prompts/templates.py (prompt templates)",
+  "acceptance_criteria": [
+    "chatbot/api/rooms.py implements room-type prompt templates",
+    "room-session linking functions work",
+    "python -m py_compile chatbot/api/rooms.py passes"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/rooms.py"
+  ],
+  "forbidden_changes": [
+    "modify unrelated API endpoints",
+    "alter core prompt format"
+  ],
+  "dependencies": [
+    "d.1",
+    "d.2"
+  ],
+  "task_timeout_seconds": 900
+}

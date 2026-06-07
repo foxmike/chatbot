@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "task_id": "a.1",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Update persona prompt assembler to accept character profile and identity state",
+  "description": "Modify chatbot/soul/persona_prompt.py. Add parameters to the persona prompt assembler function to accept CharacterProfile and IdentityState objects.\n\nBefore editing, inspect:\n- Current function signature in persona_prompt.py\n- How character profiles are structured in the system",
+  "acceptance_criteria": [
+    "chatbot/soul/persona_prompt.py accepts CharacterProfile and IdentityState arguments",
+    "python -m py_compile chatbot/soul/persona_prompt.py passes"
+  ],
+  "selected_backend": "antigravity_cli",
+  "model": "gemini-3.5-flash",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/soul/persona_prompt.py"
+  ],
+  "forbidden_changes": [
+    "modify files outside chatbot/soul/persona_prompt.py",
+    "remove existing functionality in persona_prompt.py"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

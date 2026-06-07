@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "task_id": "d.10",
+  "phase": "D",
+  "phase_id": "d",
+  "title": "Convert sidebar to rooms and mount ScenePanel in App.tsx",
+  "description": "Convert left sidebar from sessions to rooms. Mount ScenePanel for roleplay rooms.\n\nBefore editing, inspect:\n- react_ui/src/App.tsx (main app layout)\n- react_ui/src/components/ScenePanel.tsx (scene panel UI)",
+  "acceptance_criteria": [
+    "App.tsx displays rooms instead of sessions",
+    "ScenePanel mounts for roleplay rooms",
+    "Active scene status visible"
+  ],
+  "selected_backend": "codex_cli",
+  "model": "gpt-5.5",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/App.tsx",
+    "react_ui/src/components/ChatInput.tsx"
+  ],
+  "forbidden_changes": [
+    "modify core routing logic",
+    "alter companion data structure"
+  ],
+  "dependencies": [
+    "d.3",
+    "d.9"
+  ],
+  "task_timeout_seconds": 900
+}

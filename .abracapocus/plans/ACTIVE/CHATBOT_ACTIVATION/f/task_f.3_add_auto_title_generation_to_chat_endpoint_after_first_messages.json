@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "task_id": "f.3",
+  "phase": "F",
+  "phase_id": "f",
+  "title": "Add auto-title generation to chat endpoint after first messages",
+  "description": "Modify chatbot/api/chat.py to automatically generate conversation titles using the LLM after the first messages are received. Before editing, inspect: current chat endpoint implementation and conversation ID handling.\n\n1. Add hook after initial message(s)\n2. Use LLM to generate short title (2-5 words) from messages\n3. Update conversation title in storage",
+  "acceptance_criteria": [
+    "chatbot/api/chat.py generates conversation titles after first messages",
+    "Title generation does not block main chat response",
+    "python -m py_compile chatbot/api/chat.py passes"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/chat.py"
+  ],
+  "forbidden_changes": [
+    "modify database schema",
+    "change migration files",
+    "modify unrelated chat logic"
+  ],
+  "dependencies": [
+    "f.2"
+  ],
+  "task_timeout_seconds": 1200
+}

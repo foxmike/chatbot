@@ -32,9 +32,17 @@ except ImportError:
     add_timeline_entry = None  # type: ignore[assignment]
 
 try:
-    from chatbot.db.models import BotMoodLog, Session, UserStateLog
+    from chatbot.db.models import (
+        BotMoodLog,
+        CharacterProfileModel,
+        IdentityStateModel,
+        Session,
+        UserStateLog,
+    )
 except ImportError:
     BotMoodLog = None  # type: ignore[assignment]
+    CharacterProfileModel = None  # type: ignore[assignment]
+    IdentityStateModel = None  # type: ignore[assignment]
     Session = None  # type: ignore[assignment]
     UserStateLog = None  # type: ignore[assignment]
 
@@ -74,6 +82,16 @@ try:
     from chatbot.soul.persona_prompt import PersonaPromptAssembler
 except ImportError:
     PersonaPromptAssembler = None  # type: ignore[assignment]
+
+try:
+    from chatbot.soul.character import CharacterProfile
+except ImportError:
+    CharacterProfile = None  # type: ignore[assignment]
+
+try:
+    from chatbot.soul.evolution import IdentityState
+except ImportError:
+    IdentityState = None  # type: ignore[assignment]
 
 try:
     from chatbot.soul.mood import MoodEngine, MoodState
@@ -473,27 +491,50 @@ class CompileContextStep(TurnStep):
         mood: Any | None = None,
         mode: Any | None = None,
     ) -> str:
+        character_profile, identity_state = await _persona_identity_inputs(ctx)
+        uses_identity_inputs = character_profile is not None or identity_state is not None
+
         if self._persona_cache is None:
-            return _assemble_persona_prompt(self._assembler, ctx.persona, mood=mood, mode=mode)
+            return _assemble_persona_prompt(
+                self._assembler,
+                ctx.persona,
+                mood=mood,
+                mode=mode,
+                character_profile=character_profile,
+                identity_state=identity_state,
+            )
 
         user_id = _persona_cache_user_id(ctx)
         companion_id = _persona_cache_companion_id(ctx)
         if user_id is None:
-            return _assemble_persona_prompt(self._assembler, ctx.persona, mood=mood, mode=mode)
+            return _assemble_persona_prompt(
+                self._assembler,
+                ctx.persona,
+                mood=mood,
+                mode=mode,
+                character_profile=character_profile,
+                identity_state=identity_state,
+            )
 
-        cached_prompt = await self._persona_cache.get(user_id, companion_id)
-        if cached_prompt is not None:
-            ctx.metadata["persona_prompt_cache_hit"] = True
-            return cached_prompt
+        if not uses_identity_inputs:
+            cached_prompt = await self._persona_cache.get(user_id, companion_id)
+            if cached_prompt is not None:
+                ctx.metadata["persona_prompt_cache_hit"] = True
+                return cached_prompt
 
         persona_prompt = _assemble_persona_prompt(
             self._assembler,
             ctx.persona,
             mood=mood,
             mode=mode,
+            character_profile=character_profile,
+            identity_state=identity_state,
         )
-        await self._persona_cache.set(user_id, companion_id, persona_prompt)
-        ctx.metadata["persona_prompt_cache_hit"] = False
+        if uses_identity_inputs:
+            ctx.metadata["persona_prompt_cache_hit"] = False
+        else:
+            await self._persona_cache.set(user_id, companion_id, persona_prompt)
+            ctx.metadata["persona_prompt_cache_hit"] = False
         return persona_prompt
 
 
@@ -2008,22 +2049,260 @@ def _store_retrieved_memories(ctx: TurnContext) -> None:
     ctx.metadata["retrieved_memory"] = memories
 
 
+async def _persona_identity_inputs(ctx: TurnContext) -> tuple[Any | None, Any | None]:
+    character_profile = _current_character_profile(ctx)
+    identity_state = _current_identity_state(ctx)
+
+    db_session = _db_session(ctx)
+    session_id = _coerce_uuid(ctx.session_id)
+    if db_session is not None and session_id is not None:
+        if character_profile is None:
+            character_profile = await _load_character_profile(db_session, session_id)
+        if identity_state is None:
+            identity_state = await _load_identity_state(db_session, session_id)
+
+    if character_profile is not None:
+        ctx.metadata["character_profile"] = character_profile
+    if identity_state is not None:
+        ctx.metadata["identity_state"] = identity_state
+    return character_profile, identity_state
+
+
+def _current_character_profile(ctx: TurnContext) -> Any | None:
+    for value in (
+        _first_metadata_value(
+            ctx,
+            "character_profile",
+            "current_character_profile",
+            "persona_character_profile",
+            "character_profile_model",
+        ),
+        _read_session_field(ctx, "character_profile"),
+        _read_session_field(ctx, "character_profiles"),
+    ):
+        profile = _coerce_character_profile(value)
+        if profile is not None:
+            return profile
+    return None
+
+
+def _current_identity_state(ctx: TurnContext) -> Any | None:
+    for value in (
+        _first_metadata_value(
+            ctx,
+            "identity_state",
+            "current_identity_state",
+            "persona_identity_state",
+            "identity_state_model",
+        ),
+        _read_session_field(ctx, "identity_state"),
+        _read_session_field(ctx, "identity_states"),
+    ):
+        state = _coerce_identity_state(value)
+        if state is not None:
+            return state
+    return None
+
+
+def _coerce_character_profile(value: Any) -> Any | None:
+    if value is None:
+        return None
+    if CharacterProfile is not None and isinstance(value, CharacterProfile):
+        return value
+    if CharacterProfileModel is not None and isinstance(value, CharacterProfileModel):
+        return _character_profile_from_model(value)
+    if isinstance(value, Mapping):
+        return _character_profile_from_mapping(value)
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        for item in reversed(list(value)):
+            profile = _coerce_character_profile(item)
+            if profile is not None:
+                return profile
+        return None
+    if all(
+        hasattr(value, field)
+        for field in (
+            "name",
+            "backstory",
+            "personality_sliders",
+            "humor_style",
+            "communication_style",
+            "favorite_topics",
+        )
+    ):
+        return _character_profile_from_model(value)
+    return None
+
+
+def _coerce_identity_state(value: Any) -> Any | None:
+    if value is None:
+        return None
+    if IdentityState is not None and isinstance(value, IdentityState):
+        return value
+    if IdentityStateModel is not None and isinstance(value, IdentityStateModel):
+        return _identity_state_from_model(value)
+    if isinstance(value, Mapping):
+        return _identity_state_from_mapping(value)
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        for item in reversed(list(value)):
+            state = _coerce_identity_state(item)
+            if state is not None:
+                return state
+        return None
+    if all(hasattr(value, field) for field in ("fixed", "slow", "mood")):
+        return _identity_state_from_model(value)
+    return None
+
+
+def _character_profile_from_model(model: Any) -> Any | None:
+    if CharacterProfile is None:
+        return None
+    try:
+        return CharacterProfile(
+            name=getattr(model, "name"),
+            backstory=getattr(model, "backstory"),
+            personality_sliders=dict(getattr(model, "personality_sliders")),
+            humor_style=getattr(model, "humor_style"),
+            communication_style=getattr(model, "communication_style"),
+            favorite_topics=list(getattr(model, "favorite_topics")),
+        )
+    except Exception:
+        logger.warning("Character profile conversion failed", exc_info=True)
+        return None
+
+
+def _character_profile_from_mapping(value: Mapping[str, Any]) -> Any | None:
+    if CharacterProfile is None:
+        return None
+    try:
+        defaults = CharacterProfile.defaults()
+        return CharacterProfile(
+            name=str(value.get("name", defaults.name)),
+            backstory=str(value.get("backstory", defaults.backstory)),
+            personality_sliders=dict(
+                value.get("personality_sliders", defaults.personality_sliders)
+            ),
+            humor_style=str(value.get("humor_style", defaults.humor_style)),
+            communication_style=str(
+                value.get("communication_style", defaults.communication_style)
+            ),
+            favorite_topics=list(value.get("favorite_topics", defaults.favorite_topics)),
+        )
+    except Exception:
+        logger.warning("Character profile mapping conversion failed", exc_info=True)
+        return None
+
+
+def _identity_state_from_model(model: Any) -> Any | None:
+    if IdentityState is None:
+        return None
+    try:
+        return IdentityState(
+            fixed=dict(getattr(model, "fixed")),
+            slow=dict(getattr(model, "slow")),
+            mood=dict(getattr(model, "mood")),
+        )
+    except Exception:
+        logger.warning("Identity state conversion failed", exc_info=True)
+        return None
+
+
+def _identity_state_from_mapping(value: Mapping[str, Any]) -> Any | None:
+    if IdentityState is None:
+        return None
+    try:
+        defaults = IdentityState.defaults()
+        return IdentityState(
+            fixed=dict(value.get("fixed", defaults.fixed)),
+            slow=dict(value.get("slow", defaults.slow)),
+            mood=dict(value.get("mood", defaults.mood)),
+        )
+    except Exception:
+        logger.warning("Identity state mapping conversion failed", exc_info=True)
+        return None
+
+
+async def _load_character_profile(db_session: Any, session_id: uuid.UUID) -> Any | None:
+    if CharacterProfileModel is None:
+        return None
+    try:
+        import sqlalchemy as sa
+
+        result = await _maybe_await(
+            db_session.execute(
+                sa.select(CharacterProfileModel)
+                .where(CharacterProfileModel.session_id == session_id)
+                .order_by(
+                    CharacterProfileModel.updated_at.desc(),
+                    CharacterProfileModel.created_at.desc(),
+                )
+                .limit(1)
+            )
+        )
+        scalar = getattr(result, "scalar_one_or_none", None)
+        if callable(scalar):
+            return _coerce_character_profile(scalar())
+    except Exception:
+        logger.warning("Character profile DB load failed", exc_info=True)
+    return None
+
+
+async def _load_identity_state(db_session: Any, session_id: uuid.UUID) -> Any | None:
+    if IdentityStateModel is None:
+        return None
+    try:
+        import sqlalchemy as sa
+
+        result = await _maybe_await(
+            db_session.execute(
+                sa.select(IdentityStateModel)
+                .where(IdentityStateModel.session_id == session_id)
+                .order_by(IdentityStateModel.last_updated.desc())
+                .limit(1)
+            )
+        )
+        scalar = getattr(result, "scalar_one_or_none", None)
+        if callable(scalar):
+            return _coerce_identity_state(scalar())
+    except Exception:
+        logger.warning("Identity state DB load failed", exc_info=True)
+    return None
+
+
 def _assemble_persona_prompt(
     assembler: Any | None,
     persona: dict[str, Any],
     *,
     mood: Any | None = None,
     mode: Any | None = None,
+    character_profile: Any | None = None,
+    identity_state: Any | None = None,
 ) -> str:
     if assembler is None:
         logger.warning("Persona prompt assembler is unavailable; using fallback persona")
         return "You are a helpful, neutral assistant. Respond clearly and accurately."
 
     try:
-        return str(assembler.assemble(persona, mood=mood, mode=mode))
+        return str(
+            assembler.assemble(
+                persona,
+                mood=mood,
+                mode=mode,
+                character_profile=character_profile,
+                identity_state=identity_state,
+            )
+        )
     except TypeError:
         try:
-            return str(assembler.assemble(persona))
+            return str(assembler.assemble(persona, mood=mood, mode=mode))
+        except TypeError:
+            try:
+                return str(assembler.assemble(persona))
+            except Exception:
+                logger.warning(
+                    "Persona prompt assembly failed; using fallback persona",
+                    exc_info=True,
+                )
         except Exception:
             logger.warning(
                 "Persona prompt assembly failed; using fallback persona",

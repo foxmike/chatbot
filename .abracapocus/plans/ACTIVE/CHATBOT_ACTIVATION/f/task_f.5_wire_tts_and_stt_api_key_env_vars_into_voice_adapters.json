@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "task_id": "f.5",
+  "phase": "F",
+  "phase_id": "f",
+  "title": "Wire TTS and STT API key env vars into voice adapters",
+  "description": "Update TTS and STT adapters to use TTS_API_KEY/STT_API_KEY environment variables. Before editing, inspect: current TTS/STT implementations in chatbot/voice.\n\n1. Add environment variable loading to chatbot/voice/tts.py and chatbot/voice/stt.py\n2. Update .env.example with new vars\n3. Ensure clear error if keys missing",
+  "acceptance_criteria": [
+    "chatbot/voice/tts.py uses TTS_API_KEY environment variable",
+    "chatbot/voice/stt.py uses STT_API_KEY environment variable",
+    ".env.example contains TTS_API_KEY and STT_API_KEY placeholders",
+    "TTS/STT modules raise clear error when keys not set",
+    "python -m py_compile chatbot/voice/tts.py passes",
+    "python -m py_compile chatbot/voice/stt.py passes"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/voice/tts.py",
+    "chatbot/voice/stt.py",
+    ".env.example"
+  ],
+  "forbidden_changes": [
+    "modify voice API contracts/adapters",
+    "introduce new dependencies"
+  ],
+  "dependencies": [
+    "f.1"
+  ],
+  "task_timeout_seconds": 600
+}

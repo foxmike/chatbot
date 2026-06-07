@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "task_id": "e.3",
+  "phase": "E",
+  "phase_id": "e",
+  "title": "Create CompanionInfoPanel with avatar and profile display",
+  "description": "Implement CompanionInfoPanel.tsx that displays avatar and companion profile info.\n\nBefore editing, inspect: existing UI components for styling patterns",
+  "acceptance_criteria": [
+    "react_ui/src/components/CompanionInfoPanel.tsx exists",
+    "Component shows avatar, name, description and personality traits"
+  ],
+  "selected_backend": "antigravity_cli",
+  "model": "gemini-3.5-flash",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/components/CompanionInfoPanel.tsx"
+  ],
+  "forbidden_changes": [
+    "modify existing components except allowed files",
+    "add external dependencies"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

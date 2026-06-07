@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "task_id": "d.7",
+  "phase": "D",
+  "phase_id": "d",
+  "title": "Wire RoomContextStep scene injection into system prompt in turn.py",
+  "description": "Integrate scene injection into turn processing pipeline. Add RoomContextStep.\n\nBefore editing, inspect:\n- chatbot/core/turn.py (turn processing pipeline)\n- chatbot/core/steps/context.py (existing context steps)",
+  "acceptance_criteria": [
+    "RoomContextStep added to turn pipeline",
+    "Scene info injected into roleplay chats",
+    "python -m py_compile chatbot/core/turn.py passes"
+  ],
+  "selected_backend": "codex_cli",
+  "model": "gpt-5.5",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/core/turn.py"
+  ],
+  "forbidden_changes": [
+    "modify unrelated processing steps",
+    "alter scene data format"
+  ],
+  "dependencies": [
+    "d.6"
+  ],
+  "task_timeout_seconds": 900
+}

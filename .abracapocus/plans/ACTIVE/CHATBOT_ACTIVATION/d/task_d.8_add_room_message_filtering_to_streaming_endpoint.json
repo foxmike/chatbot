@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "task_id": "d.8",
+  "phase": "D",
+  "phase_id": "d",
+  "title": "Add room message filtering to streaming endpoint",
+  "description": "Add room-based filtering to streaming message endpoint.\n\nBefore editing, inspect:\n- chatbot/api/streaming.py (streaming implementation)\n- chatbot/api/rooms.py (room filtering logic)",
+  "acceptance_criteria": [
+    "chatbot/api/streaming.py filters messages by room_id",
+    "python -m py_compile chatbot/api/streaming.py passes"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/streaming.py"
+  ],
+  "forbidden_changes": [
+    "modify chat endpoint logic",
+    "alter database queries"
+  ],
+  "dependencies": [
+    "d.6"
+  ],
+  "task_timeout_seconds": 900
+}

@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "task_id": "e.1",
+  "phase": "E",
+  "phase_id": "e",
+  "title": "Wire OpenRouter image generation provider in generation.py",
+  "description": "Implement OpenRouter API calls in chatbot/visual/generation.py for avatar generation.\n\nBefore editing, inspect: chatbot/visual/generation.py to understand existing interfaces",
+  "acceptance_criteria": [
+    "chatbot/visual/generation.py contains OpenRouter API integration",
+    "python -m py_compile chatbot/visual/generation.py passes"
+  ],
+  "selected_backend": "codex_cli",
+  "model": "gpt-5.5",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/visual/generation.py"
+  ],
+  "forbidden_changes": [
+    "modify files outside allowed_write_paths",
+    "change existing function signatures"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

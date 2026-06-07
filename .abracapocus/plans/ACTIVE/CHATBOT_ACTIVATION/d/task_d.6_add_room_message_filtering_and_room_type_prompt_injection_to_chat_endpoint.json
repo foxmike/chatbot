@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "task_id": "d.6",
+  "phase": "D",
+  "phase_id": "d",
+  "title": "Add room message filtering and room-type prompt injection to chat endpoint",
+  "description": "Update chat endpoint to filter messages by room and inject room-type prompts.\n\nBefore editing, inspect:\n- chatbot/api/chat.py (chat endpoint implementation)\n- chatbot/api/rooms.py (room types)",
+  "acceptance_criteria": [
+    "chatbot/api/chat.py filters messages by room_id",
+    "Room-type prompts injected into system messages",
+    "python -m py_compile chatbot/api/chat.py passes"
+  ],
+  "selected_backend": "codex_cli",
+  "model": "gpt-5.5",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/chat.py"
+  ],
+  "forbidden_changes": [
+    "modify message database schema",
+    "alter streaming endpoints"
+  ],
+  "dependencies": [
+    "d.4"
+  ],
+  "task_timeout_seconds": 900
+}

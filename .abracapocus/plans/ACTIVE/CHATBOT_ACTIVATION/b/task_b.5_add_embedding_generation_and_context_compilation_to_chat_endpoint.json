@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "task_id": "b.5",
+  "phase": "b",
+  "title": "Add embedding generation and context compilation to chat endpoint",
+  "description": "Integrate memory workflow into chat API. Before editing, inspect: main request/response flow and context window management.",
+  "acceptance_criteria": [
+    "Embedding generation and memory retrieval occur before LLM call",
+    "Compiled context included in LLM prompt",
+    "py_compile chatbot/api/chat.py passes"
+  ],
+  "selected_backend": "codex_cli",
+  "model": "gpt-5.5",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/chat.py"
+  ],
+  "forbidden_changes": [
+    "modify streaming logic",
+    "change rate limiting"
+  ],
+  "task_timeout_seconds": 600,
+  "phase_id": "b",
+  "dependencies": []
+}

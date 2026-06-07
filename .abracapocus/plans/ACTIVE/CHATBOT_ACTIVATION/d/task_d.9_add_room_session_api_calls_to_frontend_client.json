@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "task_id": "d.9",
+  "phase": "D",
+  "phase_id": "d",
+  "title": "Add room-session API calls to frontend client",
+  "description": "Implement client-side API calls for room-session management.\n\nBefore editing, inspect:\n- react_ui/src/api/client.ts (API client implementation)\n- chatbot/api/rooms.py (API endpoints)",
+  "acceptance_criteria": [
+    "client.ts includes createRoomSession API function",
+    "Room switching works in UI",
+    "File passes project's TypeScript type checker"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "react_ui/src/api/client.ts"
+  ],
+  "forbidden_changes": [
+    "modify unrelated API functions",
+    "alter UI components"
+  ],
+  "dependencies": [
+    "d.4",
+    "d.5"
+  ],
+  "task_timeout_seconds": 900
+}

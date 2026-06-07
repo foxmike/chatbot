@@ -1,0 +1,29 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "backend-compile",
+        "command": [
+          "bash",
+          "-c",
+          "find chatbot -name '*.py' | xargs python -m py_compile"
+        ]
+      },
+      {
+        "name": "frontend-build",
+        "command": [
+          "yarn",
+          "build"
+        ],
+        "cwd": "react_ui"
+      },
+      {
+        "name": "room-functionality-test",
+        "command": [
+          "pytest",
+          "tests/test_room_functionality.py"
+        ]
+      }
+    ]
+  }
+}

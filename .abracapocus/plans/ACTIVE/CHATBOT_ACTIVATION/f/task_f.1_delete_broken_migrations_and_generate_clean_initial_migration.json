@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "task_id": "f.1",
+  "phase": "F",
+  "phase_id": "f",
+  "title": "Delete broken migrations and generate clean initial migration",
+  "description": "Delete all existing migration files in alembic/versions and generate a new clean initial migration. Before editing, inspect: current migration files and Alembic configuration.\n\n1. Delete everything in alembic/versions/ except __init__.py\n2. Run `alembic revision --autogenerate -m 'Initial clean migration'`",
+  "acceptance_criteria": [
+    "alembic/versions directory contains only __init__.py and one migration file",
+    "New migration file contains table definitions matching current models"
+  ],
+  "selected_backend": "antigravity_cli",
+  "model": "gemini-3.5-flash",
+  "verification_profile": "none",
+  "allowed_write_paths": [
+    "alembic/versions"
+  ],
+  "forbidden_changes": [
+    "modify files outside alembic/versions",
+    "modify models.py files"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}
