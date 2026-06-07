@@ -19,7 +19,7 @@ from chatbot.auth.dependencies import CurrentUser, get_current_user
 from chatbot.companions.companion import CompanionManager
 from chatbot.core.steps import StepResult, TurnContext
 from chatbot.db import get_db
-from chatbot.db.models import Message, Session
+from chatbot.db.models import IdentityStateModel, Message, Session
 
 try:
     from chatbot.core.turn import build_default_pipeline as _core_build_default_pipeline
@@ -91,6 +91,7 @@ async def chat(
         )
 
     companion_id = body.companion_id
+    companion = None
     if companion_id is not None:
         companion_mgr = CompanionManager(db)
         companion = await companion_mgr.get(current_user.user_id, companion_id)
@@ -104,6 +105,16 @@ async def chat(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Companion mismatch: session is bound to a different companion",
             )
+
+    # --- Load companion profile and identity from DB ---
+    character_profile = await _build_companion_character_profile(
+        companion,
+        db_session,
+        db,
+        current_user.user_id,
+        companion_id,
+    )
+    identity_state = await _load_session_identity_state(db, sid)
 
     session = sessions_store.get(body.session_id, {})
     history = await _load_db_session_history(db, sid)
@@ -122,9 +133,14 @@ async def chat(
         final_response=None,
         metadata=_build_metadata(request, body.session_id, session, history, persona),
     )
+    ctx.metadata["db"] = db
     ctx.metadata["user_id"] = current_user.user_id
     ctx.metadata["companion_id"] = companion_id
     ctx.metadata["room_id"] = body.room_id
+    if character_profile is not None:
+        ctx.metadata["character_profile"] = character_profile
+    if identity_state is not None:
+        ctx.metadata["identity_state"] = identity_state
 
     ctx = await _run_pipeline(ctx)
     response = ctx.final_response
@@ -278,6 +294,67 @@ async def _load_db_session_history(
         }
         for message in result.scalars().all()
     ]
+
+
+async def _build_companion_character_profile(
+    companion: Any,
+    db_session: Any,
+    db: AsyncSession,
+    user_id: str,
+    companion_id: str | None,
+) -> dict[str, Any] | None:
+    """Build a character profile dict from the companion response or DB session.
+
+    Uses the already-fetched *companion* first. Falls back to loading the
+    companion from *db_session.companion_id* so that the turn pipeline always
+    receives a character profile when one is bound.
+    """
+    if companion is not None:
+        return _companion_to_profile_dict(companion)
+
+    effective_id = (
+        companion_id
+        or (getattr(db_session, "companion_id", None) if db_session is not None else None)
+    )
+    if effective_id is None:
+        return None
+
+    try:
+        companion_mgr = CompanionManager(db)
+        loaded = await companion_mgr.get(user_id, str(effective_id))
+    except Exception:
+        return None
+    if loaded is None:
+        return None
+    return _companion_to_profile_dict(loaded)
+
+
+def _companion_to_profile_dict(companion: Any) -> dict[str, Any]:
+    return {
+        "name": getattr(companion, "name", "Companion"),
+        "backstory": getattr(companion, "backstory", None) or "",
+        "personality_sliders": getattr(companion, "personality_sliders", None) or {},
+        "humor_style": getattr(companion, "humor_style", None) or "witty",
+        "communication_style": getattr(companion, "communication_style", None) or "concise",
+        "favorite_topics": getattr(companion, "favorite_topics", None) or [],
+    }
+
+
+async def _load_session_identity_state(
+    db: AsyncSession,
+    session_id: uuid.UUID,
+) -> Any:
+    """Return the most recent IdentityStateModel row for *session_id*, or None."""
+    try:
+        result = await db.execute(
+            select(IdentityStateModel)
+            .where(IdentityStateModel.session_id == session_id)
+            .order_by(IdentityStateModel.last_updated.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+    except Exception:
+        return None
 
 
 def _load_persona(
