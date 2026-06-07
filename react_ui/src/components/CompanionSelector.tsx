@@ -499,9 +499,23 @@ export function CompanionSelector({
               ) : null}
 
               <form className="mt-4 flex flex-col gap-5" onSubmit={handleCreate}>
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                  Identity
-                </p>
+                <div className="flex items-center gap-4">
+                  <div
+                    className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full text-3xl font-semibold text-white ring-2 ring-gray-700"
+                    style={{
+                      backgroundColor: avatarColorForName(
+                        createName.trim() || "?",
+                      ),
+                    }}
+                  >
+                    {companionInitial(createName.trim() || "?")}
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                      Identity
+                    </p>
+                  </div>
+                </div>
 
                 <label className={LABEL}>
                   Name

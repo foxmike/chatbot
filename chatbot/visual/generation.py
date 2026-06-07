@@ -40,6 +40,17 @@ class GenerationOptions:
     seed: int | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class PersistedImageGeneration:
+    result: ImageGenerationResult
+    image_id: str | None
+    image_url: str | None
+
+
+def generated_image_url(image_id: str) -> str:
+    return f"/visual/images/{image_id}"
+
+
 class DiffusionProvider(ImageGenerationProvider):
     """Concrete adapter for a diffusion-model image generation backend."""
 
@@ -320,6 +331,25 @@ class ImageGenerationService:
         user_id: str | None = None,
         db_session=None,
     ) -> ImageGenerationResult:
+        persisted = await self.generate_and_persist_with_reference(
+            scene_description=scene_description,
+            options=options,
+            session_id=session_id,
+            turn_id=turn_id,
+            user_id=user_id,
+            db_session=db_session,
+        )
+        return persisted.result
+
+    async def generate_and_persist_with_reference(
+        self,
+        scene_description: str,
+        options: GenerationOptions | None = None,
+        session_id: str | None = None,
+        turn_id: str | None = None,
+        user_id: str | None = None,
+        db_session=None,
+    ) -> PersistedImageGeneration:
         if options is None:
             options = GenerationOptions()
 
@@ -354,16 +384,22 @@ class ImageGenerationService:
             )
         end_ms = time.monotonic() * 1000
 
+        image_id: str | None = None
+        image_url: str | None = None
         if db_session is not None:
             resolved_user_id: uuid.UUID | None = (
                 uuid.UUID(user_id) if isinstance(user_id, str) else user_id
             )
+            image_id = str(uuid.uuid4())
+            image_url = generated_image_url(image_id)
             record = ImageMemory(
+                image_id=image_id,
                 source_type="generated",
                 session_id=session_id,
                 turn_id=turn_id,
                 user_id=resolved_user_id,
                 image_data=result.image_data,
+                image_url=image_url,
                 mime_type=result.mime_type,
                 prompt_used=result.prompt_used,
                 seed_used=result.seed_used,
@@ -375,7 +411,11 @@ class ImageGenerationService:
             db_session.add(record)
             await db_session.commit()
 
-        return result
+        return PersistedImageGeneration(
+            result=result,
+            image_id=image_id,
+            image_url=image_url,
+        )
 
     async def generate_only(
         self,
@@ -391,7 +431,12 @@ def create_image_generation_service(
     """Create an image generation service from configured visual settings."""
     settings = get_settings()
     if settings.image_generation_provider != "openrouter":
-        provider: ImageGenerationProvider = DiffusionProvider(settings.image_generation_model)
+        model_identifier = (
+            settings.image_generation_model
+            if "/" in settings.image_generation_model
+            else f"{settings.image_generation_provider}/{settings.image_generation_model}"
+        )
+        provider: ImageGenerationProvider = DiffusionProvider(model_identifier)
     else:
         provider = OpenRouterImageGenerationProvider(
             f"openrouter/{settings.image_generation_model}"
@@ -410,7 +455,9 @@ __all__ = [
     "GenerationError",
     "GenerationOptions",
     "ImageGenerationService",
+    "PersistedImageGeneration",
     "create_image_generation_service",
+    "generated_image_url",
 ]
 
 

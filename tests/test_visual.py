@@ -61,6 +61,7 @@ from chatbot.visual.base import (  # noqa: E402
 from chatbot.visual.generation import (  # noqa: E402
     GenerationOptions,
     ImageGenerationService,
+    generated_image_url,
 )
 from chatbot.visual.understanding import (  # noqa: E402
     ImageUnderstandingService,
@@ -391,11 +392,36 @@ class TestImageGenerationService:
         mock_session.add.assert_called_once()
         record = mock_session.add.call_args[0][0]
         assert isinstance(record, _FakeImageMemory)
+        assert record.image_url == generated_image_url(record.image_id)
         assert record.source_type == "generated"
         assert record.image_data == b"fake_image_data"
         assert record.mime_type == "image/png"
         assert record.seed_used == 1
         mock_session.commit.assert_called_once()
+
+    def test_generate_and_persist_with_reference_returns_image_url(self) -> None:
+        profile = AppearanceProfile(character_seed=1)
+        am = AppearanceManager(profile=profile)
+
+        mock_provider = MagicMock(spec=ImageGenerationProvider)
+        mock_provider.generate = AsyncMock(return_value=self._make_result())
+
+        svc = ImageGenerationService(appearance_manager=am, provider=mock_provider)
+
+        mock_session = MagicMock()
+        mock_session.add = MagicMock()
+        mock_session.commit = AsyncMock()
+
+        async def _run():
+            return await svc.generate_and_persist_with_reference(
+                "an avatar portrait",
+                db_session=mock_session,
+            )
+
+        persisted = asyncio.run(_run())
+
+        assert persisted.image_id is not None
+        assert persisted.image_url == generated_image_url(persisted.image_id)
 
     def test_generate_only_does_not_create_database_record(self) -> None:
         profile = AppearanceProfile(character_seed=1)

@@ -18,6 +18,7 @@ from chatbot.visual.appearance import (
     stable_character_seed,
     stable_outfit_id,
 )
+from chatbot.visual.generation import GenerationOptions, create_image_generation_service
 
 
 class CompanionCreateRequest(BaseModel):
@@ -108,6 +109,26 @@ def _build_companion_display(
     avatar_url: str | None,
     created_at: str,
 ) -> CompanionDisplay:
+    appearance_manager = _build_companion_appearance_manager(
+        companion_id=companion_id,
+        name=name,
+        persona=persona,
+        description=description,
+        created_at=created_at,
+    )
+    snapshot = appearance_manager.build_continuity_snapshot(
+        f"Companion display portrait of {name}"
+    )
+    return CompanionDisplay(avatar_url=avatar_url, appearance=snapshot)
+
+
+def _build_companion_appearance_manager(
+    companion_id: str,
+    name: str,
+    persona: str | None,
+    description: str | None,
+    created_at: str,
+) -> AppearanceManager:
     profile = AppearanceProfile(
         character_seed=stable_character_seed(companion_id),
         character_description=_build_character_description(name, persona, description),
@@ -127,10 +148,7 @@ def _build_companion_display(
         profile=profile,
         outfit_manager=outfit_manager,
     )
-    snapshot = appearance_manager.build_continuity_snapshot(
-        f"Companion display portrait of {name}"
-    )
-    return CompanionDisplay(avatar_url=avatar_url, appearance=snapshot)
+    return appearance_manager
 
 
 def _row_to_companion(row: object) -> CompanionResponse:
@@ -172,6 +190,11 @@ class CompanionManager:
 
     async def create(self, user_id: str, data: CompanionCreateRequest) -> CompanionResponse:
         companion_id = str(uuid4())
+        avatar_url = data.avatar_url or await self._generate_avatar_url(
+            user_id=user_id,
+            companion_id=companion_id,
+            data=data,
+        )
         # exec_driver_sql sends raw SQL to asyncpg with native $N positional params,
         # avoiding SQLAlchemy text()'s :name parser which misreads ::jsonb as a
         # second named parameter (:jsonb).
@@ -190,7 +213,7 @@ class CompanionManager:
                 data.name,
                 data.persona,
                 data.description,
-                data.avatar_url,
+                avatar_url,
                 data.backstory,
                 json.dumps(data.personality_sliders) if data.personality_sliders is not None else None,
                 data.humor_style,
@@ -201,6 +224,28 @@ class CompanionManager:
         row = result.fetchone()
         await self._session.commit()
         return _row_to_companion(row)
+
+    async def _generate_avatar_url(
+        self,
+        user_id: str,
+        companion_id: str,
+        data: CompanionCreateRequest,
+    ) -> str | None:
+        appearance_manager = _build_companion_appearance_manager(
+            companion_id=companion_id,
+            name=data.name,
+            persona=data.persona,
+            description=data.description,
+            created_at="",
+        )
+        service = create_image_generation_service(appearance_manager)
+        persisted = await service.generate_and_persist_with_reference(
+            scene_description=f"Companion avatar portrait of {data.name}",
+            options=GenerationOptions(width=512, height=512),
+            user_id=user_id,
+            db_session=self._session,
+        )
+        return persisted.image_url
 
     async def list_by_user(self, user_id: str) -> CompanionListResponse:
         stmt = text("SELECT * FROM companions WHERE user_id = :user_id")
