@@ -172,41 +172,30 @@ class CompanionManager:
 
     async def create(self, user_id: str, data: CompanionCreateRequest) -> CompanionResponse:
         companion_id = str(uuid4())
-        stmt = text(
+        # exec_driver_sql sends raw SQL to asyncpg with native $N positional params,
+        # avoiding SQLAlchemy text()'s :name parser which misreads ::jsonb as a
+        # second named parameter (:jsonb).
+        conn = await self._session.connection()
+        result = await conn.exec_driver_sql(
             """INSERT INTO companions (
                    companion_id, user_id, name, persona, description, avatar_url,
                    backstory, personality_sliders, humor_style, communication_style,
                    favorite_topics, created_at
                )
-               VALUES (
-                   :companion_id, :user_id, :name, :persona, :description, :avatar_url,
-                   :backstory, :personality_sliders::jsonb, :humor_style, :communication_style,
-                   :favorite_topics::jsonb, now()
-               )
-               RETURNING *"""
-        )
-        result = await self._session.execute(
-            stmt,
-            dict(
-                companion_id=companion_id,
-                user_id=user_id,
-                name=data.name,
-                persona=data.persona,
-                description=data.description,
-                avatar_url=data.avatar_url,
-                backstory=data.backstory,
-                personality_sliders=(
-                    json.dumps(data.personality_sliders)
-                    if data.personality_sliders is not None
-                    else None
-                ),
-                humor_style=data.humor_style,
-                communication_style=data.communication_style,
-                favorite_topics=(
-                    json.dumps(data.favorite_topics)
-                    if data.favorite_topics is not None
-                    else None
-                ),
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11::jsonb, now())
+               RETURNING *""",
+            (
+                companion_id,
+                user_id,
+                data.name,
+                data.persona,
+                data.description,
+                data.avatar_url,
+                data.backstory,
+                json.dumps(data.personality_sliders) if data.personality_sliders is not None else None,
+                data.humor_style,
+                data.communication_style,
+                json.dumps(data.favorite_topics) if data.favorite_topics is not None else None,
             ),
         )
         row = result.fetchone()
@@ -241,40 +230,29 @@ class CompanionManager:
         if existing is None:
             return None
 
-        stmt = text(
+        conn = await self._session.connection()
+        result = await conn.exec_driver_sql(
             """UPDATE companions
-               SET name = :name, persona = :persona, description = :description,
-                   avatar_url = :avatar_url,
-                   backstory = :backstory,
-                   personality_sliders = :personality_sliders::jsonb,
-                   humor_style = :humor_style,
-                   communication_style = :communication_style,
-                   favorite_topics = :favorite_topics::jsonb,
+               SET name = $1, persona = $2, description = $3, avatar_url = $4,
+                   backstory = $5,
+                   personality_sliders = $6::jsonb,
+                   humor_style = $7,
+                   communication_style = $8,
+                   favorite_topics = $9::jsonb,
                    updated_at = now()
-               WHERE companion_id = :companion_id
-               RETURNING *"""
-        )
-        result = await self._session.execute(
-            stmt,
-            dict(
-                name=data.name,
-                persona=data.persona,
-                description=data.description,
-                avatar_url=data.avatar_url,
-                backstory=data.backstory,
-                personality_sliders=(
-                    json.dumps(data.personality_sliders)
-                    if data.personality_sliders is not None
-                    else None
-                ),
-                humor_style=data.humor_style,
-                communication_style=data.communication_style,
-                favorite_topics=(
-                    json.dumps(data.favorite_topics)
-                    if data.favorite_topics is not None
-                    else None
-                ),
-                companion_id=companion_id,
+               WHERE companion_id = $10
+               RETURNING *""",
+            (
+                data.name,
+                data.persona,
+                data.description,
+                data.avatar_url,
+                data.backstory,
+                json.dumps(data.personality_sliders) if data.personality_sliders is not None else None,
+                data.humor_style,
+                data.communication_style,
+                json.dumps(data.favorite_topics) if data.favorite_topics is not None else None,
+                companion_id,
             ),
         )
         row = result.fetchone()

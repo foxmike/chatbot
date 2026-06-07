@@ -64,6 +64,52 @@ function createMessage(role: Message["role"], content: string): Message {
   };
 }
 
+const AVATAR_COLORS = [
+  "#4f46e5",
+  "#0891b2",
+  "#059669",
+  "#7c3aed",
+  "#db2777",
+  "#ea580c",
+  "#ca8a04",
+  "#0d9488",
+  "#2563eb",
+  "#9333ea",
+];
+
+function avatarColorForName(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i += 1) {
+    hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  }
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+}
+
+function companionInitial(name: string) {
+  return name.trim().charAt(0).toUpperCase() || "?";
+}
+
+function SwitcherAvatar({ companion }: { companion: Companion }) {
+  if (companion.avatar_url) {
+    return (
+      <img
+        src={companion.avatar_url}
+        alt={`${companion.name} avatar`}
+        className="h-7 w-7 shrink-0 rounded-full object-cover ring-1 ring-gray-600"
+      />
+    );
+  }
+
+  return (
+    <span
+      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ring-1 ring-gray-600"
+      style={{ backgroundColor: avatarColorForName(companion.name) }}
+    >
+      {companionInitial(companion.name)}
+    </span>
+  );
+}
+
 function CompanionSwitcher({
   current,
   onSwitch,
@@ -97,12 +143,10 @@ function CompanionSwitcher({
     <div ref={ref} className="relative">
       <button
         type="button"
-        className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium text-gray-200 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
+        className="flex items-center gap-2 rounded-md px-2 py-1 text-sm font-medium text-gray-200 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
         onClick={() => setOpen((o) => !o)}
       >
-        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-bold text-white">
-          {current.name[0].toUpperCase()}
-        </span>
+        <SwitcherAvatar companion={current} />
         <span className="max-w-[120px] truncate">{current.name}</span>
         <svg className="h-3 w-3 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -126,9 +170,7 @@ function CompanionSwitcher({
                     setOpen(false);
                   }}
                 >
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-bold text-white">
-                    {companion.name[0].toUpperCase()}
-                  </span>
+                  <SwitcherAvatar companion={companion} />
                   <span className="truncate">{companion.name}</span>
                   {isActive && (
                     <svg className="ml-auto h-3.5 w-3.5 shrink-0 text-indigo-400" fill="currentColor" viewBox="0 0 20 20">

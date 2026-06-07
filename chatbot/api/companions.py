@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from chatbot.auth.dependencies import CurrentUser, get_current_user
@@ -13,6 +14,7 @@ from chatbot.companions.companion import (
     CompanionResponse,
 )
 from chatbot.db import get_db
+from chatbot.db.models import CharacterProfileModel, IdentityStateModel, Session
 
 companion_router = APIRouter(prefix="/companions", tags=["companions"])
 
@@ -70,6 +72,54 @@ async def update_companion(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Companion not found",
         )
+
+    # Propagate changes to existing sessions
+    sessions_result = await db.execute(
+        select(Session.id).where(Session.companion_id == companion_id)
+    )
+    session_ids = [row[0] for row in sessions_result.all()]
+
+    for sid in session_ids:
+        # Update IdentityStateModel
+        is_result = await db.execute(
+            select(IdentityStateModel)
+            .where(IdentityStateModel.session_id == sid)
+            .order_by(IdentityStateModel.last_updated.desc())
+            .limit(1)
+        )
+        identity_state = is_result.scalar_one_or_none()
+        if identity_state:
+            fixed = dict(identity_state.fixed)
+            fixed["name"] = companion.name
+            fixed["backstory"] = companion.backstory
+            if companion.humor_style is not None:
+                fixed["humor_style"] = companion.humor_style
+            identity_state.fixed = fixed
+
+            slow = dict(identity_state.slow)
+            if companion.personality_sliders:
+                for key in ["openness", "conscientiousness", "extraversion", "agreeableness", "neuroticism", "curiosity", "creativity"]:
+                    if key in companion.personality_sliders:
+                        slow[key] = companion.personality_sliders[key]
+            identity_state.slow = slow
+
+        # Update CharacterProfileModel
+        await db.execute(
+            update(CharacterProfileModel)
+            .where(CharacterProfileModel.session_id == sid)
+            .values(
+                name=companion.name,
+                backstory=companion.backstory,
+                personality_sliders=companion.personality_sliders,
+                humor_style=companion.humor_style,
+                communication_style=companion.communication_style,
+                favorite_topics=companion.favorite_topics,
+            )
+        )
+
+    if session_ids:
+        await db.commit()
+
     return companion
 
 

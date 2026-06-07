@@ -135,15 +135,8 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-900 px-4">
       <div className="w-full max-w-md rounded-lg bg-gray-800 p-8 text-gray-100">
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 text-center">
           <h1 className="text-xl font-semibold">Abracapocus Companion</h1>
-          <button
-            type="button"
-            className="text-sm text-indigo-400 transition hover:text-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 rounded"
-            onClick={switchMode}
-          >
-            {mode === "login" ? "Sign up" : "Log in"}
-          </button>
         </div>
 
         {error ? (
@@ -231,6 +224,32 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
                 : "Sign Up"}
           </button>
         </form>
+
+        <div className="mt-6 text-center text-sm text-gray-400">
+          {mode === "login" ? (
+            <>
+              Don't have an account?{" "}
+              <button
+                type="button"
+                className="text-indigo-400 transition hover:text-indigo-300 focus:outline-none focus:underline"
+                onClick={switchMode}
+              >
+                Sign up
+              </button>
+            </>
+          ) : (
+            <>
+              Already have an account?{" "}
+              <button
+                type="button"
+                className="text-indigo-400 transition hover:text-indigo-300 focus:outline-none focus:underline"
+                onClick={switchMode}
+              >
+                Log in
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

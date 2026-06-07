@@ -77,6 +77,7 @@ async def create_session(
         title=body.title or "New Chat",
     )
     db.add(session)
+    await db.flush()
 
     if companion_orm is not None:
         _seed_session_from_companion(db, session.id, companion_orm)
