@@ -12,7 +12,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from chatbot.api.sessions import sessions_store
@@ -20,7 +20,9 @@ from chatbot.auth.dependencies import CurrentUser, get_current_user
 from chatbot.companions.companion import CompanionManager
 from chatbot.core.steps import StepResult, TurnContext
 from chatbot.db import get_db
-from chatbot.db.models import IdentityStateModel, Message, Session
+from chatbot.db.models import IdentityStateModel, Message, Room as RoomModel, Session
+from chatbot.prompts.templates import render_room_prompt
+from chatbot.rooms.room import RoomType
 
 logger = logging.getLogger(__name__)
 
@@ -120,9 +122,29 @@ async def chat(
     identity_state = await _load_session_identity_state(db, sid)
 
     session = sessions_store.get(body.session_id, {})
-    history = await _load_db_session_history(db, sid)
+    chat_room = await _load_chat_room(
+        db,
+        db_session,
+        current_user.user_id,
+        body.room_id,
+    )
+    effective_room_id = chat_room.room_id if chat_room is not None else None
+
+    history = await _load_db_session_history(db, sid, effective_room_id)
     if not history:
-        history = _load_session_history(request, body.session_id, session)
+        history = _load_session_history(
+            request,
+            body.session_id,
+            session,
+            effective_room_id,
+        )
+    room_system_prompt = _build_room_system_prompt(
+        current_user,
+        db_session,
+        chat_room,
+        character_profile,
+    )
+    history = _inject_room_system_prompt(history, room_system_prompt, effective_room_id)
     persona = _load_persona(request, body.session_id, session)
     ctx = TurnContext(
         session_id=body.session_id,
@@ -139,7 +161,11 @@ async def chat(
     ctx.metadata["db"] = db
     ctx.metadata["user_id"] = current_user.user_id
     ctx.metadata["companion_id"] = companion_id
-    ctx.metadata["room_id"] = body.room_id
+    ctx.metadata["room_id"] = effective_room_id
+    if chat_room is not None:
+        ctx.metadata["room_type"] = chat_room.room_type
+    if room_system_prompt is not None:
+        ctx.metadata["room_system_prompt"] = room_system_prompt
     if character_profile is not None:
         ctx.metadata["character_profile"] = character_profile
     if identity_state is not None:
@@ -394,15 +420,19 @@ def _load_session_history(
     request: Request,
     session_id: str,
     session: Mapping[str, Any],
+    room_id: str | None = None,
 ) -> list[dict]:
     for key in ("history", "messages", "turns"):
         history = _coerce_history(session.get(key))
         if history:
-            return history
+            return _filter_history_by_room_id(history, room_id)
 
     histories = _first_state_value(request, "histories", "session_histories")
     if isinstance(histories, Mapping):
-        return _coerce_history(histories.get(session_id))
+        return _filter_history_by_room_id(
+            _coerce_history(histories.get(session_id)),
+            room_id,
+        )
 
     return []
 
@@ -410,12 +440,30 @@ def _load_session_history(
 async def _load_db_session_history(
     db: AsyncSession,
     session_id: uuid.UUID,
+    room_id: str | None = None,
 ) -> list[dict[str, Any]]:
-    result = await db.execute(
+    stmt = (
         select(Message)
         .where(Message.session_id == session_id)
         .where(Message.role.in_(("user", "assistant", "system", "tool")))
-        .order_by(Message.created_at.asc(), Message.id.asc())
+    )
+    if room_id is not None:
+        room_session_ids = select(RoomModel.session_id).where(
+            RoomModel.room_id == room_id,
+            RoomModel.session_id.is_not(None),
+        )
+        stmt = (
+            stmt.join(Session, Message.session_id == Session.id)
+            .where(
+                or_(
+                    Session.room_id == room_id,
+                    Session.id.in_(room_session_ids),
+                )
+            )
+        )
+
+    result = await db.execute(
+        stmt.order_by(Message.created_at.asc(), Message.id.asc())
     )
     return [
         {
@@ -424,6 +472,182 @@ async def _load_db_session_history(
         }
         for message in result.scalars().all()
     ]
+
+
+async def _load_chat_room(
+    db: AsyncSession,
+    db_session: Session,
+    user_id: str,
+    requested_room_id: str | None,
+) -> RoomModel | None:
+    room_id = _normalize_room_id(requested_room_id)
+    if room_id is not None:
+        room = await _load_user_room(db, user_id, room_id)
+        if room is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Room not found",
+            )
+        _validate_room_session(room, db_session)
+        return room
+
+    session_room_id = _normalize_room_id(db_session.room_id)
+    if session_room_id is not None:
+        return await _load_user_room(db, user_id, session_room_id)
+
+    result = await db.execute(
+        select(RoomModel)
+        .where(RoomModel.user_id == user_id)
+        .where(RoomModel.session_id == db_session.id)
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def _load_user_room(
+    db: AsyncSession,
+    user_id: str,
+    room_id: str,
+) -> RoomModel | None:
+    result = await db.execute(
+        select(RoomModel)
+        .where(RoomModel.room_id == room_id)
+        .where(RoomModel.user_id == user_id)
+    )
+    return result.scalar_one_or_none()
+
+
+def _validate_room_session(room: RoomModel, db_session: Session) -> None:
+    session_room_id = _normalize_room_id(db_session.room_id)
+    if session_room_id is not None and session_room_id != room.room_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Room mismatch: session is bound to a different room",
+        )
+
+    room_session_id = getattr(room, "session_id", None)
+    if room_session_id is not None and room_session_id != db_session.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Room mismatch: room is linked to a different session",
+        )
+
+
+def _build_room_system_prompt(
+    current_user: CurrentUser,
+    db_session: Session,
+    room: RoomModel | None,
+    character_profile: Mapping[str, Any] | None,
+) -> str | None:
+    if room is None:
+        return None
+
+    try:
+        room_type = RoomType(room.room_type)
+    except ValueError:
+        logger.warning(
+            "Unknown room type for room %s: %s",
+            room.room_id,
+            room.room_type,
+        )
+        return None
+
+    kwargs: dict[str, str] = {
+        "user_name": current_user.username,
+        "display_name": room.display_name,
+    }
+    if db_session.conversation_mode:
+        kwargs["conversation_mode"] = db_session.conversation_mode
+
+    if character_profile:
+        for prompt_key, profile_key in {
+            "companion_name": "name",
+            "backstory": "backstory",
+            "personality_sliders": "personality_sliders",
+            "humor_style": "humor_style",
+            "communication_style": "communication_style",
+            "favorite_topics": "favorite_topics",
+        }.items():
+            value = _stringify_prompt_value(character_profile.get(profile_key))
+            if value:
+                kwargs[prompt_key] = value
+
+    prompt = render_room_prompt(room_type, **kwargs).strip()
+    return prompt or None
+
+
+def _inject_room_system_prompt(
+    history: list[dict[str, Any]],
+    room_system_prompt: str | None,
+    room_id: str | None,
+) -> list[dict[str, Any]]:
+    if room_system_prompt is None:
+        return history
+
+    for message in history:
+        if (
+            message.get("role") == "system"
+            and str(message.get("content", "")).strip() == room_system_prompt
+        ):
+            return history
+
+    metadata: dict[str, Any] = {"room_type_prompt": True}
+    if room_id is not None:
+        metadata["room_id"] = room_id
+    return [
+        {
+            "role": "system",
+            "content": room_system_prompt,
+            "metadata": metadata,
+        },
+        *history,
+    ]
+
+
+def _filter_history_by_room_id(
+    history: list[dict[str, Any]],
+    room_id: str | None,
+) -> list[dict[str, Any]]:
+    normalized_room_id = _normalize_room_id(room_id)
+    if normalized_room_id is None:
+        return history
+
+    filtered: list[dict[str, Any]] = []
+    for message in history:
+        message_room_id = _normalize_room_id(_message_room_id(message))
+        if message_room_id is None or message_room_id == normalized_room_id:
+            filtered.append(message)
+    return filtered
+
+
+def _message_room_id(message: Mapping[str, Any]) -> Any:
+    metadata = message.get("metadata")
+    if isinstance(metadata, Mapping):
+        room_id = metadata.get("room_id")
+        if room_id is not None:
+            return room_id
+    return message.get("room_id")
+
+
+def _normalize_room_id(room_id: Any) -> str | None:
+    if room_id is None:
+        return None
+    normalized = str(room_id).strip()
+    return normalized or None
+
+
+def _stringify_prompt_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, Mapping):
+        return ", ".join(
+            f"{key}: {item}"
+            for key, item in value.items()
+            if item is not None and str(item).strip()
+        )
+    if isinstance(value, (list, tuple, set)):
+        return ", ".join(str(item) for item in value if str(item).strip())
+    return str(value).strip()
 
 
 async def _build_companion_character_profile(
