@@ -1,0 +1,157 @@
+{
+  "plan_name": "CHATBOT_ACTIVATION",
+  "purpose": "Wire all scaffolded chatbot subsystems into functional end-to-end pipelines: persona prompt injection, memory system, identity drift, rooms architecture with behavioral modes and roleplay scenes, avatar generation with companion info panel, and migration consolidation. Transform the chatbot from a demo with hardcoded defaults into a production companion platform where companion personality, memory, mood, and room context all shape every LLM response.",
+  "async_strategy": "Phases run sequentially A through F. Within each phase, tasks with disjoint write paths run in parallel waves. Shared fan-in files (chatbot/core/turn.py, chatbot/api/chat.py, chatbot/api/streaming.py, chatbot/api/app.py, react_ui/src/App.tsx, react_ui/src/api/client.ts) are single-owner per wave and serialized via dependency edges.",
+  "cost_estimate": "medium-high",
+  "operator_questions": [],
+  "phases": [
+    {
+      "phase_id": "a",
+      "goal": "Wire the persona and system prompt pipeline so that every LLM call includes the companion's character profile (name, backstory, personality sliders, humor style, communication style), the session's identity state (fixed traits, slow drift values, current mood), and the session's relationship config (directness, warmth, initiative). Currently chat.py uses an empty fallback persona, streaming.py hardcodes persona={}, and turn.py's _assemble_persona_prompt never calls CharacterProfile.to_prompt_fragment() or forwards identity state.",
+      "expected_changed_files": [
+        "chatbot/soul/persona_prompt.py",
+        "chatbot/core/turn.py",
+        "chatbot/api/chat.py",
+        "chatbot/api/streaming.py"
+      ],
+      "async_notes": "Wave 1: update chatbot/soul/persona_prompt.py. Wave 2: update chatbot/core/turn.py (depends on wave 1 interface). Wave 3: update chatbot/api/chat.py (depends on wave 2). Wave 4: update chatbot/api/streaming.py (depends on wave 2, serialized after chat.py).",
+      "risk_notes": "chat.py and streaming.py are the two main request handlers; changes must preserve existing message persistence and streaming behavior. turn.py is a large shared file; edits must be surgical to _assemble_persona_prompt only.",
+      "estimated_task_count": 4,
+      "task_hints": [
+        {"title": "Update persona prompt assembler to accept character profile and identity state", "selected_backend": "antigravity_cli"},
+        {"title": "Wire character profile and identity state into turn.py prompt assembly", "selected_backend": "codex_cli"},
+        {"title": "Load companion profile and identity from DB in chat endpoint", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
+        {"title": "Load companion profile and identity from DB in streaming endpoint", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"}
+      ]
+    },
+    {
+      "phase_id": "b",
+      "goal": "Activate the memory system end-to-end: generate and store pgvector embeddings for every user and assistant message, wire the ContextCompiler into the chat pipeline so relevant past memories are retrieved and included in the LLM context window, configure the consolidation worker with the default LLM provider so background memory consolidation actually runs, wire enqueue_consolidation to trigger after conversations reach a threshold length, and connect Redis as the working memory cache for active conversations.",
+      "expected_changed_files": [
+        "chatbot/memory/embedding.py",
+        "chatbot/config.py",
+        "chatbot/core/turn.py",
+        "chatbot/memory/context_compiler.py",
+        "chatbot/api/chat.py",
+        "chatbot/api/streaming.py",
+        "chatbot/consolidation/worker.py",
+        "chatbot/perf/handlers.py"
+      ],
+      "async_notes": "Wave 1: update chatbot/memory/embedding.py (embedding generation function) and chatbot/config.py (Redis connection pool). Disjoint. Wave 2: update chatbot/core/turn.py (ExtractMemoryStep) and chatbot/memory/context_compiler.py (accept db session and vector store). Disjoint. Wave 3: update chatbot/api/chat.py (call embeddings + context compiler). Wave 4: update chatbot/api/streaming.py (same pattern, serialized after chat.py). Wave 5: update chatbot/consolidation/worker.py and chatbot/perf/handlers.py (disjoint from chat endpoints).",
+      "risk_notes": "chat.py and streaming.py modified again after phase A; phase ordering provides serialization. Redis connection must fail gracefully if Redis is unavailable. Embedding generation should not block the response.",
+      "estimated_task_count": 7,
+      "task_hints": [
+        {"title": "Create async embedding generation and pgvector storage function", "selected_backend": "antigravity_cli"},
+        {"title": "Initialize Redis connection pool from REDIS_URL in config", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
+        {"title": "Fix ExtractMemoryStep in turn.py to call embedding function", "selected_backend": "codex_cli"},
+        {"title": "Wire ContextCompiler to accept db session and return compiled context", "selected_backend": "antigravity_cli"},
+        {"title": "Add embedding generation and context compilation to chat endpoint", "selected_backend": "codex_cli"},
+        {"title": "Add embedding generation and context compilation to streaming endpoint", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
+        {"title": "Configure consolidation worker with default provider and wire enqueue trigger", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"}
+      ]
+    },
+    {
+      "phase_id": "c",
+      "goal": "Activate identity drift and mood updates in the chat pipeline. After each assistant response, run identity evolution logic to calculate slow drift updates to personality traits based on conversation patterns, calculate mood updates based on conversation sentiment, persist updated values back to IdentityStateModel, and feed updated mood into the next turn's prompt assembly. Currently evolution.py is only imported for session seeding; it is never called during chat execution.",
+      "expected_changed_files": [
+        "chatbot/soul/evolution.py",
+        "chatbot/core/turn.py",
+        "chatbot/api/chat.py",
+        "chatbot/api/streaming.py"
+      ],
+      "async_notes": "Wave 1: update chatbot/soul/evolution.py (expose calculate_drift and calculate_mood interface). Wave 2: update chatbot/core/turn.py (add post-response identity update step, depends on wave 1). Wave 3: update chatbot/api/chat.py (invoke post-response identity update). Wave 4: update chatbot/api/streaming.py (same pattern, serialized after chat.py).",
+      "risk_notes": "turn.py is modified again; phase ordering serializes. Evolution calculations should be lightweight and not block the response.",
+      "estimated_task_count": 4,
+      "task_hints": [
+        {"title": "Expose calculate_drift and calculate_mood interfaces in evolution.py", "selected_backend": "antigravity_cli"},
+        {"title": "Add post-response identity update step to turn pipeline", "selected_backend": "codex_cli"},
+        {"title": "Invoke identity update after response in chat endpoint", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
+        {"title": "Invoke identity update after response in streaming endpoint", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"}
+      ]
+    },
+    {
+      "phase_id": "d",
+      "goal": "Implement rooms as functional conversation containers with behavioral modes and roleplay scenes. Auto-create a linked session when a room is created. Load room session messages into the chat panel when a room is clicked. Filter messages by room in frontend and backend. Inject room-type-specific system prompt sections (one_on_one_chat: default conversational, roleplay_scene: scene-aware immersive, project: task-oriented structured, emotional_support: empathetic validating reduced-humor, memory_review: memory-surfacing). Apply room-type memory policies. Auto-create default one_on_one_chat room on companion creation. Auto-populate companion_id from active companion. Replace companion_id text input with dropdown. Convert left sidebar from sessions to rooms. Add scene management UI for roleplay rooms. Wire scene state into system prompt via RoleplayEngine. Display active scene status in roleplay chat.",
+      "expected_changed_files": [
+        "chatbot/rooms/room.py",
+        "chatbot/api/sessions.py",
+        "react_ui/src/components/ScenePanel.tsx",
+        "chatbot/api/rooms.py",
+        "react_ui/src/components/RoomSwitcher.tsx",
+        "chatbot/api/chat.py",
+        "chatbot/core/turn.py",
+        "chatbot/api/streaming.py",
+        "react_ui/src/api/client.ts",
+        "react_ui/src/App.tsx",
+        "react_ui/src/components/ChatInput.tsx"
+      ],
+      "async_notes": "Wave 1: update chatbot/rooms/room.py (auto-create session), update chatbot/api/sessions.py (room_id support), create react_ui/src/components/ScenePanel.tsx. All disjoint. Wave 2: update chatbot/api/rooms.py (room-session linking), update react_ui/src/components/RoomSwitcher.tsx (companion dropdown). Disjoint. Wave 3: update chatbot/api/chat.py (room filtering + room-type prompt injection). Wave 4: update chatbot/core/turn.py (RoomContextStep scene injection, depends on wave 3). Wave 5: update chatbot/api/streaming.py (room filtering, serialized after chat.py). Wave 6: update react_ui/src/api/client.ts (room-session API calls). Wave 7: update react_ui/src/App.tsx (room sidebar, scene mount, wire room selection), update react_ui/src/components/ChatInput.tsx (room context). Wave 7 depends on all prior waves.",
+      "risk_notes": "This phase touches many shared files. chat.py, streaming.py, turn.py, App.tsx, and client.ts are all fan-in points that must be serialized. Phase ordering after A/B/C ensures prior changes are stable.",
+      "estimated_task_count": 10,
+      "task_hints": [
+        {"title": "Add auto-create session when creating a room", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
+        {"title": "Add room_id foreign key support to sessions", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
+        {"title": "Create ScenePanel component for roleplay room scene management", "selected_backend": "antigravity_cli"},
+        {"title": "Wire room-session linking and room-type prompt templates in rooms API", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
+        {"title": "Add companion dropdown and auto-populate companion_id in RoomSwitcher", "selected_backend": "antigravity_cli"},
+        {"title": "Add room message filtering and room-type prompt injection to chat endpoint", "selected_backend": "codex_cli"},
+        {"title": "Wire RoomContextStep scene injection into system prompt in turn.py", "selected_backend": "codex_cli"},
+        {"title": "Add room message filtering to streaming endpoint", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
+        {"title": "Add room-session API calls to frontend client", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
+        {"title": "Convert sidebar to rooms and mount ScenePanel in App.tsx", "selected_backend": "codex_cli"}
+      ]
+    },
+    {
+      "phase_id": "e",
+      "goal": "Implement avatar generation and the companion info panel. Wire an image generation provider via OpenRouter in the visual system. Auto-generate avatar on companion creation from name, backstory, and description. Store avatar URL on companion record. Add manual upload alternative. Add Regenerate Avatar button in companion editor. Display avatar next to assistant messages. Create a collapsible right-side companion info panel showing: large avatar, name, description, structured About fields (backstory summary, humor style, communication style, favorite topics), personality trait summary, current relationship status (warmth, directness, initiative), and current mood that updates as conversation progresses. Panel collapses on narrow viewports.",
+      "expected_changed_files": [
+        "chatbot/visual/generation.py",
+        "chatbot/visual/appearance.py",
+        "react_ui/src/components/CompanionInfoPanel.tsx",
+        "chatbot/api/visual.py",
+        "react_ui/src/components/CompanionEditor.tsx",
+        "chatbot/api/companions.py",
+        "chatbot/companions/companion.py",
+        "react_ui/src/components/CompanionSelector.tsx",
+        "react_ui/src/api/client.ts",
+        "react_ui/src/App.tsx"
+      ],
+      "async_notes": "Wave 1: update chatbot/visual/generation.py (OpenRouter image gen), update chatbot/visual/appearance.py (DB-backed storage), create react_ui/src/components/CompanionInfoPanel.tsx. All disjoint. Wave 2: update chatbot/api/visual.py (DB-backed endpoints), update react_ui/src/components/CompanionEditor.tsx (avatar upload + regenerate). Disjoint. Wave 3: update chatbot/api/companions.py (auto-generate avatar on create), update chatbot/companions/companion.py (avatar URL handling). Wave 4: update react_ui/src/components/CompanionSelector.tsx (avatar display in create flow). Wave 5: update react_ui/src/api/client.ts (visual API calls). Wave 6: update react_ui/src/App.tsx (mount CompanionInfoPanel, display avatars next to messages). Wave 6 depends on all prior waves.",
+      "risk_notes": "App.tsx and client.ts are fan-in files modified in phase D; phase ordering serializes. Image generation calls OpenRouter and may be slow; avatar generation should be async and not block companion creation.",
+      "estimated_task_count": 8,
+      "task_hints": [
+        {"title": "Wire OpenRouter image generation provider in generation.py", "selected_backend": "codex_cli"},
+        {"title": "Switch appearance system to DB-backed storage", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
+        {"title": "Create CompanionInfoPanel with avatar and profile display", "selected_backend": "antigravity_cli"},
+        {"title": "Update visual API endpoints to use DB-backed appearance", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
+        {"title": "Add avatar upload and regenerate button to CompanionEditor", "selected_backend": "antigravity_cli"},
+        {"title": "Auto-generate avatar on companion creation in companions API", "selected_backend": "codex_cli"},
+        {"title": "Display generated avatars in CompanionSelector create flow", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
+        {"title": "Mount CompanionInfoPanel and display avatars next to messages in App.tsx", "selected_backend": "codex_cli"}
+      ]
+    },
+    {
+      "phase_id": "f",
+      "goal": "Consolidate broken Alembic migrations into one clean initial migration, remove the create_all() startup race condition, add auto-generated session/room titles from conversation content, and configure voice system TTS/STT providers. Delete all existing broken migration files in alembic/versions/. Generate one clean initial migration from current models. Verify make reset-db && make migrate works on fresh database. Remove or guard create_all() in app startup. Add post-conversation hook for LLM-generated title. Wire TTS_API_KEY and STT_API_KEY env vars into voice adapters.",
+      "expected_changed_files": [
+        "alembic/versions/",
+        "chatbot/api/app.py",
+        "chatbot/api/chat.py",
+        "chatbot/api/streaming.py",
+        "chatbot/voice/tts.py",
+        "chatbot/voice/stt.py",
+        ".env.example"
+      ],
+      "async_notes": "Wave 1: clean alembic/versions/ and generate initial migration. Update chatbot/api/app.py (remove create_all). Update chatbot/voice/tts.py and chatbot/voice/stt.py (wire API keys). Update .env.example. All disjoint. Wave 2: update chatbot/api/chat.py (auto-title generation). Wave 3: update chatbot/api/streaming.py (auto-title, serialized after chat.py).",
+      "risk_notes": "Migration consolidation is destructive — existing databases need make reset-db. Voice API keys may not be available; adapters should fail clearly when unconfigured.",
+      "estimated_task_count": 5,
+      "task_hints": [
+        {"title": "Delete broken migrations and generate clean initial migration", "selected_backend": "antigravity_cli"},
+        {"title": "Remove or conditionalize create_all in app startup", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
+        {"title": "Add auto-title generation to chat endpoint after first messages", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
+        {"title": "Add auto-title generation to streaming endpoint", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"},
+        {"title": "Wire TTS and STT API key env vars into voice adapters", "selected_backend": "pi_cli", "model": "openrouter/deepseek/deepseek-v4-pro"}
+      ]
+    }
+  ]
+}
