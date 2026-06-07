@@ -486,6 +486,12 @@ class CompileContextStep(TurnStep):
         mood_state = _current_mood_state(ctx) if _emotional_intelligence_ready(ctx) else None
         mode = _current_conversation_mode(ctx) if _emotional_intelligence_ready(ctx) else None
         persona_prompt = await self._persona_prompt(ctx, mood=mood_state, mode=mode)
+        scene_prompt = _roleplay_scene_prompt(ctx)
+        if scene_prompt:
+            persona_prompt = "\n\n".join(
+                part for part in (persona_prompt.strip(), scene_prompt) if part
+            )
+            ctx.metadata["roleplay_scene_prompt"] = scene_prompt
         ctx.compiled_context = _compile_context_text(
             persona_prompt=persona_prompt,
             history=ctx.history,
@@ -2839,6 +2845,62 @@ def _assemble_persona_prompt(
         )
         return "You are a helpful, neutral assistant. Respond clearly and accurately."
     return "You are a helpful, neutral assistant. Respond clearly and accurately."
+
+
+def _roleplay_scene_prompt(ctx: TurnContext) -> str:
+    if not ctx.metadata.get("scene_memory_isolation"):
+        return ""
+
+    scene = ctx.metadata.get("active_scene")
+    if scene is None:
+        return ""
+
+    parts: list[str] = []
+
+    scene_id = _text_attr(scene, "scene_id")
+    if scene_id:
+        parts.append(f"scene_id: {scene_id}")
+
+    location = _text_attr(scene, "location")
+    if location:
+        parts.append(f"location: {location}")
+
+    activity = _text_attr(scene, "activity")
+    if activity:
+        parts.append(f"activity: {activity}")
+
+    tone = _text_attr(scene, "tone")
+    if tone:
+        parts.append(f"tone: {tone}")
+
+    intensity = _text_attr(scene, "intensity")
+    if intensity:
+        parts.append(f"intensity: {intensity}/10")
+
+    participants = _coerce_text_list(getattr(scene, "participants", None))
+    if participants:
+        parts.append("participants: " + ", ".join(participants))
+
+    scene_context = _text_attr(scene, "scene_context")
+    if scene_context:
+        parts.append(f"context: {scene_context}")
+
+    if not parts:
+        return ""
+
+    return (
+        "Active roleplay scene:\n"
+        + "\n".join(parts)
+        + "\nStay within this scene context unless the user explicitly changes or ends it."
+    )
+
+
+def _text_attr(value: Any, name: str) -> str:
+    item = getattr(value, name, None)
+    if isinstance(item, Enum):
+        item = item.value
+    text = str(item or "").strip()
+    return text
 
 
 def _compile_context_text(
