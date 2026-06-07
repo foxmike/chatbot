@@ -19,6 +19,7 @@ from starlette.responses import StreamingResponse
 from chatbot.auth.dependencies import CurrentUser, get_current_user
 from chatbot.core import TurnContext, TurnStep
 from chatbot.core.turn import (
+    _generate_message_embeddings,
     _provider_config,
     _provider_history,
     _render_trace_prompt,
@@ -181,6 +182,11 @@ async def _stream_turn(
                 }
             )
 
+            if step_name == "compile_context" and ctx.compiled_context:
+                yield _sse_data(
+                    {"type": "context", "text": ctx.compiled_context}
+                )
+
         if not provider_seen and typing_active:
             yield _sse_data({"type": "typing", "status": "stopped"})
             typing_active = False
@@ -196,6 +202,8 @@ async def _stream_turn(
             user_message=request.message,
             assistant_message=response,
         )
+
+        await _generate_message_embeddings(ctx)
 
         yield _sse_data({"type": "response", "text": response})
         yield "data: [DONE]\n\n"
