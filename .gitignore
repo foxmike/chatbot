@@ -31,3 +31,4 @@ logs/
 .codex/
 state/runs/
 __pycache__/
+uv.lock
