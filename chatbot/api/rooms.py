@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from chatbot.auth.dependencies import get_current_user, CurrentUser
 
 from chatbot.db import async_session_factory
-from chatbot.db.models import Room as RoomModel, Scene as SceneModel
+from chatbot.db.models import Room as RoomRecord, Scene as SceneModel
 from chatbot.rooms.room import (
     Room,
     RoomMemoryPolicy,
@@ -253,7 +253,7 @@ async def delete_room_endpoint(room_id: str) -> None:
             sa.delete(SceneModel).where(SceneModel.room_id == room_id),
         )
         await session.execute(
-            sa.delete(RoomModel).where(RoomModel.room_id == room_id),
+            sa.delete(RoomRecord).where(RoomRecord.room_id == room_id),
         )
         await session.commit()
 

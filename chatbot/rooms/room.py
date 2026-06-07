@@ -8,9 +8,9 @@ from enum import Enum
 from typing import Any, Literal
 
 import sqlalchemy as sa
-from sqlalchemy.orm import DeclarativeBase
 
 from chatbot.db import async_session_factory
+from chatbot.db.models import Room as RoomRecord
 
 
 def _utcnow_iso() -> str:
@@ -95,77 +95,22 @@ DEFAULT_ROOM_POLICIES: dict[RoomType, RoomMemoryPolicy] = {
 
 
 # ---------------------------------------------------------------------------
-# SQLAlchemy ORM model
-# ---------------------------------------------------------------------------
-
-class _RoomDeclarativeBase(DeclarativeBase):
-    pass
-
-
-class RoomModel(_RoomDeclarativeBase):
-    __tablename__ = "rooms"
-
-    room_id: sa.orm.Mapped[str] = sa.orm.mapped_column(
-        sa.String(36),
-        primary_key=True,
-    )
-    user_id: sa.orm.Mapped[str] = sa.orm.mapped_column(
-        sa.String(36),
-        index=True,
-        nullable=False,
-    )
-    companion_id: sa.orm.Mapped[str | None] = sa.orm.mapped_column(
-        sa.String(36),
-        nullable=True,
-    )
-    room_type: sa.orm.Mapped[str] = sa.orm.mapped_column(
-        sa.String(32),
-        nullable=False,
-    )
-    display_name: sa.orm.Mapped[str] = sa.orm.mapped_column(
-        sa.String(255),
-        nullable=False,
-    )
-    scene_id: sa.orm.Mapped[str | None] = sa.orm.mapped_column(
-        sa.String(36),
-        nullable=True,
-    )
-    created_at: sa.orm.Mapped[str] = sa.orm.mapped_column(
-        sa.String(64),
-        nullable=False,
-    )
-    metadata_json: sa.orm.Mapped[dict[str, object] | None] = sa.orm.mapped_column(
-        sa.JSON,
-        nullable=True,
-    )
-    # Memory policy columns (denormalised for per-room queries/overrides)
-    persist_to_durable: sa.orm.Mapped[bool] = sa.orm.mapped_column(
-        sa.Boolean,
-        nullable=False,
-        default=True,
-    )
-    memory_scope: sa.orm.Mapped[str] = sa.orm.mapped_column(
-        sa.String(32),
-        nullable=False,
-        default="room",
-    )
-    max_context_turns: sa.orm.Mapped[int] = sa.orm.mapped_column(
-        sa.Integer,
-        nullable=False,
-        default=50,
-    )
-    include_embeddings: sa.orm.Mapped[bool] = sa.orm.mapped_column(
-        sa.Boolean,
-        nullable=False,
-        default=True,
-    )
-
-
-# ---------------------------------------------------------------------------
 # Conversion helpers
 # ---------------------------------------------------------------------------
 
-def _model_to_domain(model: RoomModel) -> Room:
+def _created_at_to_domain(value: datetime | str) -> str:
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return value
+
+
+def _created_at_to_model(value: datetime | str) -> datetime:
+    if isinstance(value, datetime):
+        return value
+    return datetime.fromisoformat(value)
+
+
+def _model_to_domain(model: RoomRecord) -> Room:
     return Room(
         room_id=model.room_id,
         user_id=model.user_id,
@@ -179,21 +124,21 @@ def _model_to_domain(model: RoomModel) -> Room:
             include_embeddings=model.include_embeddings,
         ),
         scene_id=model.scene_id,
-        created_at=model.created_at,
+        created_at=_created_at_to_domain(model.created_at),
         metadata=model.metadata_json or {},
     )
 
 
-def _domain_to_model(room: Room, model: RoomModel | None = None) -> RoomModel:
+def _domain_to_model(room: Room, model: RoomRecord | None = None) -> RoomRecord:
     if model is None:
-        model = RoomModel()
+        model = RoomRecord()
     model.room_id = room.room_id
     model.user_id = room.user_id
     model.companion_id = room.companion_id
     model.room_type = room.room_type.value
     model.display_name = room.display_name
     model.scene_id = room.scene_id
-    model.created_at = room.created_at
+    model.created_at = _created_at_to_model(room.created_at)
     model.metadata_json = room.metadata or {}
     model.persist_to_durable = room.memory_policy.persist_to_durable
     model.memory_scope = room.memory_policy.scope
@@ -239,7 +184,7 @@ async def get_room(room_id: str) -> Room | None:
     """Read a room by id from the database."""
     async with async_session_factory() as session:
         result = await session.execute(
-            sa.select(RoomModel).where(RoomModel.room_id == room_id)
+            sa.select(RoomRecord).where(RoomRecord.room_id == room_id)
         )
         model = result.scalar_one_or_none()
     if model is None:
@@ -251,9 +196,9 @@ async def get_user_rooms(user_id: str) -> list[Room]:
     """List all rooms belonging to a user."""
     async with async_session_factory() as session:
         result = await session.execute(
-            sa.select(RoomModel)
-            .where(RoomModel.user_id == user_id)
-            .order_by(RoomModel.created_at.desc())
+            sa.select(RoomRecord)
+            .where(RoomRecord.user_id == user_id)
+            .order_by(RoomRecord.created_at.desc())
         )
         models = result.scalars().all()
     return [_model_to_domain(m) for m in models]
@@ -266,7 +211,7 @@ async def update_room_memory_policy(
     """Override the memory policy for an existing room."""
     async with async_session_factory() as session:
         result = await session.execute(
-            sa.select(RoomModel).where(RoomModel.room_id == room_id)
+            sa.select(RoomRecord).where(RoomRecord.room_id == room_id)
         )
         model = result.scalar_one_or_none()
         if model is None:
@@ -282,7 +227,6 @@ __all__ = [
     "DEFAULT_ROOM_POLICIES",
     "Room",
     "RoomMemoryPolicy",
-    "RoomModel",
     "RoomType",
     "create_room",
     "get_room",
