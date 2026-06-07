@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Mapping
 from typing import Any
 
@@ -51,7 +52,7 @@ class STTAdapter(STTProvider):
 
         self.provider_id = provider_id
         self.model_id = model_id
-        self.api_key = api_key or ""
+        self.api_key = api_key or os.getenv("STT_API_KEY", "")
         self.base_url = (base_url or "").rstrip("/")
         self.timeout_seconds = timeout_seconds
 
@@ -119,9 +120,10 @@ class STTAdapter(STTProvider):
             "file": (_audio_filename(audio_format), audio_data, _audio_mime(audio_format)),
         }
 
-        headers: dict[str, str] = {}
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
+        if not self.api_key:
+            raise ValueError("STT_API_KEY environment variable or api_key parameter is required for OpenAI STT")
+
+        headers: dict[str, str] = {"Authorization": f"Bearer {self.api_key}"}
 
         try:
             async with httpx.AsyncClient() as client:
@@ -160,11 +162,13 @@ class STTAdapter(STTProvider):
         if language:
             params["language"] = language
 
+        if not self.api_key:
+            raise ValueError("STT_API_KEY environment variable or api_key parameter is required for Deepgram STT")
+
         headers: dict[str, str] = {
             "Content-Type": _audio_mime(audio_format),
+            "Authorization": f"Token {self.api_key}",
         }
-        if self.api_key:
-            headers["Authorization"] = f"Token {self.api_key}"
 
         base = self.base_url or "https://api.deepgram.com"
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Mapping
 from typing import Any
 
@@ -40,7 +41,7 @@ class TTSAdapter(TTSProvider):
         self.provider_id = provider_id
         self.model_id = model_id
         self.params: dict[str, Any] = dict(params or {})
-        self.api_key = api_key or ""
+        self.api_key = api_key or os.getenv("TTS_API_KEY", "")
         self.base_url = (base_url or "").rstrip("/")
         self.timeout_seconds = timeout_seconds
         self.cadence_mapper = cadence_mapper or CadenceMapper()
@@ -171,9 +172,11 @@ class TTSAdapter(TTSProvider):
         if speed is not None:
             body["speed"] = float(speed)
 
+        if not self.api_key:
+            raise ValueError("TTS_API_KEY environment variable or api_key parameter is required for OpenAI TTS")
+
         headers: dict[str, str] = {"Content-Type": "application/json"}
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
+        headers["Authorization"] = f"Bearer {self.api_key}"
 
         try:
             async with httpx.AsyncClient() as client:
@@ -215,12 +218,14 @@ class TTSAdapter(TTSProvider):
         if speed is not None:
             body.setdefault("voice_settings", {})["speed"] = float(speed)
 
+        if not self.api_key:
+            raise ValueError("TTS_API_KEY environment variable or api_key parameter is required for ElevenLabs TTS")
+
         headers: dict[str, str] = {
             "Content-Type": "application/json",
             "Accept": "audio/mpeg",
+            "xi-api-key": self.api_key,
         }
-        if self.api_key:
-            headers["xi-api-key"] = self.api_key
 
         base = self.base_url or "https://api.elevenlabs.io"
 
