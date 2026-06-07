@@ -275,6 +275,18 @@ export interface MemoryPolicyUpdateParams {
   include_embeddings?: boolean;
 }
 
+export interface RoomSessionData {
+  session_id: string;
+  room_id: string;
+  title: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface LinkSessionRequest {
+  session_id: string;
+}
+
 export interface SceneData {
   scene_id: string;
   room_id: string;
@@ -1292,6 +1304,43 @@ export async function deleteRoom(roomId: string): Promise<void> {
   }
   const response = await fetch(
     `${BASE_URL}${backendPath(`/rooms/${roomId}`)}`,
+    {
+      method: "DELETE",
+      headers,
+    },
+  );
+  await assertOk(response);
+}
+
+// ---------------------------------------------------------------------------
+// Room-Session API functions
+// ---------------------------------------------------------------------------
+
+export function createRoomSession(
+  roomId: string,
+  sessionId: string,
+): Promise<RoomData> {
+  return requestJson<RoomData>(`/rooms/${roomId}/link-session`, {
+    method: "POST",
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+}
+
+export function getRoomSession(roomId: string): Promise<RoomSessionData> {
+  return requestJson<RoomSessionData>(`/rooms/${roomId}/session`, {
+    method: "GET",
+  });
+}
+
+export async function unlinkRoomSession(roomId: string): Promise<void> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
+  }
+  const response = await fetch(
+    `${BASE_URL}${backendPath(`/rooms/${roomId}/session`)}`,
     {
       method: "DELETE",
       headers,
