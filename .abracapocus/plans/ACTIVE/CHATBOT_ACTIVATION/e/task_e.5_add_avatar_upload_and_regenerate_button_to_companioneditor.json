@@ -10,7 +10,7 @@
     "CompanionEditor has Regenerate Avatar button"
   ],
   "selected_backend": "antigravity_cli",
-  "model": "gemini-3.5-flash",
+  "model": "Gemini 3.5 Flash (Medium)",
   "verification_profile": "focused",
   "allowed_write_paths": [
     "react_ui/src/components/CompanionEditor.tsx"

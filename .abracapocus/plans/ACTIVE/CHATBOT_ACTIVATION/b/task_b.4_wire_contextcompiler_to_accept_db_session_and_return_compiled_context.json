@@ -10,7 +10,7 @@
     "py_compile chatbot/memory/context_compiler.py passes"
   ],
   "selected_backend": "antigravity_cli",
-  "model": "gemini-3.5-flash",
+  "model": "Gemini 3.5 Flash (Medium)",
   "verification_profile": "focused",
   "allowed_write_paths": [
     "chatbot/memory/context_compiler.py"

@@ -10,7 +10,7 @@
     "New migration file contains table definitions matching current models"
   ],
   "selected_backend": "antigravity_cli",
-  "model": "gemini-3.5-flash",
+  "model": "Gemini 3.5 Flash (Medium)",
   "verification_profile": "none",
   "allowed_write_paths": [
     "alembic/versions"
