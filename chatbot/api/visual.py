@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import base64
+import uuid as _uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from chatbot.auth.dependencies import CurrentUser, get_current_user
 from chatbot.db import async_session_factory
+from chatbot.db.models import Companion
 from chatbot.visual.appearance import (
     AppearanceManager,
     AppearanceProfile,
@@ -136,7 +139,31 @@ def _resolve_generation_identifier(model_str: str | None) -> VisualModelIdentifi
         )
 
 
-_appearance_manager: AppearanceManager = AppearanceManager()
+async def _load_appearance_manager_for_user(
+    session: AsyncSession,
+    user_id: str,
+) -> AppearanceManager:
+    """Load the DB-backed appearance manager for the given user's first companion.
+
+    If no companion exists yet, returns a default in-memory AppearanceManager
+    with the given session attached so callers can persist it later.
+    """
+    stmt = (
+        select(Companion.companion_id)
+        .where(Companion.user_id == _uuid.UUID(user_id))
+        .limit(1)
+    )
+    result = await session.execute(stmt)
+    row = result.fetchone()
+
+    if row is None:
+        return AppearanceManager(session=session)
+
+    companion_id: str = str(row[0])
+    return await AppearanceManager.load_from_db(
+        companion_id=companion_id,
+        session=session,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -165,30 +192,35 @@ async def generate_image(
             detail=f"Provider '{identifier.provider}' does not support image generation",
         )
 
-    service = ImageGenerationService(
-        appearance_manager=_appearance_manager,
-        provider=provider,
-    )
-
-    options = GenerationOptions(
-        width=request.width,
-        height=request.height,
-        negative_prompt=request.negative_prompt,
-        seed=request.seed,
-    )
-
-    try:
-        result = await service.generate_and_persist(
-            scene_description=request.prompt,
-            options=options,
-            user_id=str(current_user.user_id),
-            db_session=async_session_factory(),
+    async with async_session_factory() as session:
+        appearance_manager = await _load_appearance_manager_for_user(
+            session, current_user.user_id
         )
-    except GenerationError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
+
+        service = ImageGenerationService(
+            appearance_manager=appearance_manager,
+            provider=provider,
         )
+
+        options = GenerationOptions(
+            width=request.width,
+            height=request.height,
+            negative_prompt=request.negative_prompt,
+            seed=request.seed,
+        )
+
+        try:
+            result = await service.generate_and_persist(
+                scene_description=request.prompt,
+                options=options,
+                user_id=str(current_user.user_id),
+                db_session=session,
+            )
+        except GenerationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=str(exc),
+            )
 
     return GenerateResponse(
         image_base64=base64.b64encode(result.image_data).decode("ascii"),
@@ -285,8 +317,12 @@ def _resolve_understanding_provider() -> ImageUnderstandingProvider:
 async def get_appearance(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> AppearanceProfileResponse:
-    """Return the current global appearance profile."""
-    return _profile_to_response(_appearance_manager.get_profile())
+    """Return the current DB-backed appearance profile for the user's companion."""
+    async with async_session_factory() as session:
+        manager = await _load_appearance_manager_for_user(
+            session, current_user.user_id
+        )
+        return _profile_to_response(manager.get_profile())
 
 
 # ---------------------------------------------------------------------------
@@ -299,18 +335,23 @@ async def update_appearance(
     update: AppearanceProfileRequest,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> AppearanceProfileResponse:
-    """Update the global appearance profile."""
-    if update.character_seed is not None:
-        _appearance_manager.lock_seed(update.character_seed)
-    if update.character_description is not None:
-        _appearance_manager.update_character_description(update.character_description)
-    if update.visual_traits is not None:
-        _appearance_manager.update_visual_traits(update.visual_traits)
-    if update.art_style is not None:
-        _appearance_manager.update_art_style(update.art_style)
-    if update.color_palette is not None:
-        _appearance_manager.update_color_palette(update.color_palette)
-    return _profile_to_response(_appearance_manager.get_profile())
+    """Update the DB-backed appearance profile for the user's companion."""
+    async with async_session_factory() as session:
+        manager = await _load_appearance_manager_for_user(
+            session, current_user.user_id
+        )
+        if update.character_seed is not None:
+            manager.lock_seed(update.character_seed)
+        if update.character_description is not None:
+            manager.update_character_description(update.character_description)
+        if update.visual_traits is not None:
+            manager.update_visual_traits(update.visual_traits)
+        if update.art_style is not None:
+            manager.update_art_style(update.art_style)
+        if update.color_palette is not None:
+            manager.update_color_palette(update.color_palette)
+        await manager.save_to_db()
+        return _profile_to_response(manager.get_profile())
 
 
 # ---------------------------------------------------------------------------
