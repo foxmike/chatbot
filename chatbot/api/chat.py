@@ -15,12 +15,15 @@ from pydantic import BaseModel
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import asyncio
+
 from chatbot.api.sessions import sessions_store
 from chatbot.auth.dependencies import CurrentUser, get_current_user
 from chatbot.companions.companion import CompanionManager
 from chatbot.core.steps import StepResult, TurnContext
-from chatbot.db import get_db
+from chatbot.db import async_session_factory, get_db
 from chatbot.db.models import IdentityStateModel, Message, Room as RoomModel, Session
+from chatbot.providers.base import ProviderConfig, ProviderRegistry
 from chatbot.prompts.templates import render_room_prompt
 from chatbot.rooms.room import RoomType
 
@@ -201,6 +204,13 @@ async def chat(
     )
     db_session.updated_at = datetime.now(timezone.utc)
     await db.commit()
+
+    _maybe_schedule_title_generation(
+        request=request,
+        db_session=db_session,
+        user_message=body.message,
+        assistant_message=response,
+    )
 
     return ChatResponse(
         session_id=ctx.session_id,
@@ -847,6 +857,141 @@ def _first_state_value(request: Request, *names: str) -> Any:
         if value is not None:
             return value
     return None
+
+
+def _maybe_schedule_title_generation(
+    request: Request,
+    db_session: Session,
+    user_message: str,
+    assistant_message: str,
+) -> None:
+    """Schedule background title generation if the session has no title yet."""
+    if db_session.title is not None:
+        return
+
+    provider_registry = _first_state_value(
+        request,
+        "provider_registry",
+    )
+    if provider_registry is None or not isinstance(provider_registry, ProviderRegistry):
+        logger.debug("No provider registry available; skipping title generation")
+        return
+
+    provider_name = _first_state_value(
+        request,
+        "provider_name",
+        "default_provider",
+    )
+    model = _first_state_value(
+        request,
+        "model",
+        "default_model",
+    )
+    if not provider_name and not model:
+        provider_name = "openrouter"
+
+    session_id = db_session.id
+
+    asyncio.create_task(
+        _generate_conversation_title(
+            provider_registry=provider_registry,
+            provider_name=str(provider_name) if provider_name else "openrouter",
+            model=str(model) if model else None,
+            session_id=session_id,
+            user_message=user_message,
+            assistant_message=assistant_message,
+        )
+    )
+
+
+async def _generate_conversation_title(
+    *,
+    provider_registry: ProviderRegistry,
+    provider_name: str,
+    model: str | None,
+    session_id: uuid.UUID,
+    user_message: str,
+    assistant_message: str,
+) -> None:
+    """Generate a short conversation title using the LLM (runs in background)."""
+    try:
+        provider = provider_registry.get(provider_name)
+    except KeyError:
+        logger.debug(
+            "Provider %r not found in registry; skipping title generation",
+            provider_name,
+        )
+        return
+
+    if model is None:
+        model = ""
+
+    title_prompt = (
+        "Generate a short, concise title (2-5 words) for a conversation "
+        "that starts with the following exchange. Return ONLY the title, "
+        "with no quotes, explanations, or extra text.\n\n"
+        f"User: {user_message}\n"
+        f"Assistant: {assistant_message}\n"
+    )
+
+    config = ProviderConfig(
+        model=model,
+        temperature=0.3,
+        max_tokens=16,
+    )
+
+    try:
+        llm_response = await provider.complete(
+            prompt=title_prompt,
+            history=[],
+            config=config,
+        )
+    except Exception:
+        logger.warning(
+            "Title generation LLM call failed for session %s",
+            session_id,
+            exc_info=True,
+        )
+        return
+
+    raw_title = (llm_response.text or "").strip().strip('"').strip("'")
+    if not raw_title:
+        return
+
+    # Enforce 2-5 word range via truncation
+    words = raw_title.split()
+    if len(words) > 5:
+        raw_title = " ".join(words[:5])
+    elif len(words) < 2:
+        # Too short; keep as-is (at least something)
+        pass
+
+    # Persist the title in a fresh DB session
+    try:
+        db = async_session_factory()
+        try:
+            from sqlalchemy import update as sa_update
+
+            await db.execute(
+                sa_update(Session)
+                .where(Session.id == session_id, Session.title.is_(None))
+                .values(title=raw_title)
+            )
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise
+        finally:
+            await db.close()
+    except Exception:
+        logger.warning(
+            "Failed to persist title for session %s",
+            session_id,
+            exc_info=True,
+        )
+        return
+
+    logger.info("Auto-generated title for session %s: %r", session_id, raw_title)
 
 
 class _FallbackPipeline:
