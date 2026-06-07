@@ -53,8 +53,8 @@ class Room:
     display_name: str
     memory_policy: RoomMemoryPolicy
     scene_id: str | None
-    session_id: str | None = None
     created_at: str
+    session_id: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
@@ -242,6 +242,94 @@ async def update_room_memory_policy(
         await session.commit()
 
 
+# ---------------------------------------------------------------------------
+# Room-session linking
+# ---------------------------------------------------------------------------
+
+
+async def link_room_session(room_id: str, session_id: str) -> Room:
+    """Link an existing room to an existing session.
+
+    Returns the updated Room. Raises ValueError if the room or session is
+    not found.
+    """
+    sid = uuid.UUID(session_id)
+    async with async_session_factory() as session:
+        # Verify session exists
+        session_result = await session.execute(
+            sa.select(SessionRecord).where(SessionRecord.id == sid)
+        )
+        session_model = session_result.scalar_one_or_none()
+        if session_model is None:
+            raise ValueError(f"Session not found: {session_id!r}")
+
+        # Find and update the room
+        room_result = await session.execute(
+            sa.select(RoomRecord).where(RoomRecord.room_id == room_id)
+        )
+        room_model = room_result.scalar_one_or_none()
+        if room_model is None:
+            raise ValueError(f"Room not found: {room_id!r}")
+
+        room_model.session_id = sid
+        session_model.room_id = room_id
+        await session.commit()
+
+    updated = await get_room(room_id)
+    assert updated is not None
+    return updated
+
+
+async def unlink_room_session(room_id: str) -> Room:
+    """Remove the session link from a room.
+
+    Returns the updated Room. Raises ValueError if the room is not found.
+    """
+    async with async_session_factory() as session:
+        result = await session.execute(
+            sa.select(RoomRecord).where(RoomRecord.room_id == room_id)
+        )
+        model = result.scalar_one_or_none()
+        if model is None:
+            raise ValueError(f"Room not found: {room_id!r}")
+
+        # Clear the back-link on the session if one is set
+        if model.session_id is not None:
+            session_result = await session.execute(
+                sa.select(SessionRecord).where(
+                    SessionRecord.id == model.session_id
+                )
+            )
+            session_model = session_result.scalar_one_or_none()
+            if session_model is not None:
+                session_model.room_id = None
+
+        model.session_id = None
+        await session.commit()
+
+    updated = await get_room(room_id)
+    assert updated is not None
+    return updated
+
+
+async def get_room_session(room_id: str) -> SessionRecord | None:
+    """Return the Session record linked to a room, or None."""
+    async with async_session_factory() as session:
+        result = await session.execute(
+            sa.select(RoomRecord).where(RoomRecord.room_id == room_id)
+        )
+        room_model = result.scalar_one_or_none()
+        if room_model is None or room_model.session_id is None:
+            return None
+
+        session_result = await session.execute(
+            sa.select(SessionRecord).where(
+                SessionRecord.id == room_model.session_id
+            )
+        )
+        return session_result.scalar_one_or_none()
+
+
 __all__ = [
     "DEFAULT_ROOM_POLICIES",
     "Room",
@@ -249,6 +337,9 @@ __all__ = [
     "RoomType",
     "create_room",
     "get_room",
+    "get_room_session",
     "get_user_rooms",
+    "link_room_session",
+    "unlink_room_session",
     "update_room_memory_policy",
 ]

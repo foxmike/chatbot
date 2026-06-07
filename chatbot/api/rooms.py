@@ -12,14 +12,19 @@ from pydantic import BaseModel
 from chatbot.auth.dependencies import get_current_user, CurrentUser
 
 from chatbot.db import async_session_factory
-from chatbot.db.models import Room as RoomRecord, Scene as SceneModel
+from chatbot.db.models import Room as RoomRecord, Scene as SceneModel, Session as SessionRecord
+
+from chatbot.prompts.templates import get_prompt_template, render_room_prompt
 from chatbot.rooms.room import (
     Room,
     RoomMemoryPolicy,
     RoomType,
     create_room,
     get_room,
+    get_room_session,
     get_user_rooms,
+    link_room_session,
+    unlink_room_session,
     update_room_memory_policy,
 )
 from chatbot.rooms.roleplay import RoleplayEngine, RoleplayPersona
@@ -124,6 +129,46 @@ class ClassifyRequest(BaseModel):
 
 class MemoryClassificationResponse(BaseModel):
     classification: Literal["scene_only", "durable", "both"]
+
+
+class PromptTemplateRequest(BaseModel):
+    """Optional values for prompt template interpolation."""
+
+    user_name: str = ""
+    companion_name: str = ""
+    backstory: str = ""
+    personality_sliders: str = ""
+    humor_style: str = ""
+    communication_style: str = ""
+    favorite_topics: str = ""
+    conversation_mode: str = ""
+    scene_location: str = ""
+    scene_activity: str = ""
+    scene_tone: str = ""
+    persona_description: str = ""
+    traits: str = ""
+    voice_style: str = ""
+    scene_goals: str = ""
+    constraints: str = ""
+    display_name: str = ""
+    session_count: str = ""
+
+
+class PromptTemplateResponse(BaseModel):
+    room_type: RoomType
+    system_prompt: str
+
+
+class RoomSessionResponse(BaseModel):
+    session_id: str
+    room_id: str
+    title: str | None
+    is_active: bool
+    created_at: str
+
+
+class LinkSessionRequest(BaseModel):
+    session_id: str
 
 
 # ---------------------------------------------------------------------------
@@ -371,6 +416,170 @@ async def end_scene_endpoint(scene_id: str) -> SceneResponse:
             detail=str(exc),
         )
     return _scene_to_response(scene)
+
+
+# ---------------------------------------------------------------------------
+# Room-session linking endpoints
+# ---------------------------------------------------------------------------
+
+
+@rooms_router.get("/{room_id}/session", response_model=RoomSessionResponse)
+async def get_room_session_endpoint(room_id: str) -> RoomSessionResponse:
+    room = await get_room(room_id)
+    if room is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Room not found",
+        )
+
+    session_record = await get_room_session(room_id)
+    if session_record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No session linked to this room",
+        )
+
+    return RoomSessionResponse(
+        session_id=str(session_record.id),
+        room_id=room_id,
+        title=session_record.title,
+        is_active=session_record.is_active,
+        created_at=session_record.created_at.isoformat(),
+    )
+
+
+@rooms_router.post(
+    "/{room_id}/link-session",
+    response_model=RoomResponse,
+)
+async def link_session_endpoint(
+    room_id: str,
+    body: LinkSessionRequest,
+) -> RoomResponse:
+    try:
+        room = await link_room_session(room_id, body.session_id)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        )
+    return _room_to_response(room)
+
+
+@rooms_router.delete(
+    "/{room_id}/session",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def unlink_session_endpoint(room_id: str) -> None:
+    try:
+        await unlink_room_session(room_id)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        )
+
+
+# ---------------------------------------------------------------------------
+# Prompt template endpoints
+# ---------------------------------------------------------------------------
+
+
+@rooms_router.get(
+    "/{room_id}/prompt-template",
+    response_model=PromptTemplateResponse,
+)
+async def get_room_prompt_template(
+    room_id: str,
+    user_name: str = "",
+    companion_name: str = "",
+    backstory: str = "",
+    personality_sliders: str = "",
+    humor_style: str = "",
+    communication_style: str = "",
+    favorite_topics: str = "",
+    conversation_mode: str = "",
+    scene_location: str = "",
+    scene_activity: str = "",
+    scene_tone: str = "",
+    persona_description: str = "",
+    traits: str = "",
+    voice_style: str = "",
+    scene_goals: str = "",
+    constraints: str = "",
+    display_name: str = "",
+    session_count: str = "",
+) -> PromptTemplateResponse:
+    """Return the rendered prompt template for a room's type.
+
+    Accepts optional query parameters that are interpolated into the
+    room-type-specific template.
+    """
+    room = await get_room(room_id)
+    if room is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Room not found",
+        )
+
+    kwargs: dict[str, str] = {}
+    for key in (
+        "user_name",
+        "companion_name",
+        "backstory",
+        "personality_sliders",
+        "humor_style",
+        "communication_style",
+        "favorite_topics",
+        "conversation_mode",
+        "scene_location",
+        "scene_activity",
+        "scene_tone",
+        "persona_description",
+        "traits",
+        "voice_style",
+        "scene_goals",
+        "constraints",
+        "display_name",
+        "session_count",
+    ):
+        val = locals().get(key, "")
+        if val:
+            kwargs[key] = val
+
+    system_prompt = render_room_prompt(room.room_type, **kwargs)
+    return PromptTemplateResponse(
+        room_type=room.room_type,
+        system_prompt=system_prompt,
+    )
+
+
+@rooms_router.post(
+    "/{room_id}/prompt-template",
+    response_model=PromptTemplateResponse,
+)
+async def post_room_prompt_template(
+    room_id: str,
+    body: PromptTemplateRequest,
+) -> PromptTemplateResponse:
+    """Return the rendered prompt template for a room's type using POST body."""
+    room = await get_room(room_id)
+    if room is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Room not found",
+        )
+
+    kwargs: dict[str, str] = {}
+    for field_name, field_value in body.model_dump().items():
+        if field_value:
+            kwargs[field_name] = str(field_value)
+
+    system_prompt = render_room_prompt(room.room_type, **kwargs)
+    return PromptTemplateResponse(
+        room_type=room.room_type,
+        system_prompt=system_prompt,
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -7,7 +7,10 @@ from chatbot.rooms.room import (
     RoomType,
     create_room,
     get_room,
+    get_room_session,
     get_user_rooms,
+    link_room_session,
+    unlink_room_session,
     update_room_memory_policy,
 )
 
@@ -33,6 +36,9 @@ __all__ = [
     "SceneState",
     "create_room",
     "get_room",
+    "get_room_session",
     "get_user_rooms",
+    "link_room_session",
+    "unlink_room_session",
     "update_room_memory_policy",
 ]
