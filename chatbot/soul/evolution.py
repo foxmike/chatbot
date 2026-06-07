@@ -4,11 +4,15 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 import random
 from typing import Any, Mapping
 
+from chatbot.db.models import IdentityStateModel, Message
 from chatbot.soul.character import CharacterProfile
 from chatbot.soul.relationship import RelationshipConfig
+from chatbot.soul.mood import MoodEngine, MoodState
+
 
 
 DRIFT_BOUND_RATIO = 0.20
@@ -401,6 +405,101 @@ def _clamp01(value: float) -> float:
     return max(0.0, min(1.0, value))
 
 
+def calculate_drift(
+    identity: IdentityStateModel,
+    conversation: list[Message],
+) -> IdentityStateModel:
+    """Pure function to calculate updated identity state model after applying turn drift.
+
+    This function is pure and does not mutate the inputs.
+    """
+    if not conversation:
+        return IdentityStateModel(
+            id=identity.id,
+            session_id=identity.session_id,
+            fixed=deepcopy(identity.fixed),
+            slow=deepcopy(identity.slow),
+            mood=deepcopy(identity.mood),
+            last_updated=identity.last_updated,
+        )
+
+    last_user_msg = next((m for m in reversed(conversation) if m.role == "user"), None)
+    last_assistant_msg = next((m for m in reversed(conversation) if m.role == "assistant"), None)
+    assistant_count = sum(1 for m in conversation if m.role == "assistant")
+
+    state = IdentityState(
+        fixed=deepcopy(identity.fixed),
+        slow=deepcopy(identity.slow),
+        mood=deepcopy(identity.mood),
+        interaction_count=max(0, assistant_count - 1),
+    )
+
+    context: dict[str, Any] = {}
+    if last_user_msg:
+        context["user_message"] = last_user_msg.content
+    if last_assistant_msg:
+        context["provider_response"] = last_assistant_msg.content
+
+    state.apply_evolution(context)
+
+    return IdentityStateModel(
+        id=identity.id,
+        session_id=identity.session_id,
+        fixed=deepcopy(state.fixed),
+        slow=deepcopy(state.slow),
+        mood=deepcopy(state.mood),
+        last_updated=identity.last_updated,
+    )
+
+
+def calculate_mood(
+    identity: IdentityStateModel,
+    conversation: list[Message],
+) -> MoodState:
+    """Pure function to calculate updated MoodState from conversation history.
+
+    This function is pure and does not mutate the inputs.
+    """
+    mood_engine = MoodEngine()
+    current_mood = mood_engine.default_state()
+
+    last_user_content = ""
+    for msg in conversation:
+        if msg.role == "user":
+            last_user_content = msg.content
+        elif msg.role == "assistant":
+            turn_result = {
+                "user_message": last_user_content,
+                "provider_response": msg.content,
+            }
+            current_mood = mood_engine.update(turn_result, current_mood)
+            last_user_content = ""
+
+    if last_user_content:
+        turn_result = {
+            "user_message": last_user_content,
+            "provider_response": "",
+        }
+        current_mood = mood_engine.update(turn_result, current_mood)
+
+    if conversation:
+        last_msg = conversation[-1]
+        last_updated = last_msg.created_at
+        if last_updated is None:
+            last_updated = datetime.now(timezone.utc)
+    else:
+        last_updated = datetime.now(timezone.utc)
+
+    return MoodState(
+        mood=current_mood.mood,
+        energy=current_mood.energy,
+        closeness=current_mood.closeness,
+        last_updated=last_updated,
+        recent_emotional_context=list(current_mood.recent_emotional_context),
+        turns_since_mood_shift=current_mood.turns_since_mood_shift,
+    )
+
+
 __all__ = [
     "DEFAULT_DRIFT_INTERVAL",
     "DEFAULT_DRIFT_RATE",
@@ -410,4 +509,6 @@ __all__ = [
     "apply_evolution",
     "bounded_drift",
     "mood_decay",
+    "calculate_drift",
+    "calculate_mood",
 ]
