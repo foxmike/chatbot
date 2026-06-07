@@ -818,12 +818,17 @@ class Room(Base):
         server_default=sa.sql.func.now(),
     )
     metadata_json: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
+    session_id: Mapped[uuid.UUID | None] = mapped_column(
+        sa.ForeignKey("sessions.id"),
+        nullable=True,
+    )
 
     scenes: Mapped[list[Scene]] = relationship(
         back_populates="room",
         foreign_keys="[Scene.room_id]",
     )
     scene: Mapped[Scene | None] = relationship(foreign_keys=[scene_id])
+    session: Mapped[Session | None] = relationship()
 
 
 class Scene(Base):

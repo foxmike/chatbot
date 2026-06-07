@@ -6,11 +6,12 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Literal
+import uuid
 
 import sqlalchemy as sa
 
 from chatbot.db import async_session_factory
-from chatbot.db.models import Room as RoomRecord
+from chatbot.db.models import Room as RoomRecord, Session as SessionRecord
 
 
 def _utcnow_iso() -> str:
@@ -52,6 +53,7 @@ class Room:
     display_name: str
     memory_policy: RoomMemoryPolicy
     scene_id: str | None
+    session_id: str | None = None
     created_at: str
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -124,6 +126,7 @@ def _model_to_domain(model: RoomRecord) -> Room:
             include_embeddings=model.include_embeddings,
         ),
         scene_id=model.scene_id,
+        session_id=str(model.session_id) if model.session_id else None,
         created_at=_created_at_to_domain(model.created_at),
         metadata=model.metadata_json or {},
     )
@@ -144,6 +147,8 @@ def _domain_to_model(room: Room, model: RoomRecord | None = None) -> RoomRecord:
     model.memory_scope = room.memory_policy.scope
     model.max_context_turns = room.memory_policy.max_context_turns
     model.include_embeddings = room.memory_policy.include_embeddings
+    if room.session_id:
+        model.session_id = uuid.UUID(room.session_id)
     return model
 
 
@@ -158,15 +163,15 @@ async def create_room(
     companion_id: str | None = None,
 ) -> Room:
     """Create a new room with a fresh uuid4 id and the default memory policy."""
-    import uuid
 
     policy = DEFAULT_ROOM_POLICIES[room_type]
+    room_id = str(uuid.uuid4())
     room = Room(
-        room_id=str(uuid.uuid4()),
+        room_id=room_id,
         user_id=user_id,
         companion_id=companion_id,
         room_type=room_type,
-        display_name=display_name or f"{room_type.value}_{room.room_id[:8]}",
+        display_name=display_name or f"{room_type.value}_{room_id[:8]}",
         memory_policy=policy,
         scene_id=None,
         created_at=_utcnow_iso(),
@@ -174,9 +179,23 @@ async def create_room(
     )
 
     model = _domain_to_model(room)
-    async with async_session_factory() as session:
-        session.add(model)
-        await session.commit()
+    async with async_session_factory() as db:
+        db.add(model)
+        await db.flush()
+
+        # Auto-create a new session linked to this room
+        session_record = SessionRecord(
+            user_id=uuid.UUID(user_id),
+            companion_id=companion_id,
+            title=room.display_name,
+        )
+        db.add(session_record)
+        await db.flush()
+
+        model.session_id = session_record.id
+        room.session_id = str(session_record.id)
+
+        await db.commit()
     return room
 
 
