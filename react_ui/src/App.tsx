@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import {
   createSession,
-  deleteSession,
+  createRoomSession,
+  getRoomSession,
   getSessionMessages,
   listCompanions,
   listSessions,
@@ -11,7 +12,6 @@ import AvatarDisplay from "./components/AvatarDisplay";
 import ChatInput from "./components/ChatInput";
 import ChatMessage from "./components/ChatMessage";
 import MessageList from "./components/MessageList";
-import SessionSidebar from "./components/SessionSidebar";
 import { NotificationFeed } from "./components/NotificationFeed";
 import AppShell from "./components/AppShell";
 import SettingsPanel from "./components/SettingsPanel";
@@ -19,11 +19,11 @@ import { MemoryPanel } from "./components/MemoryPanel";
 import TimelinePanel from "./components/TimelinePanel";
 import CompanionSelector from "./components/CompanionSelector";
 import { RoomSwitcher } from "./components/RoomSwitcher";
-import SceneControls from "./components/SceneControls";
+import ScenePanel from "./components/ScenePanel";
 import { VoiceControls } from "./components/VoiceControls";
 import { CallMode } from "./components/CallMode";
 import type { ApiError, CreateSessionResponse, Message, Session } from "./types";
-import type { RoomType } from "./api/client";
+import type { RoomData, RoomType } from "./api/client";
 import { AdminDashboard } from "./components/AdminDashboard";
 import { AuthScreen } from "./components/AuthScreen";
 import type { Companion, User } from "./api/client";
@@ -260,6 +260,8 @@ export default function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
+  const [activeRoomType, setActiveRoomType] = useState<RoomType | null>(null);
+  const [activeRoomTitle, setActiveRoomTitle] = useState<string | null>(null);
   const [messagesBySession, setMessagesBySession] = useState<Record<string, Message[]>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -277,11 +279,34 @@ export default function App() {
   const queueRef = useRef<Array<{ text: string; sessionId: string; roomId: string | null; streaming: boolean }>>([]);
   const processingRef = useRef(false);
   const streamSettleRef = useRef<{ sessionId: string; resolve: () => void; reject: (err: Error) => void } | null>(null);
+  const activeRoomIdRef = useRef<string | null>(null);
 
   const messages = activeSessionId ? messagesBySession[activeSessionId] ?? [] : [];
   const activeSession = sessions.find(
     (session) => session.session_id === activeSessionId,
   );
+
+  useEffect(() => {
+    activeRoomIdRef.current = activeRoomId;
+  }, [activeRoomId]);
+
+  const upsertSession = (session: Session) => {
+    setSessions((currentSessions) => {
+      const existingIndex = currentSessions.findIndex(
+        (currentSession) => currentSession.session_id === session.session_id,
+      );
+      if (existingIndex === -1) {
+        return [session, ...currentSessions];
+      }
+
+      const nextSessions = [...currentSessions];
+      nextSessions[existingIndex] = {
+        ...nextSessions[existingIndex],
+        ...session,
+      };
+      return nextSessions;
+    });
+  };
 
   useEffect(() => {
     if (!user || !selectedCompanion) {
@@ -300,7 +325,9 @@ export default function App() {
 
         if (existingSessions.length > 0) {
           setSessions(existingSessions);
-          setActiveSessionId(existingSessions[0].session_id);
+          if (!activeRoomIdRef.current) {
+            setActiveSessionId(existingSessions[0].session_id);
+          }
           setError(null);
           return;
         }
@@ -308,7 +335,9 @@ export default function App() {
         const response = await createSession("Chat 1", selectedCompanion?.companion_id);
         const session = buildSession(response, "Chat 1");
         setSessions([session]);
-        setActiveSessionId(session.session_id);
+        if (!activeRoomIdRef.current) {
+          setActiveSessionId(session.session_id);
+        }
         setMessagesBySession({ [session.session_id]: [] });
         setError(null);
       } catch (sessionError) {
@@ -475,88 +504,70 @@ export default function App() {
     pending.reject(streamError);
   };
 
-  const handleNewSession = async () => {
-    try {
-      const title = `Chat ${sessions.length + 1}`;
-      const response = await createSession(title, selectedCompanion?.companion_id);
-      const session = buildSession(response, title);
-
-      setSessions((currentSessions) => [...currentSessions, session]);
-      setActiveSessionId(session.session_id);
-      setMessagesBySession((currentMessages) => ({
-        ...currentMessages,
-        [session.session_id]: [],
-      }));
-      setError(null);
-    } catch (sessionError) {
-      console.error("Failed to create session", sessionError);
-      setError(getErrorDetail(sessionError));
-    }
-  };
-
-  const handleSelectSession = (sessionId: string) => {
-    setActiveSessionId(sessionId);
-    setError(null);
-  };
-
-  const handleRoomChange = (roomId: string, _roomType: RoomType) => {
+  const handleRoomChange = async (
+    roomId: string,
+    roomType: RoomType,
+    room?: RoomData,
+  ) => {
+    activeRoomIdRef.current = roomId;
     setActiveRoomId(roomId);
+    setActiveRoomType(roomType);
+    setActiveRoomTitle(room?.display_name ?? null);
     setError(null);
-  };
-
-  const handleDeleteSession = async (session: Session) => {
-    const confirmed = window.confirm(
-      `Delete chat "${session.title}". Are you sure?`,
-    );
-    if (!confirmed) {
-      return;
-    }
 
     try {
-      await deleteSession(session.session_id);
-
-      const remainingSessions = sessions.filter(
-        (currentSession) => currentSession.session_id !== session.session_id,
-      );
-      setSessions(remainingSessions);
-      setMessagesBySession((currentMessages) => {
-        const nextMessages = { ...currentMessages };
-        delete nextMessages[session.session_id];
-        return nextMessages;
-      });
-
-      if (activeSessionId !== session.session_id) {
-        setError(null);
+      const roomSession = await getRoomSession(roomId);
+      const session: Session = {
+        session_id: roomSession.session_id,
+        title: roomSession.title || room?.display_name || "Room Chat",
+        created_at: roomSession.created_at,
+      };
+      upsertSession(session);
+      setActiveSessionId(roomSession.session_id);
+    } catch (roomSessionError) {
+      const apiError = roomSessionError as ApiError;
+      if (apiError?.status_code !== 404 || !room) {
+        console.error("Failed to load room session", roomSessionError);
+        setError(getErrorDetail(roomSessionError));
         return;
       }
 
-      if (remainingSessions.length > 0) {
-        setActiveSessionId(remainingSessions[0].session_id);
-        setError(null);
-        return;
+      try {
+        const response = await createSession(
+          room.display_name,
+          room.companion_id ?? selectedCompanion?.companion_id,
+          roomId,
+        );
+        await createRoomSession(roomId, response.session_id);
+        const session = buildSession(response, room.display_name);
+        upsertSession(session);
+        setActiveSessionId(session.session_id);
+      } catch (createRoomSessionError) {
+        console.error("Failed to create room session", createRoomSessionError);
+        setError(getErrorDetail(createRoomSessionError));
       }
-
-      const response = await createSession("Chat 1", selectedCompanion?.companion_id);
-      const nextSession = buildSession(response, "Chat 1");
-      setSessions([nextSession]);
-      setActiveSessionId(nextSession.session_id);
-      setMessagesBySession((currentMessages) => ({
-        ...currentMessages,
-        [nextSession.session_id]: [],
-      }));
-      setError(null);
-    } catch (deleteError) {
-      console.error("Failed to delete session", deleteError);
-      setError(getErrorDetail(deleteError));
     }
+  };
+
+  const handleRoomCleared = () => {
+    activeRoomIdRef.current = null;
+    setActiveRoomId(null);
+    setActiveRoomType(null);
+    setActiveRoomTitle(null);
+    setActiveSessionId(null);
+    setError(null);
   };
 
   const handleSwitchCompanion = (companion: Companion) => {
     queueRef.current = [];
     processingRef.current = false;
     streamSettleRef.current = null;
+    activeRoomIdRef.current = null;
     setSessions([]);
     setActiveSessionId(null);
+    setActiveRoomId(null);
+    setActiveRoomType(null);
+    setActiveRoomTitle(null);
     setMessagesBySession({});
     setError(null);
     setSelectedCompanion(companion);
@@ -566,11 +577,14 @@ export default function App() {
     queueRef.current = [];
     processingRef.current = false;
     streamSettleRef.current = null;
+    activeRoomIdRef.current = null;
     setUser(null);
     setSelectedCompanion(null);
     setSessions([]);
     setActiveSessionId(null);
     setActiveRoomId(null);
+    setActiveRoomType(null);
+    setActiveRoomTitle(null);
     setMessagesBySession({});
     setError(null);
     setIsLoading(false);
@@ -635,31 +649,37 @@ export default function App() {
         />
       ) : null}
       <AppShell
-      user={user}
-      companionSwitcher={
-        <CompanionSwitcher current={selectedCompanion} onSwitch={handleSwitchCompanion} onManage={() => setSelectedCompanion(null)} />
-      }
-      activeSessionTitle={
-        activeSession ? `${selectedCompanion.name}: ${activeSession.title}` : undefined
-      }
-      sidebar={
-        <div className="flex h-full w-64 shrink-0 flex-col">
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <SessionSidebar
-              sessions={sessions}
-              activeSessionId={activeSessionId}
-              onSelect={handleSelectSession}
-              onNewSession={handleNewSession}
-              onDelete={handleDeleteSession}
-            />
+        user={user}
+        companionSwitcher={
+          <CompanionSwitcher current={selectedCompanion} onSwitch={handleSwitchCompanion} onManage={() => setSelectedCompanion(null)} />
+        }
+        activeSessionTitle={
+          activeRoomTitle
+            ? `${selectedCompanion.name}: ${activeRoomTitle}`
+            : activeSession
+              ? `${selectedCompanion.name}: ${activeSession.title}`
+              : undefined
+        }
+        sidebar={
+          <div className="flex h-full w-64 shrink-0 flex-col">
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <RoomSwitcher
+                userId={user.user_id}
+                activeRoomId={activeRoomId}
+                onRoomChange={handleRoomChange}
+                onRoomCleared={handleRoomCleared}
+                variant="sidebar"
+                autoSelectFirst
+                selectCreatedRoom
+              />
+            </div>
+            <div className="shrink-0 border-t border-gray-700 bg-gray-800">
+              <NotificationFeed userId={user.user_id} />
+            </div>
           </div>
-          <div className="shrink-0 border-t border-gray-700 bg-gray-800">
-            <NotificationFeed userId={user.user_id} />
-          </div>
-        </div>
-      }
-      chatPanel={chatPanel}
-      panels={{
+        }
+        chatPanel={chatPanel}
+        panels={{
         settings: (
           <SettingsPanel
             user={user}
@@ -676,11 +696,23 @@ export default function App() {
           <TimelinePanel sessionId={activeSessionId ?? ''} />
         ),
         rooms: (
-          <RoomSwitcher
-            userId={user.user_id}
-            activeRoomId={activeRoomId}
-            onRoomChange={handleRoomChange}
-          />
+          activeRoomType === "roleplay_scene" ? (
+            <ScenePanel roomId={activeRoomId} roomType={activeRoomType} />
+          ) : (
+            <section className="flex h-full items-center justify-center p-4 sm:p-6">
+              <div className="w-full max-w-lg rounded-lg border border-gray-700 bg-gray-800 p-6 text-gray-100">
+                <h2 className="text-xl font-semibold">Rooms</h2>
+                <p className="mt-2 text-sm text-gray-400">
+                  Select a roleplay room from the sidebar to manage its active scene.
+                </p>
+                {activeRoomTitle ? (
+                  <p className="mt-4 text-sm text-gray-300">
+                    Active room: {activeRoomTitle}
+                  </p>
+                ) : null}
+              </div>
+            </section>
+          )
         ),
         voice: (
           <div className="flex h-full flex-col items-center justify-center gap-6 p-4">
@@ -696,8 +728,8 @@ export default function App() {
           </div>
         ),
         admin: <AdminGate />,
-      }}
-    />
+        }}
+      />
     </>
   );
 }

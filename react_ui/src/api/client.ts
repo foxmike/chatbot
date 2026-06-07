@@ -476,10 +476,15 @@ function dispatchSseEvent(rawEvent: string, onEvent: (event: StreamEvent) => voi
   onEvent(event);
 }
 
-export function createSession(title?: string, companionId?: string): Promise<CreateSessionResponse> {
+export function createSession(
+  title?: string,
+  companionId?: string,
+  roomId?: string,
+): Promise<CreateSessionResponse> {
   const body: Record<string, string> = {};
   if (title !== undefined) body.title = title;
   if (companionId !== undefined) body.companion_id = companionId;
+  if (roomId !== undefined) body.room_id = roomId;
   return requestJson<CreateSessionResponse>("/api/sessions/", {
     method: "POST",
     body: JSON.stringify(body),

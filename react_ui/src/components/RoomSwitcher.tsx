@@ -12,7 +12,11 @@ import type { ApiError } from "../types";
 interface RoomSwitcherProps {
   userId: string;
   activeRoomId: string | null;
-  onRoomChange: (roomId: string, roomType: RoomType) => void;
+  onRoomChange: (roomId: string, roomType: RoomType, room: RoomData) => void;
+  onRoomCleared?: () => void;
+  variant?: "panel" | "sidebar";
+  autoSelectFirst?: boolean;
+  selectCreatedRoom?: boolean;
 }
 
 const ROOM_TYPE_LABELS: Record<RoomType, string> = {
@@ -60,6 +64,10 @@ export function RoomSwitcher({
   userId,
   activeRoomId,
   onRoomChange,
+  onRoomCleared,
+  variant = "panel",
+  autoSelectFirst = false,
+  selectCreatedRoom = false,
 }: RoomSwitcherProps) {
   const [rooms, setRooms] = useState<RoomData[]>([]);
   const [isFetching, setIsFetching] = useState(true);
@@ -85,6 +93,10 @@ export function RoomSwitcher({
     try {
       const result = await listRooms(userId);
       setRooms(result);
+      if (autoSelectFirst && !activeRoomId && result.length > 0) {
+        const firstRoom = result[0];
+        onRoomChange(firstRoom.room_id, firstRoom.room_type, firstRoom);
+      }
     } catch (err) {
       console.error("Failed to load rooms", err);
       setError(getErrorDetail(err));
@@ -128,6 +140,9 @@ export function RoomSwitcher({
       });
 
       setRooms((prev) => [...prev, room]);
+      if (selectCreatedRoom) {
+        onRoomChange(room.room_id, room.room_type, room);
+      }
       setShowCreateModal(false);
       setNewRoomType("one_on_one_chat");
       setNewDisplayName("");
@@ -146,7 +161,16 @@ export function RoomSwitcher({
 
     try {
       await deleteRoom(roomId);
-      setRooms((prev) => prev.filter((r) => r.room_id !== roomId));
+      const nextRooms = rooms.filter((r) => r.room_id !== roomId);
+      setRooms(nextRooms);
+      if (roomId === activeRoomId) {
+        const nextRoom = nextRooms[0];
+        if (nextRoom) {
+          onRoomChange(nextRoom.room_id, nextRoom.room_type, nextRoom);
+        } else {
+          onRoomCleared?.();
+        }
+      }
       setConfirmDeleteId(null);
     } catch (err) {
       console.error("Failed to delete room", err);
@@ -158,18 +182,38 @@ export function RoomSwitcher({
 
   const handleSelectRoom = (room: RoomData) => {
     if (room.room_id === activeRoomId) return;
-    onRoomChange(room.room_id, room.room_type);
+    onRoomChange(room.room_id, room.room_type, room);
   };
 
   return (
-    <section className="rounded-lg border border-gray-700 bg-gray-800 p-5 text-gray-100">
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
+    <section
+      className={
+        variant === "sidebar"
+          ? "flex h-full w-64 shrink-0 flex-col border-r border-gray-700 bg-gray-800 text-gray-100"
+          : "rounded-lg border border-gray-700 bg-gray-800 p-5 text-gray-100"
+      }
+    >
+      <div
+        className={
+          variant === "sidebar"
+            ? "flex min-h-0 flex-1 flex-col"
+            : "flex flex-col gap-4"
+        }
+      >
+        <div
+          className={
+            variant === "sidebar"
+              ? "border-b border-gray-700 p-3"
+              : "flex items-center justify-between"
+          }
+        >
           <div>
             <h2 className="text-lg font-semibold text-gray-100">Rooms</h2>
-            <p className="mt-1 text-sm text-gray-400">
-              Switch between active rooms or create a new one.
-            </p>
+            {variant === "panel" ? (
+              <p className="mt-1 text-sm text-gray-400">
+                Switch between active rooms or create a new one.
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -200,16 +244,22 @@ export function RoomSwitcher({
         ) : null}
 
         {isFetching ? (
-          <div className="text-sm text-gray-400">Loading rooms...</div>
+          <div className={variant === "sidebar" ? "px-3 py-4 text-sm text-gray-400" : "text-sm text-gray-400"}>Loading rooms...</div>
         ) : rooms.length === 0 ? (
-          <div className="text-sm text-gray-500">No rooms yet.</div>
+          <div className={variant === "sidebar" ? "px-3 py-4 text-sm text-gray-500" : "text-sm text-gray-500"}>No rooms yet.</div>
         ) : (
-          <div className="flex flex-wrap gap-2">
+          <div
+            className={
+              variant === "sidebar"
+                ? "flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2"
+                : "flex flex-wrap gap-2"
+            }
+          >
             {rooms.map((room) => {
               const isActive = room.room_id === activeRoomId;
 
               return (
-                <div key={room.room_id} className="relative">
+                <div key={room.room_id} className={variant === "sidebar" ? "relative" : "relative"}>
                   {confirmDeleteId === room.room_id ? (
                     <div className="flex items-center gap-2 rounded-lg border border-red-700 bg-red-950/30 px-3 py-2 text-sm">
                       <span className="text-red-200">Delete?</span>
@@ -233,18 +283,33 @@ export function RoomSwitcher({
                   ) : (
                     <button
                       type="button"
-                      className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-indigo-500/60 ${
-                        isActive
-                          ? "border-indigo-500 bg-indigo-900/40 text-indigo-200"
-                          : "border-gray-600 bg-gray-900 text-gray-300 hover:border-gray-500 hover:bg-gray-800"
-                      }`}
+                      className={
+                        variant === "sidebar"
+                          ? `flex w-full items-start gap-2 border-l-4 px-3 py-2 text-left transition focus:outline-none focus:ring-2 focus:ring-indigo-500/60 ${
+                              isActive
+                                ? "border-indigo-500 bg-gray-700 text-indigo-100"
+                                : "border-transparent text-gray-300 hover:bg-gray-700/60"
+                            }`
+                          : `flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-indigo-500/60 ${
+                              isActive
+                                ? "border-indigo-500 bg-indigo-900/40 text-indigo-200"
+                                : "border-gray-600 bg-gray-900 text-gray-300 hover:border-gray-500 hover:bg-gray-800"
+                            }`
+                      }
                       onClick={() => handleSelectRoom(room)}
                     >
-                      <span className="text-base">
+                      <span className="text-base leading-5">
                         {ROOM_TYPE_ICONS[room.room_type]}
                       </span>
-                      <span className="max-w-[120px] truncate">
-                        {room.display_name}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">
+                          {room.display_name}
+                        </span>
+                        {variant === "sidebar" ? (
+                          <span className="mt-0.5 block truncate text-xs text-gray-400">
+                            {ROOM_TYPE_LABELS[room.room_type]}
+                          </span>
+                        ) : null}
                       </span>
                     </button>
                   )}
@@ -270,7 +335,11 @@ export function RoomSwitcher({
 
         <button
           type="button"
-          className="flex items-center gap-2 self-start rounded-lg border border-gray-600 px-3 py-2 text-sm font-medium text-gray-300 transition hover:border-indigo-500 hover:bg-gray-700 hover:text-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/60"
+          className={
+            variant === "sidebar"
+              ? "mx-3 mb-3 flex items-center gap-2 rounded-lg border border-gray-600 px-3 py-2 text-sm font-medium text-gray-300 transition hover:border-indigo-500 hover:bg-gray-700 hover:text-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/60"
+              : "flex items-center gap-2 self-start rounded-lg border border-gray-600 px-3 py-2 text-sm font-medium text-gray-300 transition hover:border-indigo-500 hover:bg-gray-700 hover:text-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/60"
+          }
           onClick={() => {
             setCreateError(null);
             if (companions.length > 0) {
