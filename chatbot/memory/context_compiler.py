@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from chatbot.continuity.narrative import ThreadCallback, generate_thread_callback
 from chatbot.continuity.timeline import (
     TimelineEntry,
@@ -98,11 +100,13 @@ class ContextCompiler:
         budget: int,
         *,
         char_counter: BudgetCounter | None = None,
+        db: AsyncSession | None = None,
     ) -> None:
         if budget <= 0:
             raise ValueError("budget must be greater than zero")
         self.budget = budget
         self._char_counter: BudgetCounter = char_counter or _char_count
+        self.db = db
 
     def compile(
         self,
@@ -110,13 +114,16 @@ class ContextCompiler:
         working_memory: WorkingMemoryWindow | None = None,
         retrieval_results: list[RetrievalResult] | None = None,
         persona_stubs: list[PersonaStub] | None = None,
+        db: AsyncSession | None = None,
     ) -> CompiledContext:
+        active_db = db or self.db
         return compile_context(
             budget=self.budget,
             working_memory=working_memory,
             retrieval_results=retrieval_results,
             persona_stubs=persona_stubs,
             char_counter=self._char_counter,
+            db=active_db,
         )
 
     async def compile_with_continuity(
@@ -127,7 +134,9 @@ class ContextCompiler:
         working_memory: WorkingMemoryWindow | None = None,
         retrieval_results: list[RetrievalResult] | None = None,
         persona_stubs: list[PersonaStub] | None = None,
+        db: AsyncSession | None = None,
     ) -> CompiledContext:
+        active_db = db or self.db
         return await compile_context_with_continuity(
             budget=self.budget,
             session_id=session_id,
@@ -136,6 +145,7 @@ class ContextCompiler:
             retrieval_results=retrieval_results,
             persona_stubs=persona_stubs,
             char_counter=self._char_counter,
+            db=active_db,
         )
 
 
@@ -146,6 +156,7 @@ def compile_context(
     retrieval_results: list[RetrievalResult] | None = None,
     persona_stubs: list[PersonaStub] | None = None,
     char_counter: BudgetCounter | None = None,
+    db: AsyncSession | None = None,
 ) -> CompiledContext:
     """Assemble a context payload using a tiered, budget-aware merge with deduplication.
 
@@ -244,12 +255,70 @@ async def compile_context_with_continuity(
     retrieval_results: list[RetrievalResult] | None = None,
     persona_stubs: list[PersonaStub] | None = None,
     char_counter: BudgetCounter | None = None,
+    db: AsyncSession | None = None,
 ) -> CompiledContext:
     """Assemble context with additive continuity injected as a ranked block."""
-    continuity_context = await _inject_timeline_context(
-        session_id=session_id,
-        current_message=current_message,
-    )
+    if retrieval_results is None and db is not None:
+        try:
+            from chatbot.config import get_settings
+            from chatbot.memory.retrieval import OpenRouterEmbeddingProvider, DisabledEmbeddingProvider, retrieve
+            from chatbot.memory.pgvector_store import PgvectorStore
+
+            settings = get_settings()
+            if settings.openrouter_api_key:
+                embeddings = OpenRouterEmbeddingProvider(
+                    api_key=settings.openrouter_api_key,
+                    base_url=getattr(settings, "embedding_base_url", settings.openrouter_base_url),
+                    model=getattr(settings, "embedding_model", "openai/text-embedding-3-small"),
+                )
+            else:
+                embeddings = DisabledEmbeddingProvider("No API key configured")
+
+            retrieval_results = await retrieve(
+                vector_store=PgvectorStore(db),
+                embeddings=embeddings,
+                query=current_message,
+                session_id=session_id,
+                limit=10,
+            )
+        except Exception:
+            retrieval_results = []
+
+    if db is not None:
+        import chatbot.continuity.timeline as timeline
+        import chatbot.continuity.narrative as narrative
+
+        class SessionWrapper:
+            def __init__(self, session):
+                self.session = session
+
+            async def __aenter__(self):
+                return self.session
+
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                pass
+
+        wrapper = SessionWrapper(db)
+        orig_timeline_factory = timeline._default_timeline._session_factory
+        orig_narrative_factory = narrative.async_session_factory
+
+        try:
+            timeline._default_timeline._session_factory = lambda: wrapper
+            narrative.async_session_factory = lambda: wrapper
+
+            continuity_context = await _inject_timeline_context(
+                session_id=session_id,
+                current_message=current_message,
+            )
+        finally:
+            timeline._default_timeline._session_factory = orig_timeline_factory
+            narrative.async_session_factory = orig_narrative_factory
+    else:
+        continuity_context = await _inject_timeline_context(
+            session_id=session_id,
+            current_message=current_message,
+        )
+
     if not continuity_context:
         return compile_context(
             budget=budget,
@@ -257,6 +326,7 @@ async def compile_context_with_continuity(
             retrieval_results=retrieval_results,
             persona_stubs=persona_stubs,
             char_counter=char_counter,
+            db=db,
         )
 
     ranked_results = list(retrieval_results or [])
@@ -273,6 +343,7 @@ async def compile_context_with_continuity(
         retrieval_results=ranked_results,
         persona_stubs=persona_stubs,
         char_counter=char_counter,
+        db=db,
     )
 
 
