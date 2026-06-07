@@ -19,6 +19,7 @@ from starlette.responses import StreamingResponse
 from chatbot.auth.dependencies import CurrentUser, get_current_user
 from chatbot.core import TurnContext, TurnStep
 from chatbot.core.turn import (
+    UpdateIdentityStep,
     _generate_message_embeddings,
     _provider_config,
     _provider_history,
@@ -131,6 +132,9 @@ async def _stream_turn(
         provider_seen = False
         for step in getattr(pipeline, "_steps", []):
             step_name = _step_name(step)
+            if step_name == "update_identity":
+                continue
+
             if step_name == "call_provider":
                 provider_seen = True
                 yield _sse_data({"step": step_name, "status": "streaming"})
@@ -206,6 +210,9 @@ async def _stream_turn(
         await _generate_message_embeddings(ctx)
 
         yield _sse_data({"type": "response", "text": response})
+
+        await UpdateIdentityStep().run(ctx)
+
         yield "data: [DONE]\n\n"
     except HTTPException:
         if typing_active:
