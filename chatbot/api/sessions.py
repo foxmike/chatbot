@@ -17,17 +17,20 @@ from chatbot.soul.evolution import IdentityState
 
 class SessionCreateRequest(BaseModel):
     companion_id: str | None = None
+    room_id: str | None = None
     title: str | None = None
 
 
 class SessionCreateResponse(BaseModel):
     session_id: str
+    room_id: str | None = None
     title: str | None = None
     created_at: str | None = None
 
 
 class SessionInfo(BaseModel):
     session_id: str
+    room_id: str | None = None
     title: str | None = None
     created_at: str
     message_count: int
@@ -74,6 +77,7 @@ async def create_session(
     session = Session(
         user_id=uuid.UUID(current_user.user_id),
         companion_id=companion_id,
+        room_id=body.room_id,
         title=body.title or "New Chat",
     )
     db.add(session)
@@ -86,6 +90,7 @@ async def create_session(
     await db.refresh(session)
     return SessionCreateResponse(
         session_id=str(session.id),
+        room_id=session.room_id,
         title=session.title,
         created_at=session.created_at.isoformat(),
     )
@@ -94,6 +99,7 @@ async def create_session(
 @sessions_router.get("/", response_model=list[SessionInfo])
 async def list_sessions(
     companion_id: str | None = Query(default=None),
+    room_id: str | None = Query(default=None),
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[SessionInfo]:
@@ -106,11 +112,14 @@ async def list_sessions(
     )
     if companion_id is not None:
         stmt = stmt.where(Session.companion_id == companion_id)
+    if room_id is not None:
+        stmt = stmt.where(Session.room_id == room_id)
 
     result = await db.execute(stmt)
     return [
         SessionInfo(
             session_id=str(s.id),
+            room_id=s.room_id,
             title=s.title,
             created_at=s.created_at.isoformat(),
             message_count=int(message_count or 0),
@@ -150,6 +159,7 @@ async def get_session(
 
     return SessionInfo(
         session_id=str(session.id),
+        room_id=session.room_id,
         title=session.title,
         created_at=session.created_at.isoformat(),
         message_count=int(message_count or 0),

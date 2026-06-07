@@ -294,6 +294,7 @@ class Session(Base):
     )
     user_id: Mapped[uuid.UUID] = mapped_column(sa.ForeignKey("users.id"), nullable=False)
     companion_id: Mapped[str | None] = mapped_column(sa.String(36), sa.ForeignKey("companions.companion_id"), index=True, nullable=True)
+    room_id: Mapped[str | None] = mapped_column(sa.ForeignKey("rooms.room_id"), index=True, nullable=True)
     title: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     is_active: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
     mood_state: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
@@ -313,6 +314,7 @@ class Session(Base):
 
     user: Mapped[User] = relationship(back_populates="sessions")
     companion: Mapped[Companion | None] = relationship()
+    room: Mapped[Room | None] = relationship(back_populates="session")
     messages: Mapped[list[Message]] = relationship(back_populates="session")
     episodes: Mapped[list[Episode]] = relationship(back_populates="session")
     relationship_configs: Mapped[list[RelationshipConfigModel]] = relationship(
@@ -828,7 +830,7 @@ class Room(Base):
         foreign_keys="[Scene.room_id]",
     )
     scene: Mapped[Scene | None] = relationship(foreign_keys=[scene_id])
-    session: Mapped[Session | None] = relationship()
+    session: Mapped[Session | None] = relationship(back_populates="room")
 
 
 class Scene(Base):
