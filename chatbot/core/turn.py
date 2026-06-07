@@ -36,6 +36,7 @@ try:
         BotMoodLog,
         CharacterProfileModel,
         IdentityStateModel,
+        Message,
         Session,
         UserStateLog,
     )
@@ -43,6 +44,7 @@ except ImportError:
     BotMoodLog = None  # type: ignore[assignment]
     CharacterProfileModel = None  # type: ignore[assignment]
     IdentityStateModel = None  # type: ignore[assignment]
+    Message = None  # type: ignore[assignment]
     Session = None  # type: ignore[assignment]
     UserStateLog = None  # type: ignore[assignment]
 
@@ -51,6 +53,11 @@ try:
 except ImportError:
     MemoryExtractor = None  # type: ignore[assignment]
     SQLAlchemyMemoryStorage = None  # type: ignore[assignment]
+
+try:
+    from chatbot.memory.embedding import generate_embedding
+except ImportError:
+    generate_embedding = None  # type: ignore[assignment]
 
 try:
     from chatbot.memory.working_memory import WorkingMemoryLoader
@@ -638,9 +645,10 @@ class ExtractMemoryStep(TurnStep):
         self._extractor_cls = extractor_cls
 
     async def run(self, ctx: TurnContext) -> TurnContext:
+        ctx.extracted_memories = []
         if self._extractor_cls is None:
             logger.warning("MemoryExtractor is unavailable; no memories extracted")
-            ctx.extracted_memories = []
+            await _generate_message_embeddings(ctx)
             return ctx
 
         storage = ctx.metadata.get("memory_storage")
@@ -653,7 +661,7 @@ class ExtractMemoryStep(TurnStep):
         )
         if storage is None and database is None:
             logger.warning("Memory extraction store is unavailable; no memories extracted")
-            ctx.extracted_memories = []
+            await _generate_message_embeddings(ctx)
             return ctx
 
         try:
@@ -661,7 +669,7 @@ class ExtractMemoryStep(TurnStep):
                 storage = _scene_memory_storage(ctx, storage, database)
                 database = None
                 if storage is None:
-                    ctx.extracted_memories = []
+                    await _generate_message_embeddings(ctx)
                     return ctx
 
             extractor = self._extractor_cls(database=database, storage=storage)
@@ -676,7 +684,7 @@ class ExtractMemoryStep(TurnStep):
                 ctx.session_id,
                 exc_info=True,
             )
-            ctx.extracted_memories = []
+        await _generate_message_embeddings(ctx)
         return ctx
 
 
@@ -1732,6 +1740,246 @@ def _background_task_type(step_name: str) -> str:
     if step_name == "consolidate":
         return "consolidate"
     return "custom"
+
+
+async def _generate_message_embeddings(ctx: TurnContext) -> None:
+    if generate_embedding is None:
+        return
+
+    try:
+        await _generate_message_embeddings_inner(ctx)
+    except Exception:
+        logger.warning(
+            "Message embedding generation failed for session %s",
+            ctx.session_id,
+            exc_info=True,
+        )
+
+
+async def _generate_message_embeddings_inner(ctx: TurnContext) -> None:
+    if generate_embedding is None:
+        return
+
+    db_session = _embedding_db_session(ctx)
+    if db_session is not None:
+        await _embed_context_messages(ctx, db_session)
+        return
+
+    session_factory = _embedding_session_factory(ctx)
+    if session_factory is None:
+        return
+
+    try:
+        session = session_factory()
+    except Exception:
+        logger.warning("Embedding session factory failed", exc_info=True)
+        return
+
+    if hasattr(session, "__aenter__"):
+        async with session as active_session:
+            generated = await _embed_context_messages(ctx, active_session)
+            if generated:
+                await _commit_owned_embedding_session(active_session)
+        return
+
+    if hasattr(session, "__enter__"):
+        with session as active_session:
+            generated = await _embed_context_messages(ctx, active_session)
+            if generated:
+                await _commit_owned_embedding_session(active_session)
+        return
+
+    try:
+        generated = await _embed_context_messages(ctx, session)
+        if generated:
+            await _commit_owned_embedding_session(session)
+    finally:
+        close = getattr(session, "close", None)
+        if callable(close):
+            await _maybe_await(close())
+
+
+def _embedding_db_session(ctx: TurnContext) -> Any | None:
+    db_session = _db_session(ctx)
+    if db_session is not None:
+        return db_session
+
+    for key in (
+        "db_session",
+        "database_session",
+        "database",
+        "db",
+        "memory_database",
+    ):
+        candidate = ctx.metadata.get(key)
+        session = _extract_embedding_session(candidate)
+        if session is not None:
+            return session
+    return None
+
+
+def _extract_embedding_session(candidate: Any) -> Any | None:
+    if candidate is None:
+        return None
+    if hasattr(candidate, "add") and hasattr(candidate, "flush"):
+        return candidate
+
+    session = getattr(candidate, "session", None)
+    if session is not None and hasattr(session, "add") and hasattr(session, "flush"):
+        return session
+    return None
+
+
+def _embedding_session_factory(ctx: TurnContext) -> Any | None:
+    for key in (
+        "db_session_factory",
+        "database_factory",
+        "memory_database",
+        "database",
+        "db",
+    ):
+        candidate = ctx.metadata.get(key)
+        if callable(candidate) and not hasattr(candidate, "execute"):
+            return candidate
+    return None
+
+
+async def _embed_context_messages(ctx: TurnContext, db_session: Any) -> int:
+    targets = await _embedding_message_targets(ctx, db_session)
+    if not targets:
+        return 0
+
+    generated = 0
+    for message in targets:
+        try:
+            vector = await generate_embedding(db_session, message)
+        except Exception:
+            logger.warning(
+                "Message embedding failed for session %s",
+                ctx.session_id,
+                exc_info=True,
+            )
+            continue
+        if vector:
+            generated += 1
+
+    if generated:
+        previous = _coerce_int(ctx.metadata.get("message_embeddings_generated"), 0)
+        ctx.metadata["message_embeddings_generated"] = previous + generated
+    return generated
+
+
+async def _embedding_message_targets(ctx: TurnContext, db_session: Any) -> list[Any]:
+    targets = _metadata_embedding_messages(ctx)
+    if targets:
+        return targets
+    return await _load_persisted_turn_messages(ctx, db_session)
+
+
+def _metadata_embedding_messages(ctx: TurnContext) -> list[Any]:
+    targets: list[Any] = []
+    seen: set[int] = set()
+
+    for key in (
+        "message",
+        "user_message_model",
+        "assistant_message_model",
+        "user_db_message",
+        "assistant_db_message",
+    ):
+        _append_embedding_message(targets, seen, ctx.metadata.get(key))
+
+    for key in (
+        "messages",
+        "message_models",
+        "turn_messages",
+        "persisted_messages",
+        "db_messages",
+    ):
+        values = ctx.metadata.get(key)
+        if isinstance(values, Sequence) and not isinstance(values, (str, bytes)):
+            for value in values:
+                _append_embedding_message(targets, seen, value)
+        else:
+            _append_embedding_message(targets, seen, values)
+
+    return targets
+
+
+def _append_embedding_message(targets: list[Any], seen: set[int], value: Any) -> None:
+    if Message is None or not isinstance(value, Message):
+        return
+
+    key = id(value)
+    if key in seen:
+        return
+    targets.append(value)
+    seen.add(key)
+
+
+async def _load_persisted_turn_messages(ctx: TurnContext, db_session: Any) -> list[Any]:
+    if Message is None or not hasattr(db_session, "execute"):
+        return []
+
+    session_id = _coerce_uuid(ctx.session_id)
+    if session_id is None:
+        return []
+
+    filters = []
+    for role, content in (
+        ("user", ctx.user_message),
+        ("assistant", ctx.provider_response or ctx.final_response),
+    ):
+        text = str(content or "").strip()
+        if not text:
+            continue
+        filters.append((role, text))
+
+    if not filters:
+        return []
+
+    try:
+        import sqlalchemy as sa
+
+        clauses = [
+            sa.and_(
+                Message.session_id == session_id,
+                Message.role == role,
+                Message.content == content,
+                Message.embedding.is_(None),
+            )
+            for role, content in filters
+        ]
+        result = await _maybe_await(
+            db_session.execute(
+                sa.select(Message)
+                .where(sa.or_(*clauses))
+                .order_by(Message.created_at.desc(), Message.id.desc())
+                .limit(len(clauses))
+            )
+        )
+        scalars = result.scalars()
+        rows = await _maybe_await(scalars.all())
+    except Exception:
+        logger.warning(
+            "Persisted message lookup failed for session %s",
+            ctx.session_id,
+            exc_info=True,
+        )
+        return []
+
+    return [row for row in rows if Message is not None and isinstance(row, Message)]
+
+
+async def _commit_owned_embedding_session(db_session: Any) -> None:
+    commit = getattr(db_session, "commit", None)
+    if callable(commit):
+        await _maybe_await(commit())
+        return
+
+    flush = getattr(db_session, "flush", None)
+    if callable(flush):
+        await _maybe_await(flush())
 
 
 async def _trigger_due_rituals(ctx: TurnContext) -> None:
