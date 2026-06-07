@@ -37,6 +37,7 @@ class StreamRequest(BaseModel):
     session_id: str
     message: str
     stream_tokens: bool = True
+    room_id: str | None = None
 
     model_config = {"str_strip_whitespace": True, "str_min_length": 1}
 
@@ -61,7 +62,10 @@ async def stream_chat(
         )
 
     user_uuid = uuid.UUID(current_user.user_id)
-    stmt = select(Session).where(Session.id == sid, Session.user_id == user_uuid)
+    conditions = [Session.id == sid, Session.user_id == user_uuid]
+    if request.room_id:
+        conditions.append(Session.room_id == request.room_id)
+    stmt = select(Session).where(*conditions)
     result = await db.execute(stmt)
     db_session = result.scalar_one_or_none()
     if db_session is None:
@@ -98,13 +102,14 @@ async def _stream_turn(
         metadata["db_session"] = db
         metadata["user_id"] = current_user.user_id
         metadata["companion_id"] = db_session.companion_id
+        metadata["room_id"] = db_session.room_id or request.room_id
 
         character_profile = await _load_stream_companion_profile(
             db, db_session, current_user.user_id
         )
         identity_state = await _load_stream_session_identity(db, sid)
 
-        history = await _load_db_session_history(db, db_session.id)
+        history = await _load_db_session_history(db, db_session.id, room_id=db_session.room_id)
         _seed_stream_history_metadata(metadata, request.session_id, history)
 
         ctx = TurnContext(
@@ -428,10 +433,17 @@ def _first_state_value(http_request: Request, *names: str) -> Any | None:
 async def _load_db_session_history(
     db: AsyncSession,
     session_id: uuid.UUID,
+    *,
+    room_id: str | None = None,
 ) -> list[dict[str, Any]]:
+    conditions = [Message.session_id == session_id]
+    if room_id is not None:
+        conditions.append(
+            Message.session.has(Session.room_id == room_id)
+        )
     result = await db.execute(
         select(Message)
-        .where(Message.session_id == session_id)
+        .where(*conditions)
         .where(Message.role.in_(("user", "assistant", "system", "tool")))
         .order_by(Message.created_at.asc(), Message.id.asc())
     )
