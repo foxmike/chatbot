@@ -1,8 +1,8 @@
 """Initial clean migration
 
-Revision ID: 9ae6e7802ab2
+Revision ID: 0697e9f7bc08
 Revises: 
-Create Date: 2026-06-07 01:24:01.074354
+Create Date: 2026-06-07 10:29:42.773115
 
 """
 from typing import Sequence, Union
@@ -13,7 +13,7 @@ import pgvector
 
 
 # revision identifiers, used by Alembic.
-revision: str = '9ae6e7802ab2'
+revision: str = '0697e9f7bc08'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

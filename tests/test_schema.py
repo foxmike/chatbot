@@ -102,9 +102,13 @@ def test_embeddings_interface() -> None:
 
 
 def test_migration_reversible_smoke() -> None:
-    migration_path = (
-        Path(__file__).resolve().parents[1] / "migrations" / "versions" / "0001_core_schema.py"
-    )
+    versions_dir = Path(__file__).resolve().parents[1] / "migrations" / "versions"
+    migration_files = [
+        p for p in versions_dir.glob("*.py")
+        if p.name != "__init__.py"
+    ]
+    assert len(migration_files) == 1, f"Expected exactly one migration file, found: {migration_files}"
+    migration_path = migration_files[0]
     tree = ast.parse(migration_path.read_text(encoding="utf-8"), filename=str(migration_path))
     functions = {
         node.name: node

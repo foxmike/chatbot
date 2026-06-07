@@ -209,30 +209,12 @@ class TestVoiceIntegration:
             "你好世界",
             "안녕하세요 세계",
             "🎉 Hello Emojis 🤖",
-           : "Confident",
-        pred = await claude.call(
-            "Complete this voice cadence configuration for:", json.dumps(profile)
-        )
-        return {"tone": pred["tone"], "speed": profile["speed"] * 0.3}  # Derived ratio scaling
-    ```
-
-### 8. Authentication & Authorization
-**GITHUB_TOKEN**: Read-Only (Used by GitHub API fetching agents to prevent rate-limits)  
-**CHECKOUT_TOKEN**: Repository write access (only after verification passes)  
-
-Authentication happens transparently via dependency injection; tests override this with mock `CurrentUser` instances to avoid environment dependencies.
-
-## Reproduction
-From a fresh clone:
-```bash
-pip install -r requirements/test.txt
-python -m pytest tests/test_voice_integration.py -v
-```
-
-## Verification Summary
-✅ All tests pass deterministically  
-✅ No external service dependencies (mocks isolate network calls)  
-✅ Idempotent execution (`pytest-repeat` tested)  
-✅ Coverage verified for major voice integration paths  
+        ]
+        for text in unicode_texts:
+            response = test_client.post(
+                "/voice/synthesize",
+                json={"text": text},
+            )
+            assert response.status_code == 200
 
 End of file
