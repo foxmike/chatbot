@@ -17,6 +17,7 @@ import AppShell from "./components/AppShell";
 import SettingsPanel from "./components/SettingsPanel";
 import { MemoryPanel } from "./components/MemoryPanel";
 import TimelinePanel from "./components/TimelinePanel";
+import CompanionInfoPanel from "./components/CompanionInfoPanel";
 import CompanionSelector from "./components/CompanionSelector";
 import { RoomSwitcher } from "./components/RoomSwitcher";
 import ScenePanel from "./components/ScenePanel";
@@ -610,13 +611,19 @@ export default function App() {
       <AvatarDisplay companion={selectedCompanion} />
       {error ? (
         <div className="border-b border-red-900/70 bg-red-950/40 p-4">
-          <ChatMessage message={createMessage("assistant", error)} />
+          <ChatMessage
+            message={createMessage("assistant", error)}
+            companion={selectedCompanion}
+            user={user}
+          />
         </div>
       ) : null}
 
       <MessageList
         messages={messages}
         isLoading={isLoading}
+        companion={selectedCompanion}
+        user={user}
         streamRequest={streamRequest}
         onStreamComplete={handleStreamComplete}
         onStreamError={handleStreamError}
@@ -660,6 +667,7 @@ export default function App() {
               ? `${selectedCompanion.name}: ${activeSession.title}`
               : undefined
         }
+        companionPanel={<CompanionInfoPanel companion={selectedCompanion} />}
         sidebar={
           <div className="flex h-full w-64 shrink-0 flex-col">
             <div className="min-h-0 flex-1 overflow-hidden">

@@ -3,10 +3,13 @@ import { streamChat } from "../api/client";
 import type { StreamCallbacks } from "../api/client";
 import ChatMessage from "./ChatMessage";
 import type { Message } from "../types";
+import type { Companion, User } from "../api/client";
 
 interface MessageListProps {
   messages: Message[];
   isLoading: boolean;
+  companion?: Companion | null;
+  user?: User | null;
   /**
    * When set to a non-null value, triggers a streaming chat request.
    * Set to null after the stream completes to allow future requests
@@ -22,6 +25,8 @@ interface MessageListProps {
 export function MessageList({
   messages,
   isLoading,
+  companion,
+  user,
   streamRequest,
   onStreamComplete,
   onStreamError,
@@ -134,45 +139,48 @@ export function MessageList({
       ) : null}
 
       {messages.map((message, index) => (
-        <ChatMessage key={`${message.role}-${index}`} message={message} />
+        <ChatMessage
+          key={`${message.role}-${index}`}
+          message={message}
+          companion={companion}
+          user={user}
+        />
       ))}
 
       {/* Streaming partial-message bubble */}
       {showStreamingBubble ? (
-        <div className="flex w-full flex-col items-start">
-          <div className="relative max-w-[80%] rounded-lg bg-gray-700 px-4 py-2 text-sm leading-6 text-white opacity-80">
-            {streamingMessage}
-            <span className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-gray-300 align-middle" />
-          </div>
-        </div>
+        <ChatMessage
+          message={{
+            role: "assistant",
+            content: streamingMessage,
+          }}
+          companion={companion}
+          user={user}
+        />
       ) : null}
 
       {/* Streaming typing indicator (three animated dots) */}
       {showStreamTypingIndicator ? (
-        <div className="flex w-full flex-col items-start">
-          <div
-            className="flex max-w-[80%] items-center gap-1 rounded-lg bg-gray-700 px-4 py-3"
-            aria-label="Assistant is typing"
-          >
-            <span className="h-2 w-2 animate-bounce rounded-full bg-gray-300" />
-            <span className="h-2 w-2 animate-bounce rounded-full bg-gray-300 [animation-delay:150ms]" />
-            <span className="h-2 w-2 animate-bounce rounded-full bg-gray-300 [animation-delay:300ms]" />
-          </div>
-        </div>
+        <ChatMessage
+          message={{
+            role: "assistant",
+            content: "...",
+          }}
+          companion={companion}
+          user={user}
+        />
       ) : null}
 
       {/* Legacy typing indicator (non-streaming, isLoading-based) */}
       {showLegacyTyping ? (
-        <div className="flex w-full flex-col items-start">
-          <div
-            className="flex max-w-[80%] items-center gap-1 rounded-lg bg-gray-700 px-4 py-3"
-            aria-label="Assistant is typing"
-          >
-            <span className="h-2 w-2 animate-bounce rounded-full bg-gray-300" />
-            <span className="h-2 w-2 animate-bounce rounded-full bg-gray-300 [animation-delay:150ms]" />
-            <span className="h-2 w-2 animate-bounce rounded-full bg-gray-300 [animation-delay:300ms]" />
-          </div>
-        </div>
+        <ChatMessage
+          message={{
+            role: "assistant",
+            content: "...",
+          }}
+          companion={companion}
+          user={user}
+        />
       ) : null}
     </div>
   );
