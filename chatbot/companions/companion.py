@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,6 +31,14 @@ class CompanionCreateRequest(BaseModel):
     humor_style: str | None = None
     communication_style: str | None = None
     favorite_topics: list[str] | None = None
+
+    @field_validator("avatar_url")
+    @classmethod
+    def validate_avatar_url(cls, v: str | None) -> str | None:
+        if v is not None:
+            if v.startswith("data:") or ";base64," in v:
+                raise ValueError("avatar_url must be a URL path, not raw base64 data")
+        return v
 
 
 class CompanionDisplay(BaseModel):
@@ -243,6 +251,7 @@ class CompanionManager:
             scene_description=f"Companion avatar portrait of {data.name}",
             options=GenerationOptions(width=512, height=512),
             user_id=user_id,
+            companion_id=companion_id,
             db_session=self._session,
         )
         return persisted.image_url

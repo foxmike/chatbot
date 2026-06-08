@@ -135,3 +135,22 @@ def test_create_keeps_explicit_avatar_url(
     assert companion.avatar_url == "https://example.test/avatar.png"
     assert session.connection_obj.params is not None
     assert session.connection_obj.params[5] == "https://example.test/avatar.png"
+
+
+def test_avatar_url_validation_rejects_base64() -> None:
+    # Valid URLs/paths should be accepted
+    req1 = CompanionCreateRequest(name="Test", avatar_url="/api/visual/images/123")
+    assert req1.avatar_url == "/api/visual/images/123"
+
+    req2 = CompanionCreateRequest(name="Test", avatar_url="https://example.com/image.png")
+    assert req2.avatar_url == "https://example.com/image.png"
+
+    req3 = CompanionCreateRequest(name="Test", avatar_url=None)
+    assert req3.avatar_url is None
+
+    # Base64 data URIs should be rejected
+    with pytest.raises(ValueError, match="avatar_url must be a URL path, not raw base64 data"):
+        CompanionCreateRequest(name="Test", avatar_url="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA")
+
+    with pytest.raises(ValueError, match="avatar_url must be a URL path, not raw base64 data"):
+        CompanionCreateRequest(name="Test", avatar_url="some_random_string;base64,iVBORw0KGgo")

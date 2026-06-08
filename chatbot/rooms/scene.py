@@ -13,8 +13,8 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from chatbot.db import async_session_factory
 
 
-def _utcnow_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 ToneType = Literal["light", "serious", "tense", "playful", "romantic", "neutral"]
@@ -46,10 +46,10 @@ class SceneState:
     tone: ToneType = "neutral"
     intensity: int = 5
     is_paused: bool = False
-    started_at: str = field(default_factory=_utcnow_iso)
-    paused_at: str | None = None
-    resumed_at: str | None = None
-    ended_at: str | None = None
+    started_at: datetime = field(default_factory=_utcnow)
+    paused_at: datetime | None = None
+    resumed_at: datetime | None = None
+    ended_at: datetime | None = None
     participants: list[str] = field(default_factory=list)
     scene_context: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -104,20 +104,21 @@ class SceneModel(_SceneDeclarativeBase):
         nullable=False,
         default=False,
     )
-    started_at: Mapped[str] = mapped_column(
-        sa.String(64),
+    started_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
         nullable=False,
+        server_default=sa.sql.func.now(),
     )
-    paused_at: Mapped[str | None] = mapped_column(
-        sa.String(64),
+    paused_at: Mapped[datetime | None] = mapped_column(
+        sa.DateTime(timezone=True),
         nullable=True,
     )
-    resumed_at: Mapped[str | None] = mapped_column(
-        sa.String(64),
+    resumed_at: Mapped[datetime | None] = mapped_column(
+        sa.DateTime(timezone=True),
         nullable=True,
     )
-    ended_at: Mapped[str | None] = mapped_column(
-        sa.String(64),
+    ended_at: Mapped[datetime | None] = mapped_column(
+        sa.DateTime(timezone=True),
         nullable=True,
     )
     participants: Mapped[list[str]] = mapped_column(
@@ -125,10 +126,9 @@ class SceneModel(_SceneDeclarativeBase):
         nullable=False,
         default=list,
     )
-    scene_context: Mapped[str] = mapped_column(
+    scene_context: Mapped[str | None] = mapped_column(
         sa.Text,
-        nullable=False,
-        default="",
+        nullable=True,
     )
     metadata_json: Mapped[dict[str, object] | None] = mapped_column(
         sa.JSON,
@@ -155,7 +155,7 @@ def _model_to_domain(model: SceneModel) -> SceneState:
         resumed_at=model.resumed_at,
         ended_at=model.ended_at,
         participants=list(model.participants),
-        scene_context=model.scene_context,
+        scene_context=model.scene_context or "",
         metadata=model.metadata_json or {},
     )
 
@@ -271,7 +271,7 @@ async def pause_scene(scene_id: str) -> SceneState:
         if model is None:
             raise ValueError(f"Scene not found: {scene_id!r}")
         model.is_paused = True
-        model.paused_at = _utcnow_iso()
+        model.paused_at = _utcnow()
         await session.commit()
     return _model_to_domain(model)
 
@@ -291,7 +291,7 @@ async def resume_scene(scene_id: str) -> SceneState:
                 f"Cannot resume scene {scene_id!r}: it was ended at {model.ended_at}",
             )
         model.is_paused = False
-        model.resumed_at = _utcnow_iso()
+        model.resumed_at = _utcnow()
         await session.commit()
     return _model_to_domain(model)
 
@@ -309,7 +309,7 @@ async def end_scene(scene_id: str) -> SceneState:
         if model is None:
             raise ValueError(f"Scene not found: {scene_id!r}")
         model.is_paused = False
-        model.ended_at = _utcnow_iso()
+        model.ended_at = _utcnow()
         await session.commit()
     return _model_to_domain(model)
 

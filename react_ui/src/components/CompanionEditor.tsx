@@ -1,8 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
-import { getCompanion, updateCompanion, getAccessToken } from "../api/client";
-import type { Companion } from "../api/client";
+import {
+  generateVisualImage,
+  listCompanionImages,
+  updateCompanion,
+  uploadVisualImage,
+} from "../api/client";
+import type {
+  Companion,
+  GeneratedCompanionImage,
+  GenerateVisualImageResponse,
+} from "../api/client";
 import type { ApiError } from "../types";
+import { avatarColorForKey, getInitial } from "../utils/avatar";
 
 const PERSONALITY_DIMS = [
   "openness",
@@ -44,17 +54,6 @@ interface EditorForm {
   avatar_url: string | null;
 }
 
-const emptyForm: EditorForm = {
-  name: "",
-  persona: "",
-  backstory: "",
-  personality_sliders: { ...DEFAULT_SLIDERS },
-  humor_style: "witty",
-  communication_style: "concise",
-  favorite_topics: [],
-  avatar_url: null,
-};
-
 function companionToForm(c: Companion): EditorForm {
   return {
     name: c.name,
@@ -87,21 +86,52 @@ function fmtLabel(v: string) {
   return v.replace(/_/g, " ");
 }
 
+function generatedImageUrl(image: GenerateVisualImageResponse): string {
+  return image.image_url ?? `data:${image.mime_type};base64,${image.image_base64}`;
+}
+
+function generatedImageToGalleryItem(
+  image: GenerateVisualImageResponse,
+  imageUrl: string,
+): GeneratedCompanionImage {
+  return {
+    image_id: image.image_id ?? `generated-${Date.now()}`,
+    image_url: imageUrl,
+    mime_type: image.mime_type,
+    prompt_used: image.prompt_used,
+    model_used: image.model_used,
+    width: image.width,
+    height: image.height,
+    created_at: new Date().toISOString(),
+  };
+}
+
 interface CompanionEditorProps {
-  companionId: string;
+  companion: Companion;
   onSave?: (updated: Companion) => void;
+  showCancel?: boolean;
+  onCancel?: () => void;
 }
 
 const INPUT =
   "rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100 placeholder:text-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 disabled:cursor-not-allowed disabled:opacity-60";
 const LABEL = "flex flex-col gap-2 text-sm font-medium text-gray-200";
 
-export function CompanionEditor({ companionId, onSave }: CompanionEditorProps) {
-  const [form, setForm] = useState<EditorForm>(emptyForm);
+export function CompanionEditor({
+  companion,
+  onSave,
+  showCancel = false,
+  onCancel,
+}: CompanionEditorProps) {
+  const companionId = companion.companion_id;
+  const [form, setForm] = useState<EditorForm>(() => companionToForm(companion));
   const [topicInput, setTopicInput] = useState("");
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [generatingGalleryImage, setGeneratingGalleryImage] = useState(false);
+  const [galleryLoading, setGalleryLoading] = useState(true);
+  const [galleryPrompt, setGalleryPrompt] = useState("");
+  const [galleryImages, setGalleryImages] = useState<GeneratedCompanionImage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const clearSavedRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -111,9 +141,21 @@ export function CompanionEditor({ companionId, onSave }: CompanionEditorProps) {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onloadend = () => {
+    reader.onloadend = async () => {
       if (typeof reader.result === "string") {
-        set("avatar_url", reader.result);
+        setSaving(true);
+        setError(null);
+        try {
+          const res = await uploadVisualImage({
+            image_base64: reader.result,
+            companion_id: companionId,
+          });
+          set("avatar_url", res.image_url);
+        } catch (err: unknown) {
+          setError(err instanceof Error ? err.message : "Failed to upload avatar image.");
+        } finally {
+          setSaving(false);
+        }
       }
     };
     reader.readAsDataURL(file);
@@ -123,34 +165,16 @@ export function CompanionEditor({ companionId, onSave }: CompanionEditorProps) {
     setRegenerating(true);
     setError(null);
     try {
-      const token = getAccessToken();
-      const response = await fetch("/api/visual/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          prompt: `Avatar portrait of ${form.name || "Companion"}`,
-        }),
+      const generated = await generateVisualImage({
+        prompt: `Avatar portrait of ${form.name || "Companion"}`,
+        companion_id: companionId,
       });
-
-      if (!response.ok) {
-        let errMsg = `Failed to generate avatar: ${response.statusText}`;
-        try {
-          const body = await response.json();
-          if (body && typeof body.detail === "string") {
-            errMsg = body.detail;
-          }
-        } catch {
-          // ignore
-        }
-        throw new Error(errMsg);
-      }
-
-      const data = await response.json();
-      const dataUrl = `data:${data.mime_type};base64,${data.image_base64}`;
-      set("avatar_url", dataUrl);
+      const imageUrl = generatedImageUrl(generated);
+      set("avatar_url", imageUrl);
+      setGalleryImages((images) => [
+        generatedImageToGalleryItem(generated, imageUrl),
+        ...images,
+      ]);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to regenerate avatar.");
     } finally {
@@ -159,19 +183,24 @@ export function CompanionEditor({ companionId, onSave }: CompanionEditorProps) {
   };
 
   useEffect(() => {
-    let alive = true;
-    setLoading(true);
     setError(null);
     setSaved(false);
-    getCompanion(companionId)
-      .then((c) => {
-        if (alive) setForm(companionToForm(c));
+    setTopicInput("");
+    setForm(companionToForm(companion));
+  }, [companion]);
+
+  useEffect(() => {
+    let alive = true;
+    setGalleryLoading(true);
+    listCompanionImages(companionId)
+      .then((images) => {
+        if (alive) setGalleryImages(images);
       })
       .catch((e: unknown) => {
         if (alive) setError(getErrorDetail(e));
       })
       .finally(() => {
-        if (alive) setLoading(false);
+        if (alive) setGalleryLoading(false);
       });
     return () => {
       alive = false;
@@ -228,13 +257,54 @@ export function CompanionEditor({ companionId, onSave }: CompanionEditorProps) {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="rounded-lg border border-gray-700 bg-gray-800 p-5 text-sm text-gray-400">
-        Loading companion…
-      </div>
-    );
-  }
+  const saveAvatarUrl = async (avatarUrl: string) => {
+    setSaving(true);
+    setError(null);
+    try {
+      const updated = await updateCompanion(companionId, {
+        name: form.name.trim() || "Companion",
+        persona: form.persona.trim() || null,
+        description: null,
+        avatar_url: avatarUrl,
+        backstory: form.backstory.trim() || null,
+        personality_sliders: form.personality_sliders,
+        humor_style: form.humor_style || null,
+        communication_style: form.communication_style || null,
+        favorite_topics: form.favorite_topics,
+      });
+      setForm(companionToForm(updated));
+      setSaved(true);
+      onSave?.(updated);
+    } catch (e: unknown) {
+      setError(getErrorDetail(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleGenerateGalleryImage = async () => {
+    const prompt = galleryPrompt.trim();
+    if (!prompt) return;
+
+    setGeneratingGalleryImage(true);
+    setError(null);
+    try {
+      const generated = await generateVisualImage({
+        prompt,
+        companion_id: companionId,
+      });
+      const imageUrl = generatedImageUrl(generated);
+      setGalleryImages((images) => [
+        generatedImageToGalleryItem(generated, imageUrl),
+        ...images,
+      ]);
+      setGalleryPrompt("");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to generate image.");
+    } finally {
+      setGeneratingGalleryImage(false);
+    }
+  };
 
   return (
     <section className="rounded-lg border border-gray-700 bg-gray-800 p-5 text-gray-100">
@@ -259,8 +329,13 @@ export function CompanionEditor({ companionId, onSave }: CompanionEditorProps) {
               className="h-20 w-20 rounded-full object-cover ring-2 ring-gray-600 shadow-md"
             />
           ) : (
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-indigo-700 text-2xl font-bold text-white ring-2 ring-indigo-500/50 shadow-md">
-              {form.name ? form.name.charAt(0).toUpperCase() : "?"}
+            <div
+              className="flex h-20 w-20 items-center justify-center rounded-full text-2xl font-bold text-white ring-2 ring-indigo-500/50 shadow-md"
+              style={{
+                backgroundColor: avatarColorForKey(companionId || form.name),
+              }}
+            >
+              {getInitial(form.name)}
             </div>
           )}
           
@@ -300,6 +375,86 @@ export function CompanionEditor({ companionId, onSave }: CompanionEditorProps) {
               </button>
             )}
           </div>
+        </div>
+
+        <div className="flex flex-col gap-3 rounded-lg border border-gray-700 bg-gray-900/50 p-4">
+          <div className="flex flex-col gap-1">
+            <h4 className="text-sm font-semibold text-gray-100">
+              Avatar Gallery
+            </h4>
+            <p className="text-xs text-gray-400">
+              Generate companion images and choose one as the avatar.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input
+              type="text"
+              value={galleryPrompt}
+              disabled={saving || generatingGalleryImage}
+              className={`min-w-0 flex-1 ${INPUT}`}
+              placeholder="Describe an avatar image"
+              onChange={(e) => setGalleryPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleGenerateGalleryImage();
+                }
+              }}
+            />
+            <button
+              type="button"
+              disabled={
+                saving || generatingGalleryImage || !galleryPrompt.trim()
+              }
+              onClick={handleGenerateGalleryImage}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 focus:ring-offset-gray-800 disabled:cursor-not-allowed disabled:bg-indigo-600 disabled:opacity-50"
+            >
+              {generatingGalleryImage && (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+              )}
+              {generatingGalleryImage ? "Generating..." : "Generate"}
+            </button>
+          </div>
+
+          {galleryLoading ? (
+            <div className="flex items-center gap-2 text-sm text-gray-400">
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-500 border-t-gray-200" />
+              Loading generated images...
+            </div>
+          ) : galleryImages.length > 0 ? (
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+              {galleryImages.map((image) => (
+                <div
+                  key={image.image_id}
+                  className="overflow-hidden rounded-lg border border-gray-700 bg-gray-950"
+                >
+                  <img
+                    src={image.image_url}
+                    alt={image.prompt_used ?? "Generated companion image"}
+                    className="aspect-square w-full object-cover"
+                  />
+                  <div className="flex flex-col gap-2 p-2">
+                    <p className="line-clamp-2 min-h-8 text-xs text-gray-400">
+                      {image.prompt_used ?? "Generated avatar"}
+                    </p>
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => saveAvatarUrl(image.image_url)}
+                      className="rounded-md bg-gray-700 px-3 py-1.5 text-xs font-medium text-gray-100 transition hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Set as Avatar
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400">
+              No generated images for this companion yet.
+            </p>
+          )}
         </div>
 
         <label className={LABEL}>
@@ -483,6 +638,16 @@ export function CompanionEditor({ companionId, onSave }: CompanionEditorProps) {
         <div className="flex items-center justify-end gap-3">
           {saved && (
             <span className="text-sm font-medium text-green-400">Saved!</span>
+          )}
+          {showCancel && (
+            <button
+              type="button"
+              disabled={saving}
+              className="rounded-lg border border-gray-600 px-4 py-2 text-sm font-medium text-gray-300 transition hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={onCancel}
+            >
+              Cancel
+            </button>
           )}
           <button
             type="submit"

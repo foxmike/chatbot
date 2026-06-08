@@ -7,10 +7,11 @@ from typing import Any
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from chatbot.auth.dependencies import CurrentUser, get_current_user
+from chatbot.config import get_settings
 from chatbot.db import get_db
 from chatbot.db.models import VoicePreferences
 from chatbot.voice.base import VoiceSynthesisRequest, VoiceTranscriptionRequest
@@ -20,10 +21,10 @@ from chatbot.voice.tts import TTSAdapter
 
 voice_router = APIRouter(prefix="/voice", tags=["voice"])
 
-DEFAULT_TTS_PROVIDER = "openai"
-DEFAULT_TTS_MODEL = "tts-1"
-DEFAULT_STT_PROVIDER = "openai"
-DEFAULT_STT_MODEL = "whisper-1"
+DEFAULT_TTS_PROVIDER = "kokoro"
+DEFAULT_TTS_MODEL = "hexgrad/kokoro-82m"
+DEFAULT_STT_PROVIDER = "deepgram"
+DEFAULT_STT_MODEL = "deepgram/nova-2"
 DEFAULT_VOICE_SPEED = 1.0
 DEFAULT_VOICE_PITCH = 1.0
 DEFAULT_VOICE_ENABLED = True
@@ -34,31 +35,40 @@ DEFAULT_VOICE_ENABLED = True
 # ---------------------------------------------------------------------------
 
 
-class SynthesizeRequest(BaseModel):
+def _to_camel(value: str) -> str:
+    first, *rest = value.split("_")
+    return first + "".join(part.capitalize() for part in rest)
+
+
+class VoiceApiModel(BaseModel):
+    model_config = ConfigDict(alias_generator=_to_camel, populate_by_name=True)
+
+
+class SynthesizeRequest(VoiceApiModel):
     text: str
     mood: str | None = None
     mode: str | None = None
 
 
-class SynthesizeResponse(BaseModel):
+class SynthesizeResponse(VoiceApiModel):
     audio_base64: str
     content_type: str
     duration_ms: float
 
 
-class TranscribeRequest(BaseModel):
+class TranscribeRequest(VoiceApiModel):
     audio_base64: str
     format: str = "webm"
     language: str | None = None
 
 
-class TranscribeResponse(BaseModel):
+class TranscribeResponse(VoiceApiModel):
     text: str
     confidence: float
     language_detected: str | None = None
 
 
-class VoicePreferencesResponse(BaseModel):
+class VoicePreferencesResponse(VoiceApiModel):
     tts_provider_id: str | None = None
     tts_model_id: str | None = None
     stt_provider_id: str | None = None
@@ -68,7 +78,7 @@ class VoicePreferencesResponse(BaseModel):
     voice_enabled: bool = True
 
 
-class VoicePreferencesUpdate(BaseModel):
+class VoicePreferencesUpdate(VoiceApiModel):
     tts_provider_id: str | None = None
     tts_model_id: str | None = None
     stt_provider_id: str | None = None
@@ -139,9 +149,12 @@ async def synthesize(
     if request.mode is not None:
         voice_params["mode"] = request.mode
 
+    settings = get_settings()
     adapter = TTSAdapter(
-        provider_id=DEFAULT_TTS_PROVIDER,
-        model_id=DEFAULT_TTS_MODEL,
+        provider_id=settings.tts_provider,
+        model_id=settings.tts_model,
+        api_key=settings.tts_api_key or settings.openrouter_api_key,
+        base_url=settings.tts_base_url,
         cadence_mapper=CadenceMapper(),
     )
 
@@ -172,9 +185,12 @@ async def transcribe(
     """Transcribe speech audio to text."""
     audio_data = base64.b64decode(request.audio_base64)
 
+    settings = get_settings()
     adapter = STTAdapter(
-        provider_id=DEFAULT_STT_PROVIDER,
-        model_id=DEFAULT_STT_MODEL,
+        provider_id=settings.stt_provider,
+        model_id=settings.stt_model,
+        api_key=settings.stt_api_key or settings.openrouter_api_key,
+        base_url=settings.stt_base_url,
     )
 
     transcription_request = VoiceTranscriptionRequest(

@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  createRoom,
   createSession,
   createRoomSession,
   getRoomSession,
   getSessionMessages,
   listCompanions,
+  listRooms,
   listSessions,
   sendMessage,
 } from "./api/client";
@@ -28,6 +30,10 @@ import type { RoomData, RoomType } from "./api/client";
 import { AdminDashboard } from "./components/AdminDashboard";
 import { AuthScreen } from "./components/AuthScreen";
 import type { Companion, User } from "./api/client";
+import { avatarColorForCompanion, getInitial } from "./utils/avatar";
+
+const CHAT_ROOM_TYPE: RoomType = "one_on_one_chat";
+const ROLEPLAY_ROOM_TYPE: RoomType = "roleplay_scene";
 
 function buildSession(
   response: CreateSessionResponse,
@@ -65,29 +71,17 @@ function createMessage(role: Message["role"], content: string): Message {
   };
 }
 
-const AVATAR_COLORS = [
-  "#4f46e5",
-  "#0891b2",
-  "#059669",
-  "#7c3aed",
-  "#db2777",
-  "#ea580c",
-  "#ca8a04",
-  "#0d9488",
-  "#2563eb",
-  "#9333ea",
-];
+function formatRoomDate(value: string) {
+  const date = new Date(value);
 
-function avatarColorForName(name: string) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i += 1) {
-    hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  if (Number.isNaN(date.getTime())) {
+    return value;
   }
-  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
-}
 
-function companionInitial(name: string) {
-  return name.trim().charAt(0).toUpperCase() || "?";
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
 }
 
 function SwitcherAvatar({ companion }: { companion: Companion }) {
@@ -104,9 +98,9 @@ function SwitcherAvatar({ companion }: { companion: Companion }) {
   return (
     <span
       className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ring-1 ring-gray-600"
-      style={{ backgroundColor: avatarColorForName(companion.name) }}
+      style={{ backgroundColor: avatarColorForCompanion(companion) }}
     >
-      {companionInitial(companion.name)}
+      {getInitial(companion.name)}
     </span>
   );
 }
@@ -257,12 +251,67 @@ function AdminGate() {
   );
 }
 
+function RoomInfoView({
+  room,
+  companion,
+}: {
+  room: RoomData;
+  companion: Companion | null;
+}) {
+  const companionName =
+    companion?.companion_id === room.companion_id
+      ? companion.name
+      : room.companion_id
+        ? "Linked companion"
+        : "No companion";
+
+  return (
+    <section className="flex h-full items-center justify-center p-4 sm:p-6">
+      <div className="w-full max-w-lg rounded-lg border border-gray-700 bg-gray-800 p-6 text-gray-100">
+        <h2 className="text-xl font-semibold">{room.display_name}</h2>
+        <dl className="mt-5 grid gap-4 text-sm">
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">
+              Created
+            </dt>
+            <dd className="mt-1 text-gray-200">{formatRoomDate(room.created_at)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">
+              Companion
+            </dt>
+            <dd className="mt-1 text-gray-200">{companionName}</dd>
+          </div>
+        </dl>
+        <p className="mt-6 rounded-md border border-gray-700 bg-gray-900 px-4 py-3 text-sm text-gray-400">
+          Switch to a Roleplay room to use scene features.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function NoActiveRoomView() {
+  return (
+    <section className="flex h-full items-center justify-center p-4 sm:p-6">
+      <div className="w-full max-w-lg rounded-lg border border-gray-700 bg-gray-800 p-6 text-center text-gray-100">
+        <h2 className="text-xl font-semibold">No active chat</h2>
+        <p className="mt-2 text-sm text-gray-400">
+          Select or create a chat to get started.
+        </p>
+      </div>
+    </section>
+  );
+}
+
 export default function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [activeRoomType, setActiveRoomType] = useState<RoomType | null>(null);
   const [activeRoomTitle, setActiveRoomTitle] = useState<string | null>(null);
+  const [activeRoom, setActiveRoom] = useState<RoomData | null>(null);
+  const [roomRefreshKey, setRoomRefreshKey] = useState(0);
   const [messagesBySession, setMessagesBySession] = useState<Record<string, Message[]>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -314,32 +363,52 @@ export default function App() {
       return;
     }
 
+    const currentUser: User = user;
+    const companion: Companion = selectedCompanion;
+
     let isMounted = true;
 
     async function initializeSession() {
       try {
-        const existingSessions = await listSessions(selectedCompanion?.companion_id);
+        const companionId = companion.companion_id;
+        const [existingSessions, existingRooms] = await Promise.all([
+          listSessions(companionId),
+          listRooms(currentUser.user_id),
+        ]);
 
         if (!isMounted) {
           return;
         }
 
-        if (existingSessions.length > 0) {
-          setSessions(existingSessions);
-          if (!activeRoomIdRef.current) {
-            setActiveSessionId(existingSessions[0].session_id);
+        setSessions(existingSessions);
+
+        let companionRoom = existingRooms.find(
+          (room) => room.companion_id === companionId,
+        );
+
+        if (!companionRoom) {
+          companionRoom = await createRoom({
+            user_id: currentUser.user_id,
+            room_type: CHAT_ROOM_TYPE,
+            display_name: `${companion.name}: Chat`,
+            companion_id: companionId,
+          });
+
+          if (!isMounted) {
+            return;
           }
-          setError(null);
-          return;
+
+          setRoomRefreshKey((key) => key + 1);
         }
 
-        const response = await createSession("Chat 1", selectedCompanion?.companion_id);
-        const session = buildSession(response, "Chat 1");
-        setSessions([session]);
         if (!activeRoomIdRef.current) {
-          setActiveSessionId(session.session_id);
+          await handleRoomChange(
+            companionRoom.room_id,
+            companionRoom.room_type,
+            companionRoom,
+          );
         }
-        setMessagesBySession({ [session.session_id]: [] });
+
         setError(null);
       } catch (sessionError) {
         console.error("Failed to create initial session", sessionError);
@@ -514,6 +583,7 @@ export default function App() {
     setActiveRoomId(roomId);
     setActiveRoomType(roomType);
     setActiveRoomTitle(room?.display_name ?? null);
+    setActiveRoom(room ?? null);
     setError(null);
 
     try {
@@ -555,6 +625,7 @@ export default function App() {
     setActiveRoomId(null);
     setActiveRoomType(null);
     setActiveRoomTitle(null);
+    setActiveRoom(null);
     setActiveSessionId(null);
     setError(null);
   };
@@ -569,6 +640,7 @@ export default function App() {
     setActiveRoomId(null);
     setActiveRoomType(null);
     setActiveRoomTitle(null);
+    setActiveRoom(null);
     setMessagesBySession({});
     setError(null);
     setSelectedCompanion(companion);
@@ -586,6 +658,7 @@ export default function App() {
     setActiveRoomId(null);
     setActiveRoomType(null);
     setActiveRoomTitle(null);
+    setActiveRoom(null);
     setMessagesBySession({});
     setError(null);
     setIsLoading(false);
@@ -661,11 +734,7 @@ export default function App() {
           <CompanionSwitcher current={selectedCompanion} onSwitch={handleSwitchCompanion} onManage={() => setSelectedCompanion(null)} />
         }
         activeSessionTitle={
-          activeRoomTitle
-            ? `${selectedCompanion.name}: ${activeRoomTitle}`
-            : activeSession
-              ? `${selectedCompanion.name}: ${activeSession.title}`
-              : undefined
+          activeRoomTitle ?? activeSession?.title
         }
         companionPanel={<CompanionInfoPanel companion={selectedCompanion} />}
         sidebar={
@@ -673,7 +742,9 @@ export default function App() {
             <div className="min-h-0 flex-1 overflow-hidden">
               <RoomSwitcher
                 userId={user.user_id}
+                companion={selectedCompanion}
                 activeRoomId={activeRoomId}
+                refreshKey={roomRefreshKey}
                 onRoomChange={handleRoomChange}
                 onRoomCleared={handleRoomCleared}
                 variant="sidebar"
@@ -704,22 +775,12 @@ export default function App() {
           <TimelinePanel sessionId={activeSessionId ?? ''} />
         ),
         rooms: (
-          activeRoomType === "roleplay_scene" ? (
+          activeRoom && activeRoomType === ROLEPLAY_ROOM_TYPE ? (
             <ScenePanel roomId={activeRoomId} roomType={activeRoomType} />
+          ) : activeRoom ? (
+            <RoomInfoView room={activeRoom} companion={selectedCompanion} />
           ) : (
-            <section className="flex h-full items-center justify-center p-4 sm:p-6">
-              <div className="w-full max-w-lg rounded-lg border border-gray-700 bg-gray-800 p-6 text-gray-100">
-                <h2 className="text-xl font-semibold">Rooms</h2>
-                <p className="mt-2 text-sm text-gray-400">
-                  Select a roleplay room from the sidebar to manage its active scene.
-                </p>
-                {activeRoomTitle ? (
-                  <p className="mt-4 text-sm text-gray-300">
-                    Active room: {activeRoomTitle}
-                  </p>
-                ) : null}
-              </div>
-            </section>
+            <NoActiveRoomView />
           )
         ),
         voice: (

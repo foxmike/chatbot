@@ -91,10 +91,10 @@ class TestVoiceIntegration:
         response = test_client.put(
             "/voice/preferences",
             json={
-                "tts_provider_id": "openai",
-                "tts_model_id": "tts-1-hd",
-                "stt_provider_id": "openai",
-                "stt_model_id": "whisper-1",
+                "tts_provider_id": "kokoro",
+                "tts_model_id": "kokoro-82m",
+                "stt_provider_id": "deepgram",
+                "stt_model_id": "nova-2",
                 "voice_speed": 1.3,
                 "voice_pitch": 0.8,
                 "voice_enabled": True,
@@ -102,7 +102,7 @@ class TestVoiceIntegration:
         )
         assert response.status_code == 200
         updated = response.json()
-        assert updated["tts_model_id"] == "tts-1-hd"
+        assert updated["tts_model_id"] == "kokoro-82m"
 
         # Test synthesis with new preferences
         response = test_client.post(
@@ -114,8 +114,8 @@ class TestVoiceIntegration:
     def test_cross_provider_compatibility(self, test_client: TestClient) -> None:
         '''Test different provider/model combinations work end-to-end.'''
         combinations = [
-            ("openai", "tts-1", "whisper-1"),
-            ("openai", "tts-1-hd", "whisper-1"),
+            ("kokoro", "kokoro-82m", "nova-2"),
+            ("elevenlabs", "monolingual-v1", "nova-2"),
         ]
 
         for tts_provider, tts_model, stt_model in combinations:
@@ -124,7 +124,7 @@ class TestVoiceIntegration:
                 json={
                     "tts_provider_id": tts_provider,
                     "tts_model_id": tts_model,
-                    "stt_provider_id": "openai",
+                    "stt_provider_id": "deepgram",
                     "stt_model_id": stt_model,
                     "voice_enabled": True,
                 },
@@ -216,5 +216,3 @@ class TestVoiceIntegration:
                 json={"text": text},
             )
             assert response.status_code == 200
-
-End of file

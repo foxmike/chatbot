@@ -48,6 +48,40 @@ export interface CompanionCreate {
   favorite_topics?: string[] | null;
 }
 
+export interface GeneratedCompanionImage {
+  image_id: string;
+  image_url: string;
+  mime_type: string;
+  prompt_used: string | null;
+  model_used: string | null;
+  width: number | null;
+  height: number | null;
+  created_at: string;
+}
+
+export interface GenerateVisualImageResponse {
+  image_id: string | null;
+  image_url: string | null;
+  image_base64: string;
+  mime_type: string;
+  seed_used: number | null;
+  prompt_used: string;
+  model_used: string;
+  width: number;
+  height: number;
+  generation_time_ms: number;
+}
+
+export interface GenerateVisualImageRequest {
+  prompt: string;
+  companion_id?: string;
+  negative_prompt?: string | null;
+  width?: number;
+  height?: number;
+  seed?: number | null;
+  model?: string | null;
+}
+
 export interface MemoryItem {
   id: string;
   content: string;
@@ -1515,6 +1549,46 @@ export async function deleteCompanion(companionId: string): Promise<void> {
     },
   );
   await assertOk(response);
+}
+
+export function generateVisualImage(
+  data: GenerateVisualImageRequest,
+): Promise<GenerateVisualImageResponse> {
+  return requestJson<GenerateVisualImageResponse>("/visual/generate", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export interface UploadVisualImageRequest {
+  image_base64: string;
+  companion_id?: string;
+}
+
+export interface UploadVisualImageResponse {
+  image_id: string;
+  image_url: string;
+}
+
+export function uploadVisualImage(
+  data: UploadVisualImageRequest,
+): Promise<UploadVisualImageResponse> {
+  return requestJson<UploadVisualImageResponse>("/visual/upload", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function listCompanionImages(
+  companionId: string,
+): Promise<GeneratedCompanionImage[]> {
+  const result = await requestJson<{ images: GeneratedCompanionImage[] }>(
+    `/visual/companion/${companionId}/images`,
+    {
+      method: "GET",
+    },
+  );
+  return result.images;
 }
 
 // ---------------------------------------------------------------------------

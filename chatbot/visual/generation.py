@@ -48,7 +48,7 @@ class PersistedImageGeneration:
 
 
 def generated_image_url(image_id: str) -> str:
-    return f"/visual/images/{image_id}"
+    return f"/api/visual/images/{image_id}"
 
 
 class DiffusionProvider(ImageGenerationProvider):
@@ -171,7 +171,7 @@ class OpenRouterImageGenerationProvider(ImageGenerationProvider):
         payload: dict[str, Any] = {
             "model": model,
             "messages": [{"role": "user", "content": content}],
-            "modalities": ["image", "text"],
+            "modalities": ["image"],
             "stream": False,
             "image_config": {"aspect_ratio": _aspect_ratio(width, height)},
         }
@@ -329,6 +329,7 @@ class ImageGenerationService:
         session_id: str | None = None,
         turn_id: str | None = None,
         user_id: str | None = None,
+        companion_id: str | None = None,
         db_session=None,
     ) -> ImageGenerationResult:
         persisted = await self.generate_and_persist_with_reference(
@@ -337,6 +338,7 @@ class ImageGenerationService:
             session_id=session_id,
             turn_id=turn_id,
             user_id=user_id,
+            companion_id=companion_id,
             db_session=db_session,
         )
         return persisted.result
@@ -348,6 +350,7 @@ class ImageGenerationService:
         session_id: str | None = None,
         turn_id: str | None = None,
         user_id: str | None = None,
+        companion_id: str | None = None,
         db_session=None,
     ) -> PersistedImageGeneration:
         if options is None:
@@ -398,6 +401,7 @@ class ImageGenerationService:
                 session_id=session_id,
                 turn_id=turn_id,
                 user_id=resolved_user_id,
+                companion_id=companion_id,
                 image_data=result.image_data,
                 image_url=image_url,
                 mime_type=result.mime_type,

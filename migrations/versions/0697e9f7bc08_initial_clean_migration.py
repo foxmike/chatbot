@@ -214,6 +214,7 @@ def upgrade() -> None:
     sa.Column('turn_id', sa.String(length=64), nullable=True),
     sa.Column('session_id', sa.String(length=64), nullable=True),
     sa.Column('user_id', sa.UUID(), nullable=True),
+    sa.Column('companion_id', sa.String(length=36), nullable=True),
     sa.Column('image_data', sa.LargeBinary(), nullable=True),
     sa.Column('image_url', sa.String(length=1024), nullable=True),
     sa.Column('mime_type', sa.String(length=64), nullable=False),
@@ -231,10 +232,12 @@ def upgrade() -> None:
     sa.Column('processing_time_ms', sa.Float(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.CheckConstraint("source_type IN ('generated', 'uploaded', 'understood')", name='ck_image_memories_source_type'),
+    sa.ForeignKeyConstraint(['companion_id'], ['companions.companion_id'], name='image_memories_companion_id_fkey', use_alter=True),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('image_id')
     )
+    op.create_index(op.f('ix_image_memories_companion_id'), 'image_memories', ['companion_id'], unique=False)
     op.create_table('rooms',
     sa.Column('room_id', sa.String(length=64), nullable=False),
     sa.Column('user_id', sa.String(length=64), nullable=False),

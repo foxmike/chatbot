@@ -626,6 +626,14 @@ class TestImageAPI:
     class _OutfitListResponse(BaseModel):
         outfits: list["TestImageAPI._OutfitResponse"]
 
+    class _ImageUploadRequest(BaseModel):
+        image_base64: str
+        companion_id: str | None = None
+
+    class _ImageUploadResponse(BaseModel):
+        image_id: str
+        image_url: str
+
     # ------------------------------------------------------------------
     # Request bodies
     # ------------------------------------------------------------------
@@ -680,6 +688,18 @@ class TestImageAPI:
             }
             images_store[image_id] = record
             return TestImageAPI._ImageGenerateResponse(**record)
+
+        # -------------------------------------------------- upload
+        @images_router.post(
+            "/upload", response_model=TestImageAPI._ImageUploadResponse
+        )
+        async def upload(req: TestImageAPI._ImageUploadRequest):
+            image_id = str(uuid.uuid4())
+            record = {
+                "image_id": image_id,
+                "image_url": f"/api/images/{image_id}",
+            }
+            return TestImageAPI._ImageUploadResponse(**record)
 
         # -------------------------------------------------- understand
         @images_router.post(
@@ -888,6 +908,20 @@ class TestImageAPI:
             json={"scene_description": ""},
         )
         assert response.status_code == 422
+
+    def test_post_upload_returns_200(self, test_app: TestClient) -> None:
+        response = test_app.post(
+            "/api/images/upload",
+            json={
+                "image_base64": "data:image/png;base64,aW1hZ2VfZGF0YQ==",
+                "companion_id": "companion-123",
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "image_id" in data
+        assert "image_url" in data
+        assert data["image_url"] == f"/api/images/{data['image_id']}"
 
     # ----------------------------------------------------------------
     # Understand endpoint

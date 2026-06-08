@@ -1,4 +1,5 @@
 import type { Companion } from "../api/client";
+import { avatarColorForCompanion, getInitials } from "../utils/avatar";
 
 const PERSONALITY_DIMS = [
   "openness",
@@ -19,36 +20,6 @@ const DEFAULT_SLIDERS: Record<string, number> = {
   curiosity: 0.7,
   creativity: 0.6,
 };
-
-const AVATAR_COLORS = [
-  "#4f46e5",
-  "#0891b2",
-  "#059669",
-  "#7c3aed",
-  "#db2777",
-  "#ea580c",
-  "#ca8a04",
-  "#0d9488",
-  "#2563eb",
-  "#9333ea",
-];
-
-function getInitials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((part) => part[0].toUpperCase())
-    .slice(0, 2)
-    .join("");
-}
-
-function avatarColorForName(name: string) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i += 1) {
-    hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
-  }
-  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
-}
 
 function fmtLabel(v: string) {
   return v
@@ -97,7 +68,7 @@ export function CompanionInfoPanel({ companion }: CompanionInfoPanelProps) {
     ? { ...DEFAULT_SLIDERS, ...companion.personality_sliders }
     : { ...DEFAULT_SLIDERS };
 
-  const bgInitialsColor = avatarColorForName(companion.name);
+  const bgInitialsColor = avatarColorForCompanion(companion);
 
   return (
     <section className="flex h-full flex-col bg-gray-900 text-gray-100">
@@ -113,7 +84,7 @@ export function CompanionInfoPanel({ companion }: CompanionInfoPanelProps) {
       <div className="flex-1 overflow-y-auto p-6">
         <div className="flex flex-col gap-6 max-w-4xl">
           {/* Avatar and Basic Info */}
-          <div className="flex flex-col items-center gap-5 rounded-xl border border-gray-800 bg-gray-800/30 p-6 sm:flex-row sm:items-start text-center sm:text-left transition duration-300 hover:border-gray-700/80">
+          <div className="flex flex-col items-center gap-5 rounded-xl border border-gray-800 bg-gray-800/30 p-6 text-center transition duration-300 hover:border-gray-700/80">
             {companion.avatar_url ? (
               <img
                 src={companion.avatar_url}
@@ -129,12 +100,12 @@ export function CompanionInfoPanel({ companion }: CompanionInfoPanelProps) {
               </div>
             )}
 
-            <div className="flex flex-col min-w-0">
+            <div className="flex w-full min-w-0 flex-col items-center">
               <h3 className="text-2xl font-bold text-gray-100 truncate">
                 {companion.name}
               </h3>
               {companion.persona ? (
-                <span className="mt-1 text-sm font-medium text-indigo-400">
+                <span className="mt-1 w-full text-left text-sm font-medium text-indigo-400">
                   {companion.persona}
                 </span>
               ) : null}
@@ -197,16 +168,16 @@ export function CompanionInfoPanel({ companion }: CompanionInfoPanelProps) {
               </svg>
               Personality Dimensions
             </h4>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-4">
               {PERSONALITY_DIMS.map((dim) => {
                 const val = sliders[dim] ?? 0.5;
                 const percentage = Math.round(val * 100);
                 return (
                   <div
                     key={dim}
-                    className="flex flex-col gap-1.5 rounded-lg bg-gray-950/20 p-3.5 border border-gray-800/50"
+                    className="flex items-center gap-3 rounded-lg bg-gray-950/20 p-3.5 border border-gray-800/50"
                   >
-                    <div className="flex items-center justify-between text-xs">
+                    <div className="flex shrink-0 items-center gap-3 text-xs">
                       <span className="font-medium capitalize text-gray-300">
                         {fmtLabel(dim)}
                       </span>
@@ -214,7 +185,7 @@ export function CompanionInfoPanel({ companion }: CompanionInfoPanelProps) {
                         {percentage}%
                       </span>
                     </div>
-                    <div className="h-2 w-full rounded bg-gray-950/60 overflow-hidden">
+                    <div className="h-2 flex-1 rounded bg-gray-950/60 overflow-hidden">
                       <div
                         className="h-full rounded bg-gradient-to-r from-indigo-500 to-violet-500 transition-all duration-500 ease-out"
                         style={{ width: `${percentage}%` }}
@@ -227,7 +198,7 @@ export function CompanionInfoPanel({ companion }: CompanionInfoPanelProps) {
           </div>
 
           {/* Behavioral Style and Topics */}
-          <div className="grid gap-6 sm:grid-cols-2">
+          <div className="flex flex-col gap-6">
             {/* Behavior Card */}
             <div className="rounded-xl border border-gray-800 bg-gray-800/20 p-6">
               <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-200 uppercase tracking-wider mb-4">

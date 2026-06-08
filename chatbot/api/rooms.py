@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from datetime import datetime
 from typing import Any, Literal
 
 import sqlalchemy as sa
@@ -190,6 +191,14 @@ def _room_to_response(room: Room) -> RoomResponse:
     )
 
 
+def _datetime_to_response(value: datetime) -> str:
+    return value.isoformat()
+
+
+def _optional_datetime_to_response(value: datetime | None) -> str | None:
+    return value.isoformat() if value is not None else None
+
+
 def _scene_to_response(scene: SceneState) -> SceneResponse:
     return SceneResponse(
         scene_id=scene.scene_id,
@@ -199,10 +208,10 @@ def _scene_to_response(scene: SceneState) -> SceneResponse:
         tone=scene.tone,
         intensity=scene.intensity,
         is_paused=scene.is_paused,
-        started_at=scene.started_at,
-        paused_at=scene.paused_at,
-        resumed_at=scene.resumed_at,
-        ended_at=scene.ended_at,
+        started_at=_datetime_to_response(scene.started_at),
+        paused_at=_optional_datetime_to_response(scene.paused_at),
+        resumed_at=_optional_datetime_to_response(scene.resumed_at),
+        ended_at=_optional_datetime_to_response(scene.ended_at),
         participants=list(scene.participants),
         scene_context=scene.scene_context,
         metadata=scene.metadata,

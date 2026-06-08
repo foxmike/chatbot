@@ -5,10 +5,15 @@ import {
   createCompanion,
   deleteCompanion,
   listCompanions,
-  updateCompanion,
 } from "../api/client";
 import type { Companion } from "../api/client";
 import type { ApiError } from "../types";
+import { CompanionEditor } from "./CompanionEditor";
+import {
+  avatarColorForCompanion,
+  avatarColorForKey,
+  getInitial,
+} from "../utils/avatar";
 
 const PERSONALITY_DIMS = [
   "openness",
@@ -65,31 +70,6 @@ function fmtLabel(v: string) {
   return v.replace(/_/g, " ");
 }
 
-const AVATAR_COLORS = [
-  "#4f46e5",
-  "#0891b2",
-  "#059669",
-  "#7c3aed",
-  "#db2777",
-  "#ea580c",
-  "#ca8a04",
-  "#0d9488",
-  "#2563eb",
-  "#9333ea",
-];
-
-function avatarColorForName(name: string) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i += 1) {
-    hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
-  }
-  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
-}
-
-function companionInitial(name: string) {
-  return name.trim().charAt(0).toUpperCase() || "?";
-}
-
 const INPUT =
   "rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100 placeholder:text-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 disabled:cursor-not-allowed disabled:opacity-60";
 const LABEL = "flex flex-col gap-2 text-sm font-medium text-gray-200";
@@ -108,9 +88,9 @@ function CompanionCardAvatar({ companion }: { companion: Companion }) {
   return (
     <div
       className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-2xl font-semibold text-white ring-2 ring-gray-700"
-      style={{ backgroundColor: avatarColorForName(companion.name) }}
+      style={{ backgroundColor: avatarColorForCompanion(companion) }}
     >
-      {companionInitial(companion.name)}
+      {getInitial(companion.name)}
     </div>
   );
 }
@@ -146,17 +126,6 @@ export function CompanionSelector({
   const [editingCompanion, setEditingCompanion] = useState<Companion | null>(
     null,
   );
-  const [editName, setEditName] = useState("");
-  const [editBackstory, setEditBackstory] = useState("");
-  const [editPersona, setEditPersona] = useState("");
-  const [editSliders, setEditSliders] = useState<Record<string, number>>({
-    ...DEFAULT_SLIDERS,
-  });
-  const [editHumorStyle, setEditHumorStyle] = useState<string>("witty");
-  const [editCommStyle, setEditCommStyle] = useState<string>("concise");
-  const [editTopicsInput, setEditTopicsInput] = useState("");
-  const [isSavingEdit, setIsSavingEdit] = useState(false);
-  const [editError, setEditError] = useState<string | null>(null);
 
   const loadCompanions = async () => {
     setLoading(true);
@@ -259,65 +228,13 @@ export function CompanionSelector({
   const startEdit = (companion: Companion) => {
     setShowCreate(false);
     setConfirmDeleteId(null);
-    setEditError(null);
     setEditingId(companion.companion_id);
     setEditingCompanion(companion);
-    setEditName(companion.name);
-    setEditBackstory(companion.backstory ?? "");
-    setEditPersona(companion.persona ?? "");
-    setEditSliders({
-      ...DEFAULT_SLIDERS,
-      ...(companion.personality_sliders ?? {}),
-    });
-    setEditHumorStyle(companion.humor_style ?? "witty");
-    setEditCommStyle(companion.communication_style ?? "concise");
-    setEditTopicsInput((companion.favorite_topics ?? []).join(", "));
   };
 
   const cancelEdit = () => {
     setEditingId(null);
     setEditingCompanion(null);
-    setEditName("");
-    setEditBackstory("");
-    setEditPersona("");
-    setEditSliders({ ...DEFAULT_SLIDERS });
-    setEditHumorStyle("witty");
-    setEditCommStyle("concise");
-    setEditTopicsInput("");
-    setEditError(null);
-  };
-
-  const handleSaveEdit = async (
-    event: FormEvent<HTMLFormElement>,
-    companionId: string,
-  ) => {
-    event.preventDefault();
-
-    if (!editName.trim()) return;
-
-    setIsSavingEdit(true);
-    setEditError(null);
-
-    try {
-      await updateCompanion(companionId, {
-        name: editName.trim(),
-        persona: editPersona.trim() || null,
-        description: editingCompanion?.description ?? null,
-        avatar_url: editingCompanion?.avatar_url ?? null,
-        backstory: editBackstory.trim() || null,
-        personality_sliders: editSliders,
-        humor_style: editHumorStyle || null,
-        communication_style: editCommStyle || null,
-        favorite_topics: parseTopics(editTopicsInput),
-      });
-      cancelEdit();
-      await loadCompanions();
-    } catch (err) {
-      console.error("Failed to update companion", err);
-      setEditError(getErrorDetail(err));
-    } finally {
-      setIsSavingEdit(false);
-    }
   };
 
   const handleLogout = () => {
@@ -503,12 +420,10 @@ export function CompanionSelector({
                   <div
                     className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full text-3xl font-semibold text-white ring-2 ring-gray-700"
                     style={{
-                      backgroundColor: avatarColorForName(
-                        createName.trim() || "?",
-                      ),
+                      backgroundColor: avatarColorForKey(createName.trim() || "?"),
                     }}
                   >
-                    {companionInitial(createName.trim() || "?")}
+                    {getInitial(createName.trim() || "?")}
                   </div>
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
@@ -683,7 +598,6 @@ export function CompanionSelector({
                 </h3>
                 <button
                   type="button"
-                  disabled={isSavingEdit}
                   className="rounded-lg border border-gray-600 px-3 py-1 text-sm font-medium text-gray-300 transition hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 disabled:cursor-not-allowed disabled:opacity-50"
                   onClick={cancelEdit}
                 >
@@ -691,173 +605,21 @@ export function CompanionSelector({
                 </button>
               </div>
 
-              {editError ? (
-                <div className="mt-3 rounded-md border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-200">
-                  {editError}
-                </div>
-              ) : null}
-
-              <form
-                className="mt-4 flex flex-col gap-5"
-                onSubmit={(event) => handleSaveEdit(event, editingId)}
-              >
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                  Identity
-                </p>
-
-                <label className={LABEL}>
-                  Name
-                  <input
-                    type="text"
-                    required
-                    value={editName}
-                    disabled={isSavingEdit}
-                    className={INPUT}
-                    placeholder="Companion name"
-                    onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                      setEditName(e.target.value)
-                    }
-                  />
-                </label>
-
-                <label className={LABEL}>
-                  Backstory
-                  <textarea
-                    rows={3}
-                    value={editBackstory}
-                    disabled={isSavingEdit}
-                    className={`resize-y ${INPUT}`}
-                    placeholder="Background, history, and defining context"
-                    onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
-                      setEditBackstory(e.target.value)
-                    }
-                  />
-                </label>
-
-                <label className={LABEL}>
-                  Persona
-                  <textarea
-                    rows={3}
-                    value={editPersona}
-                    disabled={isSavingEdit}
-                    className={`resize-y ${INPUT}`}
-                    placeholder="Describe the companion's personality"
-                    onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
-                      setEditPersona(e.target.value)
-                    }
-                  />
-                </label>
-
-                <p className="pt-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                  Personality
-                </p>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className={LABEL}>
-                    Humor style
-                    <select
-                      value={editHumorStyle}
-                      disabled={isSavingEdit}
-                      className={`capitalize ${INPUT}`}
-                      onChange={(e: ChangeEvent<HTMLSelectElement>) =>
-                        setEditHumorStyle(e.target.value)
-                      }
-                    >
-                      {HUMOR_STYLES.map((s) => (
-                        <option key={s} value={s}>
-                          {fmtLabel(s)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className={LABEL}>
-                    Communication style
-                    <select
-                      value={editCommStyle}
-                      disabled={isSavingEdit}
-                      className={`capitalize ${INPUT}`}
-                      onChange={(e: ChangeEvent<HTMLSelectElement>) =>
-                        setEditCommStyle(e.target.value)
-                      }
-                    >
-                      {COMM_STYLES.map((s) => (
-                        <option key={s} value={s}>
-                          {fmtLabel(s)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-
-                <div className="flex flex-col gap-3">
-                  <p className="text-sm font-medium text-gray-200">
-                    Personality sliders
-                  </p>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {PERSONALITY_DIMS.map((dim) => {
-                      const val = editSliders[dim] ?? DEFAULT_SLIDERS[dim];
-                      return (
-                        <label key={dim} className={LABEL}>
-                          <span className="flex items-center justify-between">
-                            <span className="capitalize">{fmtLabel(dim)}</span>
-                            <span className="font-mono text-xs text-gray-400">
-                              {val.toFixed(2)}
-                            </span>
-                          </span>
-                          <input
-                            type="range"
-                            min="0"
-                            max="1"
-                            step="0.05"
-                            value={val}
-                            disabled={isSavingEdit}
-                            className="h-2 w-full cursor-pointer accent-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
-                            onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                              setEditSliders((prev) => ({
-                                ...prev,
-                                [dim]: Number(e.target.value),
-                              }))
-                            }
-                          />
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <label className={LABEL}>
-                  Favorite topics
-                  <input
-                    type="text"
-                    value={editTopicsInput}
-                    disabled={isSavingEdit}
-                    className={INPUT}
-                    placeholder="e.g. philosophy, cooking, jazz (comma-separated)"
-                    onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                      setEditTopicsInput(e.target.value)
-                    }
-                  />
-                </label>
-
-                <div className="flex justify-end gap-3">
-                  <button
-                    type="button"
-                    disabled={isSavingEdit}
-                    className="rounded-lg border border-gray-600 px-4 py-2 text-sm font-medium text-gray-300 transition hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 disabled:cursor-not-allowed disabled:opacity-50"
-                    onClick={cancelEdit}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSavingEdit || !editName.trim()}
-                    className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 focus:ring-offset-gray-800 disabled:cursor-not-allowed disabled:bg-indigo-600 disabled:opacity-50"
-                  >
-                    {isSavingEdit ? "Saving..." : "Save"}
-                  </button>
-                </div>
-              </form>
+              <div className="mt-4">
+                <CompanionEditor
+                  companion={editingCompanion}
+                  showCancel
+                  onCancel={cancelEdit}
+                  onSave={(updated) => {
+                    setCompanions((prev) =>
+                      prev.map((c) =>
+                        c.companion_id === updated.companion_id ? updated : c,
+                      ),
+                    );
+                    cancelEdit();
+                  }}
+                />
+              </div>
             </div>
           </div>
         ) : null}

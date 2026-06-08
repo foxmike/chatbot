@@ -14,8 +14,8 @@ from chatbot.voice.cadence import CadenceMapper, CadenceProfile
 
 _VALID_TTS_IDENTIFIERS = frozenset(
     {
-        ("openai", "tts-1"),
-        ("openai", "tts-1-hd"),
+        ("kokoro", "kokoro-82m"),
+        ("kokoro", "hexgrad/kokoro-82m"),
         ("elevenlabs", "monolingual-v1"),
     }
 )
@@ -31,7 +31,7 @@ class TTSAdapter(TTSProvider):
         params: Mapping[str, Any] | None = None,
         *,
         api_key: str = "",
-        base_url: str = "https://api.openai.com/v1",
+        base_url: str = "https://openrouter.ai/api/v1",
         timeout_seconds: float = 60.0,
         cadence_mapper: CadenceMapper | None = None,
     ) -> None:
@@ -41,7 +41,7 @@ class TTSAdapter(TTSProvider):
         self.provider_id = provider_id
         self.model_id = model_id
         self.params: dict[str, Any] = dict(params or {})
-        self.api_key = api_key or os.getenv("TTS_API_KEY", "")
+        self.api_key = api_key or os.getenv("TTS_API_KEY", "") or os.getenv("OPENROUTER_API_KEY", "")
         self.base_url = (base_url or "").rstrip("/")
         self.timeout_seconds = timeout_seconds
         self.cadence_mapper = cadence_mapper or CadenceMapper()
@@ -144,14 +144,14 @@ class TTSAdapter(TTSProvider):
         """Call the TTS provider API and return raw audio bytes."""
         provider = payload.get("provider", "")
 
-        if provider == "openai":
-            return await self._call_openai_tts(payload)
+        if provider == "kokoro":
+            return await self._call_openai_compatible_tts(payload)
         if provider == "elevenlabs":
             return await self._call_elevenlabs_tts(payload)
 
         raise ValueError(f"unsupported TTS provider: {provider}")
 
-    async def _call_openai_tts(self, payload: Mapping[str, Any]) -> bytes:
+    async def _call_openai_compatible_tts(self, payload: Mapping[str, Any]) -> bytes:
         model = payload.get("model", self.model_id)
         text = payload.get("input", "")
         audio_format = payload.get("format", "mp3")
@@ -173,7 +173,7 @@ class TTSAdapter(TTSProvider):
             body["speed"] = float(speed)
 
         if not self.api_key:
-            raise ValueError("TTS_API_KEY environment variable or api_key parameter is required for OpenAI TTS")
+            raise ValueError("TTS_API_KEY, OPENROUTER_API_KEY, or api_key parameter is required for OpenAI-compatible TTS")
 
         headers: dict[str, str] = {"Content-Type": "application/json"}
         headers["Authorization"] = f"Bearer {self.api_key}"

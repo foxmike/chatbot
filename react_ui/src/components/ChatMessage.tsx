@@ -1,42 +1,15 @@
 import type { Message } from "../types";
 import type { Companion, User } from "../api/client";
+import {
+  avatarColorForCompanion,
+  avatarColorForKey,
+  getInitials,
+} from "../utils/avatar";
 
 interface ChatMessageProps {
   message: Message;
   companion?: Companion | null;
   user?: User | null;
-}
-
-const AVATAR_COLORS = [
-  "#4f46e5",
-  "#0891b2",
-  "#059669",
-  "#7c3aed",
-  "#db2777",
-  "#ea580c",
-  "#ca8a04",
-  "#0d9488",
-  "#2563eb",
-  "#9333ea",
-];
-
-function avatarColorForName(name: string) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i += 1) {
-    hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
-  }
-  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
-}
-
-function getInitials(name: string): string {
-  return (
-    name
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((part) => part[0]?.toUpperCase())
-      .slice(0, 2)
-      .join("") || "?"
-  );
 }
 
 function MessageAvatar({
@@ -66,7 +39,12 @@ function MessageAvatar({
     <span
       aria-label={`${name} avatar`}
       className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ring-1 ring-gray-700"
-      style={{ backgroundColor: avatarColorForName(name) }}
+      style={{
+        backgroundColor:
+          !isUser && companion
+            ? avatarColorForCompanion(companion)
+            : avatarColorForKey(name),
+      }}
     >
       {getInitials(name)}
     </span>

@@ -252,26 +252,26 @@ class TestCadenceMapper:
 class TestTTSAdapter:
     """Verify TTS adapter construction, validation, and synthesis."""
 
-    def test_construct_valid_openai(self) -> None:
-        adapter = TTSAdapter("openai", "tts-1")
-        assert adapter.provider_id == "openai"
-        assert adapter.model_id == "tts-1"
+    def test_construct_valid_kokoro(self) -> None:
+        adapter = TTSAdapter("kokoro", "kokoro-82m")
+        assert adapter.provider_id == "kokoro"
+        assert adapter.model_id == "kokoro-82m"
 
-    def test_construct_valid_hd(self) -> None:
-        adapter = TTSAdapter("openai", "tts-1-hd")
-        assert adapter.model_id == "tts-1-hd"
+    def test_construct_openai_removed(self) -> None:
+        with pytest.raises(ValueError, match="unsupported TTS provider/model"):
+            TTSAdapter("openai", "tts-1")
 
     def test_construct_elevenlabs(self) -> None:
         adapter = TTSAdapter("elevenlabs", "monolingual-v1")
         assert adapter.provider_id == "elevenlabs"
 
     def test_construct_with_params(self) -> None:
-        adapter = TTSAdapter("openai", "tts-1", params={"voice_speed": 1.2})
+        adapter = TTSAdapter("kokoro", "kokoro-82m", params={"voice_speed": 1.2})
         assert adapter.params == {"voice_speed": 1.2}
 
     def test_construct_with_cadence_mapper(self) -> None:
         custom_mapper = CadenceMapper()
-        adapter = TTSAdapter("openai", "tts-1", cadence_mapper=custom_mapper)
+        adapter = TTSAdapter("kokoro", "kokoro-82m", cadence_mapper=custom_mapper)
         assert adapter.cadence_mapper is custom_mapper
 
     def test_construct_invalid_provider(self) -> None:
@@ -280,25 +280,26 @@ class TestTTSAdapter:
 
     def test_construct_invalid_model(self) -> None:
         with pytest.raises(ValueError, match="unsupported TTS provider/model"):
-            TTSAdapter("openai", "invalid-model")
+            TTSAdapter("kokoro", "invalid-model")
 
     def test_construct_both_invalid(self) -> None:
         with pytest.raises(ValueError, match="unsupported TTS provider/model"):
             TTSAdapter("nope", "nope")
 
     def test_validate_identifier_valid(self) -> None:
-        assert TTSAdapter.validate_identifier("openai", "tts-1") is True
-        assert TTSAdapter.validate_identifier("openai", "tts-1-hd") is True
+        assert TTSAdapter.validate_identifier("kokoro", "kokoro-82m") is True
         assert TTSAdapter.validate_identifier("elevenlabs", "monolingual-v1") is True
 
     def test_validate_identifier_invalid(self) -> None:
+        assert TTSAdapter.validate_identifier("openai", "tts-1") is False
+        assert TTSAdapter.validate_identifier("openai", "tts-1-hd") is False
         assert TTSAdapter.validate_identifier("openai", "nonexistent") is False
         assert TTSAdapter.validate_identifier("invalid", "tts-1") is False
         assert TTSAdapter.validate_identifier("", "") is False
 
     def test_synthesize_disabled_raises(self) -> None:
         async def _run() -> None:
-            adapter = TTSAdapter("openai", "tts-1", params={"voice_enabled": False})
+            adapter = TTSAdapter("kokoro", "kokoro-82m", params={"voice_enabled": False})
             request = VoiceSynthesisRequest(text="hello", voice_params={})
             with pytest.raises(ValueError, match="voice synthesis is disabled"):
                 await adapter.synthesize(request)
@@ -307,7 +308,7 @@ class TestTTSAdapter:
 
     def test_synthesize_disabled_in_voice_params(self) -> None:
         async def _run() -> None:
-            adapter = TTSAdapter("openai", "tts-1")
+            adapter = TTSAdapter("kokoro", "kokoro-82m")
             request = VoiceSynthesisRequest(
                 text="hello",
                 voice_params={"voice_enabled": False},
@@ -319,7 +320,7 @@ class TestTTSAdapter:
 
     def test_synthesize_disabled_nested_preferences(self) -> None:
         async def _run() -> None:
-            adapter = TTSAdapter("openai", "tts-1")
+            adapter = TTSAdapter("kokoro", "kokoro-82m")
             request = VoiceSynthesisRequest(
                 text="hello",
                 voice_params={"voice_preferences": {"voice_enabled": False}},
@@ -331,7 +332,7 @@ class TestTTSAdapter:
 
     def test_synthesize_disabled_string_false(self) -> None:
         async def _run() -> None:
-            adapter = TTSAdapter("openai", "tts-1", params={"voice_enabled": "false"})
+            adapter = TTSAdapter("kokoro", "kokoro-82m", params={"voice_enabled": "false"})
             request = VoiceSynthesisRequest(text="hello", voice_params={})
             with pytest.raises(ValueError, match="voice synthesis is disabled"):
                 await adapter.synthesize(request)
@@ -340,7 +341,7 @@ class TestTTSAdapter:
 
     def test_synthesize_disabled_string_off(self) -> None:
         async def _run() -> None:
-            adapter = TTSAdapter("openai", "tts-1", params={"voice_enabled": "off"})
+            adapter = TTSAdapter("kokoro", "kokoro-82m", params={"voice_enabled": "off"})
             request = VoiceSynthesisRequest(text="hello", voice_params={})
             with pytest.raises(ValueError, match="voice synthesis is disabled"):
                 await adapter.synthesize(request)
@@ -349,7 +350,7 @@ class TestTTSAdapter:
 
     def test_synthesize_returns_correct_result_structure(self) -> None:
         async def _run() -> None:
-            adapter = TTSAdapter("openai", "tts-1")
+            adapter = TTSAdapter("kokoro", "kokoro-82m")
             request = VoiceSynthesisRequest(text="hello world", voice_params={})
 
             adapter._call_provider = AsyncMock(return_value=b"fake audio data")
@@ -365,7 +366,7 @@ class TestTTSAdapter:
 
     def test_synthesize_with_mood_and_mode(self) -> None:
         async def _run() -> None:
-            adapter = TTSAdapter("openai", "tts-1")
+            adapter = TTSAdapter("kokoro", "kokoro-82m")
             request = VoiceSynthesisRequest(
                 text="hello",
                 voice_params={"mood": "happy", "mode": "playful"},
@@ -387,15 +388,14 @@ class TestTTSAdapter:
 class TestSTTAdapter:
     """Verify STT adapter construction, validation, and transcription."""
 
-    def test_construct_valid_openai(self) -> None:
-        adapter = STTAdapter("openai", "whisper-1")
-        assert adapter.provider_id == "openai"
-        assert adapter.model_id == "whisper-1"
-
     def test_construct_deepgram(self) -> None:
         adapter = STTAdapter("deepgram", "nova-2")
         assert adapter.provider_id == "deepgram"
         assert adapter.model_id == "nova-2"
+
+    def test_construct_openai_removed(self) -> None:
+        with pytest.raises(ValueError, match="unsupported STT provider/model"):
+            STTAdapter("openai", "whisper-1")
 
     def test_construct_invalid_provider(self) -> None:
         with pytest.raises(ValueError, match="unsupported STT provider/model"):
@@ -403,24 +403,24 @@ class TestSTTAdapter:
 
     def test_construct_invalid_model(self) -> None:
         with pytest.raises(ValueError, match="unsupported STT provider/model"):
-            STTAdapter("openai", "invalid")
+            STTAdapter("deepgram", "invalid")
 
     def test_construct_both_invalid(self) -> None:
         with pytest.raises(ValueError, match="unsupported STT provider/model"):
             STTAdapter("nope", "nope")
 
     def test_validate_identifier_valid(self) -> None:
-        assert STTAdapter.validate_identifier("openai", "whisper-1") is True
         assert STTAdapter.validate_identifier("deepgram", "nova-2") is True
 
     def test_validate_identifier_invalid(self) -> None:
+        assert STTAdapter.validate_identifier("openai", "whisper-1") is False
         assert STTAdapter.validate_identifier("openai", "nonexistent") is False
         assert STTAdapter.validate_identifier("deepgram", "whisper-1") is False
         assert STTAdapter.validate_identifier("", "") is False
 
     def test_transcribe_empty_audio_raises(self) -> None:
         async def _run() -> None:
-            adapter = STTAdapter("openai", "whisper-1")
+            adapter = STTAdapter("deepgram", "nova-2")
             request = VoiceTranscriptionRequest(
                 audio_data=b"", audio_format="mp3", language=None
             )
@@ -431,7 +431,7 @@ class TestSTTAdapter:
 
     def test_transcribe_unsupported_format_raises(self) -> None:
         async def _run() -> None:
-            adapter = STTAdapter("openai", "whisper-1")
+            adapter = STTAdapter("deepgram", "nova-2")
             request = VoiceTranscriptionRequest(
                 audio_data=b"audio", audio_format="xyz_unsupported", language=None
             )
@@ -442,7 +442,7 @@ class TestSTTAdapter:
 
     def test_transcribe_returns_correct_result_structure(self) -> None:
         async def _run() -> None:
-            adapter = STTAdapter("openai", "whisper-1")
+            adapter = STTAdapter("deepgram", "nova-2")
             request = VoiceTranscriptionRequest(
                 audio_data=b"fake audio bytes", audio_format="mp3", language=None
             )
@@ -460,7 +460,7 @@ class TestSTTAdapter:
 
     def test_transcribe_with_language(self) -> None:
         async def _run() -> None:
-            adapter = STTAdapter("openai", "whisper-1")
+            adapter = STTAdapter("deepgram", "nova-2")
             request = VoiceTranscriptionRequest(
                 audio_data=b"audio", audio_format="mp3", language="fr"
             )
@@ -476,7 +476,7 @@ class TestSTTAdapter:
 
     def test_transcribe_with_language_detected_in_response(self) -> None:
         async def _run() -> None:
-            adapter = STTAdapter("openai", "whisper-1")
+            adapter = STTAdapter("deepgram", "nova-2")
             request = VoiceTranscriptionRequest(
                 audio_data=b"audio", audio_format="mp3", language="en"
             )
@@ -495,7 +495,7 @@ class TestSTTAdapter:
 
     def test_transcribe_missing_text_defaults_to_empty(self) -> None:
         async def _run() -> None:
-            adapter = STTAdapter("openai", "whisper-1")
+            adapter = STTAdapter("deepgram", "nova-2")
             request = VoiceTranscriptionRequest(
                 audio_data=b"audio", audio_format="mp3", language=None
             )
@@ -510,7 +510,7 @@ class TestSTTAdapter:
 
     def test_transcribe_missing_confidence_defaults_to_zero(self) -> None:
         async def _run() -> None:
-            adapter = STTAdapter("openai", "whisper-1")
+            adapter = STTAdapter("deepgram", "nova-2")
             request = VoiceTranscriptionRequest(
                 audio_data=b"audio", audio_format="mp3", language=None
             )
@@ -528,7 +528,7 @@ class TestSTTAdapter:
                      "ogg", "opus", "wav", "webm"}
 
         async def _run(fmt: str) -> None:
-            adapter = STTAdapter("openai", "whisper-1")
+            adapter = STTAdapter("deepgram", "nova-2")
             request = VoiceTranscriptionRequest(
                 audio_data=b"audio", audio_format=fmt, language=None
             )
@@ -543,7 +543,7 @@ class TestSTTAdapter:
 
     def test_transcribe_format_normalization(self) -> None:
         async def _run() -> None:
-            adapter = STTAdapter("openai", "whisper-1")
+            adapter = STTAdapter("deepgram", "nova-2")
             request = VoiceTranscriptionRequest(
                 audio_data=b"audio", audio_format=".MP3", language=None
             )
@@ -734,8 +734,8 @@ class TestVoiceAPI:
         response = test_app.put(
             "/api/voice/preferences",
             json={
-                "tts_provider_id": "openai",
-                "tts_model_id": "tts-1-hd",
+                "tts_provider_id": "kokoro",
+                "tts_model_id": "kokoro-82m",
                 "voice_speed": 1.2,
                 "voice_pitch": 0.9,
                 "voice_enabled": True,
@@ -743,8 +743,8 @@ class TestVoiceAPI:
         )
         assert response.status_code == 200
         data = response.json()
-        assert data["tts_provider_id"] == "openai"
-        assert data["tts_model_id"] == "tts-1-hd"
+        assert data["tts_provider_id"] == "kokoro"
+        assert data["tts_model_id"] == "kokoro-82m"
         assert data["voice_speed"] == 1.2
         assert data["voice_pitch"] == 0.9
         assert data["voice_enabled"] is True

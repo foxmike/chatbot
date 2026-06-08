@@ -11,7 +11,9 @@ import type { ApiError } from "../types";
 
 interface RoomSwitcherProps {
   userId: string;
+  companion?: Companion | null;
   activeRoomId: string | null;
+  refreshKey?: number;
   onRoomChange: (roomId: string, roomType: RoomType, room: RoomData) => void;
   onRoomCleared?: () => void;
   variant?: "panel" | "sidebar";
@@ -20,8 +22,8 @@ interface RoomSwitcherProps {
 }
 
 const ROOM_TYPE_LABELS: Record<RoomType, string> = {
-  one_on_one_chat: "One-on-One Chat",
-  roleplay_scene: "Roleplay Scene",
+  one_on_one_chat: "Chat",
+  roleplay_scene: "Roleplay",
   project: "Project",
   emotional_support: "Emotional Support",
   memory_review: "Memory Review",
@@ -38,9 +40,6 @@ const ROOM_TYPE_ICONS: Record<RoomType, string> = {
 const ROOM_TYPE_OPTIONS: RoomType[] = [
   "one_on_one_chat",
   "roleplay_scene",
-  "project",
-  "emotional_support",
-  "memory_review",
 ];
 
 function getErrorDetail(error: unknown) {
@@ -62,7 +61,9 @@ function getErrorDetail(error: unknown) {
 
 export function RoomSwitcher({
   userId,
+  companion,
   activeRoomId,
+  refreshKey = 0,
   onRoomChange,
   onRoomCleared,
   variant = "panel",
@@ -92,9 +93,12 @@ export function RoomSwitcher({
 
     try {
       const result = await listRooms(userId);
-      setRooms(result);
-      if (autoSelectFirst && !activeRoomId && result.length > 0) {
-        const firstRoom = result[0];
+      const visibleRooms = companion
+        ? result.filter((room) => room.companion_id === companion.companion_id)
+        : result;
+      setRooms(visibleRooms);
+      if (autoSelectFirst && !activeRoomId && visibleRooms.length > 0) {
+        const firstRoom = visibleRooms[0];
         onRoomChange(firstRoom.room_id, firstRoom.room_type, firstRoom);
       }
     } catch (err) {
@@ -109,7 +113,9 @@ export function RoomSwitcher({
     try {
       const result = await listCompanions();
       setCompanions(result);
-      if (result.length > 0) {
+      if (companion) {
+        setNewCompanionId(companion.companion_id);
+      } else if (result.length > 0) {
         setNewCompanionId(result[0].companion_id);
       }
     } catch (err) {
@@ -121,7 +127,7 @@ export function RoomSwitcher({
     loadRooms();
     loadCompanions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  }, [userId, companion?.companion_id, refreshKey]);
 
   const handleCreateRoom = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -139,14 +145,21 @@ export function RoomSwitcher({
         companion_id: newCompanionId.trim() || undefined,
       });
 
-      setRooms((prev) => [...prev, room]);
+      setRooms((prev) =>
+        companion && room.companion_id !== companion.companion_id
+          ? prev
+          : [...prev, room],
+      );
       if (selectCreatedRoom) {
         onRoomChange(room.room_id, room.room_type, room);
       }
       setShowCreateModal(false);
       setNewRoomType("one_on_one_chat");
       setNewDisplayName("");
-      setNewCompanionId(companions.length > 0 ? companions[0].companion_id : "");
+      setNewCompanionId(
+        companion?.companion_id ??
+          (companions.length > 0 ? companions[0].companion_id : ""),
+      );
     } catch (err) {
       console.error("Failed to create room", err);
       setCreateError(getErrorDetail(err));
@@ -208,7 +221,7 @@ export function RoomSwitcher({
           }
         >
           <div>
-            <h2 className="text-lg font-semibold text-gray-100">Rooms</h2>
+            <h2 className="text-lg font-semibold text-gray-100">Chats</h2>
             {variant === "panel" ? (
               <p className="mt-1 text-sm text-gray-400">
                 Switch between active rooms or create a new one.
@@ -342,7 +355,9 @@ export function RoomSwitcher({
           }
           onClick={() => {
             setCreateError(null);
-            if (companions.length > 0) {
+            if (companion) {
+              setNewCompanionId(companion.companion_id);
+            } else if (companions.length > 0) {
               setNewCompanionId(companions[0].companion_id);
             } else {
               setNewCompanionId("");
@@ -381,25 +396,7 @@ export function RoomSwitcher({
 
             <form className="mt-4 flex flex-col gap-4" onSubmit={handleCreateRoom}>
               <label className="flex flex-col gap-2 text-sm font-medium text-gray-200">
-                Room type
-                <select
-                  value={newRoomType}
-                  disabled={isCreating}
-                  className="rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 disabled:cursor-not-allowed disabled:opacity-60"
-                  onChange={(e: ChangeEvent<HTMLSelectElement>) =>
-                    setNewRoomType(e.target.value as RoomType)
-                  }
-                >
-                  {ROOM_TYPE_OPTIONS.map((rt) => (
-                    <option key={rt} value={rt}>
-                      {ROOM_TYPE_LABELS[rt]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="flex flex-col gap-2 text-sm font-medium text-gray-200">
-                Display name
+                Room Name
                 <input
                   type="text"
                   value={newDisplayName}
@@ -426,6 +423,24 @@ export function RoomSwitcher({
                   {companions.map((companion) => (
                     <option key={companion.companion_id} value={companion.companion_id}>
                       {companion.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="flex flex-col gap-2 text-sm font-medium text-gray-200">
+                Room Type
+                <select
+                  value={newRoomType}
+                  disabled={isCreating}
+                  className="rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 disabled:cursor-not-allowed disabled:opacity-60"
+                  onChange={(e: ChangeEvent<HTMLSelectElement>) =>
+                    setNewRoomType(e.target.value as RoomType)
+                  }
+                >
+                  {ROOM_TYPE_OPTIONS.map((rt) => (
+                    <option key={rt} value={rt}>
+                      {ROOM_TYPE_LABELS[rt]}
                     </option>
                   ))}
                 </select>

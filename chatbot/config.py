@@ -36,25 +36,25 @@ class Settings(BaseSettings):
     embedding_model: str = "openai/text-embedding-3-small"
 
     # TTS (Text-to-Speech) Configuration
-    tts_provider: str = "openai"
-    tts_model: str = "tts-1"
+    tts_provider: str = "kokoro"
+    tts_model: str = "hexgrad/kokoro-82m"
     tts_voice: str = "alloy"
     tts_speed: float = 1.0
     tts_api_key: str = ""
-    tts_base_url: str = "https://api.openai.com/v1"
+    tts_base_url: str = "https://openrouter.ai/api/v1"
 
     # STT (Speech-to-Text) Configuration
-    stt_provider: str = "openai"
-    stt_model: str = "whisper-1"
+    stt_provider: str = "deepgram"
+    stt_model: str = "deepgram/nova-2"
     stt_language: str = "en"
     stt_api_key: str = ""
-    stt_base_url: str = "https://api.openai.com/v1"
+    stt_base_url: str = "https://openrouter.ai/api/v1"
 
     # Image Generation Configuration
-    image_generation_provider: str = "diffusion"
-    image_generation_model: str = "stable-diffusion-v1-5"
+    image_generation_provider: str = "openrouter"
+    image_generation_model: str = "black-forest-labs/flux-2-pro"
     image_generation_api_key: str = ""
-    image_generation_base_url: str = "https://api.openai.com/v1"
+    image_generation_base_url: str = "https://openrouter.ai/api/v1"
 
     # Image Understanding Configuration
     image_understanding_provider: str = "openrouter"

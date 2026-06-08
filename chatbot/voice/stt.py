@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import os
 from collections.abc import Mapping
 from typing import Any
@@ -13,8 +14,8 @@ from chatbot.voice.base import STTProvider, VoiceTranscriptionRequest, VoiceTran
 
 _VALID_STT_IDENTIFIERS = frozenset(
     {
-        ("openai", "whisper-1"),
         ("deepgram", "nova-2"),
+        ("deepgram", "deepgram/nova-2"),
     }
 )
 
@@ -44,7 +45,7 @@ class STTAdapter(STTProvider):
         model_id: str,
         *,
         api_key: str = "",
-        base_url: str = "https://api.openai.com/v1",
+        base_url: str = "https://openrouter.ai/api/v1",
         timeout_seconds: float = 120.0,
     ) -> None:
         if not self.validate_identifier(provider_id, model_id):
@@ -52,7 +53,7 @@ class STTAdapter(STTProvider):
 
         self.provider_id = provider_id
         self.model_id = model_id
-        self.api_key = api_key or os.getenv("STT_API_KEY", "")
+        self.api_key = api_key or os.getenv("STT_API_KEY", "") or os.getenv("OPENROUTER_API_KEY", "")
         self.base_url = (base_url or "").rstrip("/")
         self.timeout_seconds = timeout_seconds
 
@@ -95,18 +96,24 @@ class STTAdapter(STTProvider):
         """Call the STT provider API and return a normalized dict with text, confidence, and language."""
         provider = payload.get("provider", "")
 
-        if provider == "openai":
-            return await self._call_openai_stt(payload)
         if provider == "deepgram":
-            return await self._call_deepgram_stt(payload)
+            return await self._call_openai_compatible_stt(payload)
 
         raise ValueError(f"unsupported STT provider: {provider}")
 
-    async def _call_openai_stt(self, payload: Mapping[str, Any]) -> Mapping[str, Any]:
-        model = payload.get("model", "whisper-1")
+    async def _call_openai_compatible_stt(self, payload: Mapping[str, Any]) -> Mapping[str, Any]:
+        model = payload.get("model", self.model_id)
         audio_data = payload.get("audio", b"")
         audio_format = payload.get("audio_format", "wav")
         language = payload.get("language")
+
+        if "openrouter.ai" in self.base_url:
+            return await self._call_openrouter_stt(
+                model=model,
+                audio_data=audio_data,
+                audio_format=str(audio_format),
+                language=str(language) if language else None,
+            )
 
         data: dict[str, Any] = {
             "model": model,
@@ -114,14 +121,13 @@ class STTAdapter(STTProvider):
         if language:
             data["language"] = language
         data["response_format"] = "verbose_json"
-        data["timestamp_granularities[]"] = "word"
 
         files = {
             "file": (_audio_filename(audio_format), audio_data, _audio_mime(audio_format)),
         }
 
         if not self.api_key:
-            raise ValueError("STT_API_KEY environment variable or api_key parameter is required for OpenAI STT")
+            raise ValueError("STT_API_KEY, OPENROUTER_API_KEY, or api_key parameter is required for OpenAI-compatible STT")
 
         headers: dict[str, str] = {"Authorization": f"Bearer {self.api_key}"}
 
@@ -135,9 +141,9 @@ class STTAdapter(STTProvider):
                     timeout=self.timeout_seconds,
                 )
         except httpx.TimeoutException as exc:
-            raise TimeoutError("OpenAI STT request timed out") from exc
+            raise TimeoutError("OpenAI-compatible STT request timed out") from exc
         except httpx.HTTPError as exc:
-            raise RuntimeError(f"OpenAI STT request failed: {exc}") from exc
+            raise RuntimeError(f"OpenAI-compatible STT request failed: {exc}") from exc
 
         if response.status_code >= 400:
             _raise_stt_http_error(response)
@@ -152,52 +158,57 @@ class STTAdapter(STTProvider):
 
         return dict(body)
 
-    async def _call_deepgram_stt(self, payload: Mapping[str, Any]) -> Mapping[str, Any]:
-        model = payload.get("model", "nova-2")
-        audio_data = payload.get("audio", b"")
-        audio_format = payload.get("audio_format", "wav")
-        language = payload.get("language")
-
-        params: dict[str, str] = {"model": model, "utterances": "true"}
+    async def _call_openrouter_stt(
+        self,
+        *,
+        model: Any,
+        audio_data: Any,
+        audio_format: str,
+        language: str | None,
+    ) -> Mapping[str, Any]:
+        body: dict[str, Any] = {
+            "model": model,
+            "input_audio": {
+                "data": base64.b64encode(bytes(audio_data)).decode("ascii"),
+                "format": _normalize_audio_format(audio_format) or "wav",
+            },
+        }
         if language:
-            params["language"] = language
+            body["language"] = language
 
         if not self.api_key:
-            raise ValueError("STT_API_KEY environment variable or api_key parameter is required for Deepgram STT")
+            raise ValueError("STT_API_KEY, OPENROUTER_API_KEY, or api_key parameter is required for OpenAI-compatible STT")
 
         headers: dict[str, str] = {
-            "Content-Type": _audio_mime(audio_format),
-            "Authorization": f"Token {self.api_key}",
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}",
         }
-
-        base = self.base_url or "https://api.deepgram.com"
 
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    f"{base}/v1/listen",
+                    f"{self.base_url}/audio/transcriptions",
                     headers=headers,
-                    content=audio_data,
-                    params=params,
+                    json=body,
                     timeout=self.timeout_seconds,
                 )
         except httpx.TimeoutException as exc:
-            raise TimeoutError("Deepgram STT request timed out") from exc
+            raise TimeoutError("OpenRouter STT request timed out") from exc
         except httpx.HTTPError as exc:
-            raise RuntimeError(f"Deepgram STT request failed: {exc}") from exc
+            raise RuntimeError(f"OpenRouter STT request failed: {exc}") from exc
 
         if response.status_code >= 400:
             _raise_stt_http_error(response)
 
         try:
-            body: Any = response.json()
+            parsed: Any = response.json()
         except ValueError:
-            return {"text": response.text.strip() or "", "confidence": 0.0}
+            parsed = {"text": response.text.strip() or "", "confidence": 1.0}
 
-        if not isinstance(body, Mapping):
-            return {"text": str(body), "confidence": 0.0}
+        if not isinstance(parsed, Mapping):
+            return {"text": str(parsed), "confidence": 1.0}
 
-        return dict(body)
+        return dict(parsed)
 
     def _to_transcription_result(
         self,

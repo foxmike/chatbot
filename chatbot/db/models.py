@@ -198,6 +198,12 @@ class ImageMemory(Base):
         sa.ForeignKey("users.id"),
         nullable=True,
     )
+    companion_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("companions.companion_id"),
+        index=True,
+        nullable=True,
+    )
     image_data: Mapped[bytes | None] = mapped_column(sa.LargeBinary, nullable=True)
     image_url: Mapped[str | None] = mapped_column(sa.String(1024), nullable=True)
     mime_type: Mapped[str] = mapped_column(sa.String(64), nullable=False)
@@ -314,7 +320,7 @@ class Session(Base):
 
     user: Mapped[User] = relationship(back_populates="sessions")
     companion: Mapped[Companion | None] = relationship()
-    room: Mapped[Room | None] = relationship(back_populates="session")
+    room: Mapped[Room | None] = relationship(back_populates="session", foreign_keys=[room_id])
     messages: Mapped[list[Message]] = relationship(back_populates="session")
     episodes: Mapped[list[Episode]] = relationship(back_populates="session")
     relationship_configs: Mapped[list[RelationshipConfigModel]] = relationship(
@@ -830,7 +836,7 @@ class Room(Base):
         foreign_keys="[Scene.room_id]",
     )
     scene: Mapped[Scene | None] = relationship(foreign_keys=[scene_id])
-    session: Mapped[Session | None] = relationship(back_populates="room")
+    session: Mapped[Session | None] = relationship(back_populates="room", foreign_keys="[Session.room_id]")
 
 
 class Scene(Base):

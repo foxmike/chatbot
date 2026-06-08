@@ -210,7 +210,8 @@ export function SettingsPanel({
         {/* ── Companion tab ──────────────────────────────────────────── */}
         {activeTab === "companion" && (
           <CompanionEditor
-            companionId={panelCompanion.companion_id}
+            companion={panelCompanion}
+            showCancel={false}
             onSave={(updated) => {
               setPanelCompanion(updated);
               setCompanions((prev) =>
