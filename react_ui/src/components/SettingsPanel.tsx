@@ -14,6 +14,7 @@ interface SettingsPanelProps {
   sessions: Session[];
   activeSessionId: string | null;
   sessionCount: number;
+  onCompanionUpdate?: (updated: Companion) => void;
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {
@@ -58,6 +59,7 @@ export function SettingsPanel({
   sessions: propSessions,
   activeSessionId,
   sessionCount,
+  onCompanionUpdate,
 }: SettingsPanelProps) {
   const [activeTab, setActiveTab] = useState<Tab>("account");
   const [companions, setCompanions] = useState<Companion[]>([]);
@@ -219,6 +221,7 @@ export function SettingsPanel({
                   c.companion_id === updated.companion_id ? updated : c,
                 ),
               );
+              onCompanionUpdate?.(updated);
             }}
           />
         )}

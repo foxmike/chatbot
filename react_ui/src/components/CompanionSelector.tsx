@@ -598,10 +598,13 @@ export function CompanionSelector({
                 </h3>
                 <button
                   type="button"
-                  className="rounded-lg border border-gray-600 px-3 py-1 text-sm font-medium text-gray-300 transition hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 disabled:cursor-not-allowed disabled:opacity-50"
+                  title="Close"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 text-gray-400 transition hover:bg-gray-700 hover:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/60"
                   onClick={cancelEdit}
                 >
-                  Close
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </button>
               </div>
 

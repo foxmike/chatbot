@@ -5,6 +5,7 @@ import {
   listCompanionImages,
   updateCompanion,
   uploadVisualImage,
+  deleteVisualImage,
 } from "../api/client";
 import type {
   Companion,
@@ -306,6 +307,16 @@ export function CompanionEditor({
     }
   };
 
+  const handleDeleteGalleryImage = async (imageId: string) => {
+    setError(null);
+    try {
+      await deleteVisualImage(imageId);
+      setGalleryImages((images) => images.filter((img) => img.image_id !== imageId));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to delete image.");
+    }
+  };
+
   return (
     <section className="rounded-lg border border-gray-700 bg-gray-800 p-5 text-gray-100">
       <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
@@ -427,13 +438,23 @@ export function CompanionEditor({
               {galleryImages.map((image) => (
                 <div
                   key={image.image_id}
-                  className="overflow-hidden rounded-lg border border-gray-700 bg-gray-950"
+                  className="relative overflow-hidden rounded-lg border border-gray-700 bg-gray-950"
                 >
                   <img
                     src={image.image_url}
                     alt={image.prompt_used ?? "Generated companion image"}
                     className="aspect-square w-full object-cover"
                   />
+                  <button
+                    type="button"
+                    title="Delete image"
+                    onClick={() => handleDeleteGalleryImage(image.image_id)}
+                    className="absolute top-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors"
+                  >
+                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                   <div className="flex flex-col gap-2 p-2">
                     <p className="line-clamp-2 min-h-8 text-xs text-gray-400">
                       {image.prompt_used ?? "Generated avatar"}

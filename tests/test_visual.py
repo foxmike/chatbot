@@ -699,7 +699,17 @@ class TestImageAPI:
                 "image_id": image_id,
                 "image_url": f"/api/images/{image_id}",
             }
+            images_store[image_id] = record
             return TestImageAPI._ImageUploadResponse(**record)
+
+        # -------------------------------------------------- delete
+        @images_router.delete(
+            "/images/{image_id}", status_code=204
+        )
+        async def delete(image_id: str):
+            if image_id not in images_store:
+                raise HTTPException(status_code=404, detail="Image not found")
+            del images_store[image_id]
 
         # -------------------------------------------------- understand
         @images_router.post(
@@ -922,6 +932,30 @@ class TestImageAPI:
         assert "image_id" in data
         assert "image_url" in data
         assert data["image_url"] == f"/api/images/{data['image_id']}"
+
+    def test_delete_image_returns_204(self, test_app: TestClient) -> None:
+        # First upload an image
+        upload_resp = test_app.post(
+            "/api/images/upload",
+            json={
+                "image_base64": "data:image/png;base64,aW1hZ2VfZGF0YQ==",
+                "companion_id": "companion-123",
+            },
+        )
+        assert upload_resp.status_code == 200
+        image_id = upload_resp.json()["image_id"]
+
+        # Delete it
+        del_resp = test_app.delete(f"/api/images/images/{image_id}")
+        assert del_resp.status_code == 204
+
+        # Verify it is gone
+        get_resp = test_app.get(f"/api/images/{image_id}")
+        assert get_resp.status_code == 404
+
+    def test_delete_image_nonexistent_returns_404(self, test_app: TestClient) -> None:
+        response = test_app.delete("/api/images/images/nonexistent-id-54321")
+        assert response.status_code == 404
 
     # ----------------------------------------------------------------
     # Understand endpoint

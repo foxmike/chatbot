@@ -1579,6 +1579,22 @@ export function uploadVisualImage(
   });
 }
 
+export async function deleteVisualImage(imageId: string): Promise<void> {
+  const response = await fetch(
+    `${BASE_URL}${backendPath(`/visual/images/${imageId}`)}`,
+    {
+      method: "DELETE",
+      headers: accessToken
+        ? {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          }
+        : { "Content-Type": "application/json" },
+    },
+  );
+  await assertOk(response);
+}
+
 export async function listCompanionImages(
   companionId: string,
 ): Promise<GeneratedCompanionImage[]> {

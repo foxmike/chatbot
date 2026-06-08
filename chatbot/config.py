@@ -52,7 +52,7 @@ class Settings(BaseSettings):
 
     # Image Generation Configuration
     image_generation_provider: str = "openrouter"
-    image_generation_model: str = "black-forest-labs/flux-2-pro"
+    image_generation_model: str = "black-forest-labs/flux.2-pro"
     image_generation_api_key: str = ""
     image_generation_base_url: str = "https://openrouter.ai/api/v1"
 

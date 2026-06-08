@@ -442,7 +442,6 @@ async def get_generated_image(image_id: str) -> Response:
             select(ImageMemory).where(ImageMemory.image_id == image_id)
         )
         image = result.scalar_one_or_none()
-
     if image is None or image.image_data is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -450,6 +449,31 @@ async def get_generated_image(image_id: str) -> Response:
         )
 
     return Response(content=image.image_data, media_type=image.mime_type)
+
+
+@visual_router.delete("/images/{image_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_image(
+    image_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> None:
+    """Delete an image memory row by image_id, verifying user ownership."""
+    async with async_session_factory() as session:
+        result = await session.execute(
+            select(ImageMemory).where(
+                ImageMemory.image_id == image_id,
+                ImageMemory.user_id == _user_uuid(current_user.user_id),
+            )
+        )
+        image = result.scalar_one_or_none()
+
+        if image is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Image not found or not owned by user",
+            )
+
+        await session.delete(image)
+        await session.commit()
 
 
 # ---------------------------------------------------------------------------

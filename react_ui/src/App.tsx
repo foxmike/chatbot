@@ -766,6 +766,11 @@ export default function App() {
             sessions={sessions}
             activeSessionId={activeSessionId}
             sessionCount={sessions.length}
+            onCompanionUpdate={(updated) => {
+              if (selectedCompanion && selectedCompanion.companion_id === updated.companion_id) {
+                setSelectedCompanion(updated);
+              }
+            }}
           />
         ),
         memory: (
