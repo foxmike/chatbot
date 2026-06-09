@@ -37,10 +37,13 @@ _SCHEDULER_POLLING_INTERVAL_SECONDS = 300
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.provider_registry = build_default_registry(get_settings())
+    settings = get_settings()
+    app.state.provider_registry = build_default_registry(settings)
+    app.state.default_model = settings.default_model
+    app.state.default_provider = settings.default_provider
     app.state.retrieval_engine = build_retrieval_engine(
         async_session_factory,
-        get_settings(),
+        settings,
     )
     worker: BackgroundWorker | None = None
     scheduler_task: asyncio.Task[None] | None = None

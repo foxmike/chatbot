@@ -258,6 +258,14 @@ def validate_identifier(provider_id: str, model_id: str) -> bool:
 
     if not provider_id or not model_id:
         return False
+
+    # Allow any model if using SGLang or vLLM as provider
+    from chatbot.config import get_settings
+    settings = get_settings()
+    active_provider = settings.llm_provider.lower()
+    if active_provider in {"sglang", "vllm"} or provider_id in {"sglang", "vllm"}:
+        return True
+
     known_models = _KNOWN_MODEL_REGISTRY.get(provider_id)
     if known_models is None:
         return False

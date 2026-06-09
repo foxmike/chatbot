@@ -341,3 +341,76 @@ def test_provider_router_falls_back_when_primary_is_unavailable() -> None:
     )
 
     assert router.select("prompt", ProviderConfig(model="model-a")) is fallback
+
+
+def test_get_llm_config_routing(monkeypatch: pytest.MonkeyPatch) -> None:
+    from chatbot.config import get_settings, get_llm_config
+
+    settings = get_settings()
+
+    # Test openrouter config
+    monkeypatch.setattr(settings, "llm_provider", "openrouter")
+    monkeypatch.setattr(settings, "openrouter_base_url", "https://openrouter.ai/api/v1")
+    monkeypatch.setattr(settings, "openrouter_api_key", "or-key")
+    monkeypatch.setattr(settings, "default_model", "or-model")
+    config = get_llm_config()
+    assert config["base_url"] == "https://openrouter.ai/api/v1"
+    assert config["api_key"] == "or-key"
+    assert config["model"] == "or-model"
+
+    # Test sglang config
+    monkeypatch.setattr(settings, "llm_provider", "sglang")
+    monkeypatch.setattr(settings, "sglang_base_url", "http://localhost:30000/v1")
+    monkeypatch.setattr(settings, "sglang_api_key", "sg-key")
+    monkeypatch.setattr(settings, "sglang_model", "sg-model")
+    config = get_llm_config()
+    assert config["base_url"] == "http://localhost:30000/v1"
+    assert config["api_key"] == "sg-key"
+    assert config["model"] == "sg-model"
+
+    # Test vllm config
+    monkeypatch.setattr(settings, "llm_provider", "vllm")
+    monkeypatch.setattr(settings, "vllm_base_url", "http://localhost:8000/v1")
+    monkeypatch.setattr(settings, "vllm_api_key", "vl-key")
+    monkeypatch.setattr(settings, "vllm_model", "vl-model")
+    config = get_llm_config()
+    assert config["base_url"] == "http://localhost:8000/v1"
+    assert config["api_key"] == "vl-key"
+    assert config["model"] == "vl-model"
+
+
+def test_build_default_registry_with_providers(monkeypatch: pytest.MonkeyPatch) -> None:
+    from chatbot.config import get_settings
+    from chatbot.providers.bootstrap import build_default_registry
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "llm_provider", "sglang")
+    monkeypatch.setattr(settings, "sglang_base_url", "http://localhost:30000/v1")
+    monkeypatch.setattr(settings, "sglang_api_key", "sg-key")
+    monkeypatch.setattr(settings, "sglang_model", "sg-model")
+
+    registry = build_default_registry(settings)
+    assert "sglang" in registry.names()
+    assert "openrouter" in registry.names()
+
+    sglang_provider = registry.get("sglang")
+    assert sglang_provider.base_url == "http://localhost:30000/v1"
+    assert sglang_provider.api_key == "sg-key"
+    assert sglang_provider.default_model == "sg-model"
+
+
+def test_validate_identifier_for_sglang_and_vllm(monkeypatch: pytest.MonkeyPatch) -> None:
+    from chatbot.providers.router import validate_identifier
+    from chatbot.config import get_settings
+
+    settings = get_settings()
+
+    # When provider is sglang or vllm, validation should pass for any model name
+    monkeypatch.setattr(settings, "llm_provider", "sglang")
+    assert validate_identifier("sglang", "any-random-model-string") is True
+    assert validate_identifier("vllm", "some-other-model") is True
+
+    # When provider is openrouter, validation of unknown model should fail
+    monkeypatch.setattr(settings, "llm_provider", "openrouter")
+    assert validate_identifier("openrouter", "non-existent-model-name") is False
+
