@@ -20,7 +20,8 @@ def build_default_registry(settings: Settings) -> ProviderRegistry:
             "OPENROUTER_API_KEY is not set; openrouter provider registered but calls will fail"
         )
 
-    # Register under the active provider name
+    # Register under the active provider name. OpenRouter, SGLang, vLLM,
+    # and Ollama all use the same OpenAI-compatible adapter here.
     registry.register(
         provider_name,
         OpenRouterProvider(
@@ -30,7 +31,7 @@ def build_default_registry(settings: Settings) -> ProviderRegistry:
         ),
     )
 
-    # Also register as "openrouter" as a fallback alias if not openrouter
+    # Also register as "openrouter" as a fallback alias if not openrouter.
     if provider_name != "openrouter":
         registry.register(
             "openrouter",

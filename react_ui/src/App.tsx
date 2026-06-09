@@ -536,7 +536,7 @@ export default function App() {
       text: trimmedMessage,
       sessionId,
       roomId: activeRoomId,
-      streaming: useStreamingChat && !activeRoomId,
+      streaming: useStreamingChat,
     });
 
     processQueue();
@@ -708,8 +708,8 @@ export default function App() {
           <input
             type="checkbox"
             className="h-4 w-4 rounded border-gray-600 bg-gray-900 text-indigo-600 focus:ring-2 focus:ring-indigo-500"
-            checked={useStreamingChat && !activeRoomId}
-            disabled={isLoading || Boolean(activeRoomId)}
+            checked={useStreamingChat}
+            disabled={isLoading}
             onChange={(event) => setUseStreamingChat(event.target.checked)}
           />
           <span>Stream responses</span>

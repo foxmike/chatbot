@@ -18,13 +18,16 @@ class Settings(BaseSettings):
     default_model: str = "google/gemma-4-31b-it"
     default_provider: str = "openrouter"
 
-    llm_provider: str = "openrouter"  # openrouter | sglang | vllm
+    llm_provider: str = "openrouter"  # openrouter | sglang | vllm | ollama
     sglang_base_url: str = "http://localhost:30000/v1"
     sglang_model: str = ""
     sglang_api_key: str = ""
     vllm_base_url: str = "http://localhost:8000/v1"
     vllm_model: str = ""
     vllm_api_key: str = ""
+    ollama_base_url: str = "http://localhost:11434/v1"
+    ollama_model: str = ""
+    ollama_api_key: str = ""
 
     task_class_routing_enabled: bool = True
     task_class_default_provider: str = "openrouter"
@@ -89,6 +92,8 @@ class Settings(BaseSettings):
             self.default_model = self.sglang_model
         elif provider == "vllm":
             self.default_model = self.vllm_model
+        elif provider == "ollama":
+            self.default_model = self.ollama_model
         return self
 
 
@@ -111,6 +116,12 @@ def get_llm_config() -> dict[str, str]:
             "base_url": settings.vllm_base_url,
             "api_key": settings.vllm_api_key,
             "model": settings.vllm_model,
+        }
+    elif provider == "ollama":
+        return {
+            "base_url": settings.ollama_base_url,
+            "api_key": settings.ollama_api_key,
+            "model": settings.ollama_model,
         }
     else:  # default to openrouter
         return {

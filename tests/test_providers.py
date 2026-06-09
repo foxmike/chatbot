@@ -378,6 +378,28 @@ def test_get_llm_config_routing(monkeypatch: pytest.MonkeyPatch) -> None:
     assert config["api_key"] == "vl-key"
     assert config["model"] == "vl-model"
 
+    # Test ollama config
+    monkeypatch.setattr(settings, "llm_provider", "ollama")
+    monkeypatch.setattr(settings, "ollama_base_url", "http://localhost:11434/v1")
+    monkeypatch.setattr(settings, "ollama_api_key", "ol-key")
+    monkeypatch.setattr(settings, "ollama_model", "ol-model")
+    config = get_llm_config()
+    assert config["base_url"] == "http://localhost:11434/v1"
+    assert config["api_key"] == "ol-key"
+    assert config["model"] == "ol-model"
+
+
+def test_settings_default_model_tracks_ollama_provider() -> None:
+    from chatbot.config import Settings
+
+    settings = Settings(
+        llm_provider="ollama",
+        ollama_model="llama3.2:latest",
+    )
+
+    assert settings.default_provider == "ollama"
+    assert settings.default_model == "llama3.2:latest"
+
 
 def test_build_default_registry_with_providers(monkeypatch: pytest.MonkeyPatch) -> None:
     from chatbot.config import get_settings
@@ -398,19 +420,33 @@ def test_build_default_registry_with_providers(monkeypatch: pytest.MonkeyPatch) 
     assert sglang_provider.api_key == "sg-key"
     assert sglang_provider.default_model == "sg-model"
 
+    monkeypatch.setattr(settings, "llm_provider", "ollama")
+    monkeypatch.setattr(settings, "ollama_base_url", "http://localhost:11434/v1")
+    monkeypatch.setattr(settings, "ollama_api_key", "ol-key")
+    monkeypatch.setattr(settings, "ollama_model", "ol-model")
 
-def test_validate_identifier_for_sglang_and_vllm(monkeypatch: pytest.MonkeyPatch) -> None:
+    registry = build_default_registry(settings)
+    assert "ollama" in registry.names()
+    assert "openrouter" in registry.names()
+
+    ollama_provider = registry.get("ollama")
+    assert ollama_provider.base_url == "http://localhost:11434/v1"
+    assert ollama_provider.api_key == "ol-key"
+    assert ollama_provider.default_model == "ol-model"
+
+
+def test_validate_identifier_for_local_openai_compatible_providers(monkeypatch: pytest.MonkeyPatch) -> None:
     from chatbot.providers.router import validate_identifier
     from chatbot.config import get_settings
 
     settings = get_settings()
 
-    # When provider is sglang or vllm, validation should pass for any model name
+    # Local OpenAI-compatible providers accept arbitrary served model names.
     monkeypatch.setattr(settings, "llm_provider", "sglang")
     assert validate_identifier("sglang", "any-random-model-string") is True
     assert validate_identifier("vllm", "some-other-model") is True
+    assert validate_identifier("ollama", "llama3.2:latest") is True
 
     # When provider is openrouter, validation of unknown model should fail
     monkeypatch.setattr(settings, "llm_provider", "openrouter")
     assert validate_identifier("openrouter", "non-existent-model-name") is False
-
