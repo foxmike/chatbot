@@ -14,7 +14,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import StreamingResponse
 
@@ -79,13 +79,32 @@ async def stream_chat(
             detail="Session not found",
         )
 
+    character_profile = await _load_stream_companion_profile(
+        db,
+        db_session,
+        current_user.user_id,
+    )
+    identity_state = await _load_stream_session_identity(db, sid)
+    history = await _load_db_session_history(
+        db,
+        db_session.id,
+        room_id=db_session.room_id,
+    )
+    session_snapshot = _session_snapshot(db_session)
+
     return StreamingResponse(
         _stream_turn(
             request,
             http_request=http_request,
             current_user=current_user,
-            db=db,
-            db_session=db_session,
+            session_id=db_session.id,
+            session_title=db_session.title,
+            session_companion_id=db_session.companion_id,
+            session_room_id=db_session.room_id,
+            session_snapshot=session_snapshot,
+            character_profile=character_profile,
+            identity_state=identity_state,
+            history=history,
         ),
         media_type="text/event-stream",
     )
@@ -96,79 +115,98 @@ async def _stream_turn(
     *,
     http_request: Request | None = None,
     current_user: CurrentUser,
-    db: AsyncSession,
-    db_session: Session,
+    session_id: uuid.UUID,
+    session_title: str | None,
+    session_companion_id: str | None,
+    session_room_id: str | None,
+    session_snapshot: dict[str, Any],
+    character_profile: dict[str, Any] | None,
+    identity_state: Any,
+    history: list[dict[str, Any]],
 ) -> AsyncIterator[str]:
     typing_active = False
     try:
-        metadata = _stream_metadata(http_request)
-        metadata["session_id"] = request.session_id
-        metadata["session_record"] = db_session
-        metadata["db_session"] = db
-        metadata["user_id"] = current_user.user_id
-        metadata["companion_id"] = db_session.companion_id
-        metadata["room_id"] = db_session.room_id or request.room_id
+        async with async_session_factory() as stream_db:
+            metadata = _stream_metadata(http_request)
+            metadata["session_id"] = request.session_id
+            metadata["session_record"] = session_snapshot
+            metadata["db_session"] = stream_db
+            metadata["db"] = stream_db
+            metadata["user_id"] = current_user.user_id
+            metadata["companion_id"] = session_companion_id
+            metadata["room_id"] = session_room_id or request.room_id
 
-        character_profile = await _load_stream_companion_profile(
-            db, db_session, current_user.user_id
-        )
-        identity_state = await _load_stream_session_identity(db, sid)
+            _seed_stream_history_metadata(metadata, request.session_id, history)
 
-        history = await _load_db_session_history(db, db_session.id, room_id=db_session.room_id)
-        _seed_stream_history_metadata(metadata, request.session_id, history)
+            ctx = TurnContext(
+                session_id=request.session_id,
+                user_message=request.message,
+                history=history,
+                persona={},
+                retrieved_memories=[],
+                compiled_context=None,
+                provider_response=None,
+                extracted_memories=[],
+                final_response=None,
+                metadata=metadata,
+            )
+            if character_profile is not None:
+                ctx.metadata["character_profile"] = character_profile
+            if identity_state is not None:
+                ctx.metadata["identity_state"] = identity_state
 
-        ctx = TurnContext(
-            session_id=request.session_id,
-            user_message=request.message,
-            history=history,
-            persona={},
-            retrieved_memories=[],
-            compiled_context=None,
-            provider_response=None,
-            extracted_memories=[],
-            final_response=None,
-            metadata=metadata,
-        )
-        if character_profile is not None:
-            ctx.metadata["character_profile"] = character_profile
-        if identity_state is not None:
-            ctx.metadata["identity_state"] = identity_state
+            pipeline = build_default_pipeline()
 
-        pipeline = build_default_pipeline()
+            yield _sse_data({"type": "typing", "status": "started"})
+            typing_active = True
 
-        yield _sse_data({"type": "typing", "status": "started"})
-        typing_active = True
+            provider_seen = False
+            for step in getattr(pipeline, "_steps", []):
+                step_name = _step_name(step)
+                if step_name == "update_identity":
+                    continue
 
-        provider_seen = False
-        for step in getattr(pipeline, "_steps", []):
-            step_name = _step_name(step)
-            if step_name == "update_identity":
-                continue
+                if step_name == "call_provider":
+                    provider_seen = True
+                    yield _sse_data({"step": step_name, "status": "streaming"})
 
-            if step_name == "call_provider":
-                provider_seen = True
-                yield _sse_data({"step": step_name, "status": "streaming"})
+                    started_at = perf_counter()
+                    stream_attempted = False
+                    token_emitted = False
+                    if request.stream_tokens:
+                        async for token in _stream_provider_tokens(ctx):
+                            stream_attempted = True
+                            token_emitted = True
+                            yield _sse_data({"type": "token", "text": token})
+                        stream_attempted = stream_attempted or bool(
+                            ctx.metadata.pop("_stream_provider_attempted", False)
+                        )
+
+                    if not stream_attempted:
+                        ctx = await step.run(ctx)
+                        for token in _provider_text_chunks(ctx):
+                            yield _sse_data({"type": "token", "text": token})
+                    elif not token_emitted:
+                        for token in _provider_text_chunks(ctx):
+                            yield _sse_data({"type": "token", "text": token})
+
+                    duration_ms = (perf_counter() - started_at) * 1000
+
+                    yield _sse_data(
+                        {
+                            "step": step_name,
+                            "status": "done",
+                            "duration_ms": duration_ms,
+                        }
+                    )
+                    yield _sse_data({"type": "typing", "status": "stopped"})
+                    typing_active = False
+                    continue
+
+                yield _sse_data({"step": step_name, "status": "running"})
 
                 started_at = perf_counter()
-                stream_attempted = False
-                token_emitted = False
-                if request.stream_tokens:
-                    async for token in _stream_provider_tokens(ctx):
-                        stream_attempted = True
-                        token_emitted = True
-                        yield _sse_data({"type": "token", "text": token})
-                    stream_attempted = stream_attempted or bool(
-                        ctx.metadata.pop("_stream_provider_attempted", False)
-                    )
-
-                if not stream_attempted:
-                    ctx = await step.run(ctx)
-                    for token in _provider_text_chunks(ctx):
-                        yield _sse_data({"type": "token", "text": token})
-                elif not token_emitted:
-                    for token in _provider_text_chunks(ctx):
-                        yield _sse_data({"type": "token", "text": token})
-
+                ctx = await step.run(ctx)
                 duration_ms = (perf_counter() - started_at) * 1000
 
                 yield _sse_data(
@@ -178,59 +216,44 @@ async def _stream_turn(
                         "duration_ms": duration_ms,
                     }
                 )
+
+                if step_name == "compile_context" and ctx.compiled_context:
+                    yield _sse_data(
+                        {"type": "context", "text": ctx.compiled_context}
+                    )
+
+            if not provider_seen and typing_active:
                 yield _sse_data({"type": "typing", "status": "stopped"})
                 typing_active = False
-                continue
 
-            yield _sse_data({"step": step_name, "status": "running"})
+            response = ctx.final_response
+            if response is None:
+                response = str(ctx.metadata.get("pipeline_error", "No response"))
 
-            started_at = perf_counter()
-            ctx = await step.run(ctx)
-            duration_ms = (perf_counter() - started_at) * 1000
-
-            yield _sse_data(
-                {
-                    "step": step_name,
-                    "status": "done",
-                    "duration_ms": duration_ms,
-                }
+            await _persist_messages(
+                stream_db,
+                session_id=session_id,
+                companion_id=session_companion_id,
+                current_user=current_user,
+                user_message=request.message,
+                assistant_message=response,
             )
 
-            if step_name == "compile_context" and ctx.compiled_context:
-                yield _sse_data(
-                    {"type": "context", "text": ctx.compiled_context}
-                )
+            _maybe_schedule_title_generation(
+                http_request=http_request,
+                session_id=session_id,
+                session_title=session_title,
+                user_message=request.message,
+                assistant_message=response,
+            )
 
-        if not provider_seen and typing_active:
-            yield _sse_data({"type": "typing", "status": "stopped"})
-            typing_active = False
+            await _generate_message_embeddings(ctx)
 
-        response = ctx.final_response
-        if response is None:
-            response = str(ctx.metadata.get("pipeline_error", "No response"))
+            yield _sse_data({"type": "response", "text": response})
 
-        await _persist_messages(
-            db,
-            db_session=db_session,
-            current_user=current_user,
-            user_message=request.message,
-            assistant_message=response,
-        )
+            await UpdateIdentityStep().run(ctx)
 
-        _maybe_schedule_title_generation(
-            http_request=http_request,
-            db_session=db_session,
-            user_message=request.message,
-            assistant_message=response,
-        )
-
-        await _generate_message_embeddings(ctx)
-
-        yield _sse_data({"type": "response", "text": response})
-
-        await UpdateIdentityStep().run(ctx)
-
-        yield "data: [DONE]\n\n"
+            yield "data: [DONE]\n\n"
     except HTTPException:
         if typing_active:
             yield _sse_data({"type": "typing", "status": "stopped"})
@@ -243,11 +266,13 @@ async def _stream_turn(
 
 
 async def _stream_provider_tokens(ctx: TurnContext) -> AsyncIterator[str]:
+    import logging; _sl = logging.getLogger("chatbot.streaming"); _sl.warning("STREAM_TOKENS: provider=%s type=%s", provider, type(provider).__name__)
     provider = _select_provider(ctx)
     if provider is None:
         return
 
     stream_method = _provider_stream_method(provider)
+    _sl.warning("STREAM_TOKENS: stream_method=%s", stream_method)
     if stream_method is None:
         return
     ctx.metadata["_stream_provider_attempted"] = True
@@ -275,6 +300,7 @@ async def _stream_provider_tokens(ctx: TurnContext) -> AsyncIterator[str]:
                 streamed_text_parts.append(text)
                 yield text
     except Exception as exc:
+        logger.warning("Stream provider error", exc_info=True)
         ctx.provider_response = f"Provider error: {exc}"
         _store_llm_trace_metadata(ctx, provider=provider, config=config, result=None)
         return
@@ -471,7 +497,8 @@ async def _load_db_session_history(
 async def _persist_messages(
     db: AsyncSession,
     *,
-    db_session: Session,
+    session_id: uuid.UUID,
+    companion_id: str | None,
     current_user: CurrentUser,
     user_message: str,
     assistant_message: str,
@@ -479,28 +506,52 @@ async def _persist_messages(
     user_uuid = uuid.UUID(current_user.user_id)
     user_msg_ts = datetime.now(timezone.utc)
     assistant_msg_ts = max(datetime.now(timezone.utc), user_msg_ts + timedelta(milliseconds=1))
-    db.add(
-        Message(
-            session_id=db_session.id,
-            user_id=user_uuid,
-            companion_id=db_session.companion_id,
-            role="user",
-            content=user_message,
-            created_at=user_msg_ts,
+    try:
+        db.add(
+            Message(
+                session_id=session_id,
+                user_id=user_uuid,
+                companion_id=companion_id,
+                role="user",
+                content=user_message,
+                created_at=user_msg_ts,
+            )
         )
-    )
-    db.add(
-        Message(
-            session_id=db_session.id,
-            user_id=user_uuid,
-            companion_id=db_session.companion_id,
-            role="assistant",
-            content=assistant_message,
-            created_at=assistant_msg_ts,
+        db.add(
+            Message(
+                session_id=session_id,
+                user_id=user_uuid,
+                companion_id=companion_id,
+                role="assistant",
+                content=assistant_message,
+                created_at=assistant_msg_ts,
+            )
         )
-    )
-    db_session.updated_at = datetime.now(timezone.utc)
-    await db.commit()
+        await db.execute(
+            update(Session)
+            .where(Session.id == session_id)
+            .values(updated_at=datetime.now(timezone.utc))
+        )
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
+
+
+def _session_snapshot(db_session: Session) -> dict[str, Any]:
+    """Return detached session fields used by streaming pipeline metadata."""
+    return {
+        "id": db_session.id,
+        "user_id": db_session.user_id,
+        "companion_id": db_session.companion_id,
+        "room_id": db_session.room_id,
+        "title": db_session.title,
+        "mood_state": db_session.mood_state,
+        "user_state": db_session.user_state,
+        "conversation_mode": db_session.conversation_mode,
+        "created_at": db_session.created_at,
+        "updated_at": db_session.updated_at,
+    }
 
 
 def _step_name(step: TurnStep) -> str:
@@ -543,7 +594,7 @@ def _companion_to_profile_dict(companion: Any) -> dict[str, Any]:
 async def _load_stream_session_identity(
     db: AsyncSession,
     session_id: uuid.UUID,
-) -> Any:
+) -> dict[str, Any] | None:
     """Return the most recent IdentityStateModel row for *session_id*, or None."""
     try:
         result = await db.execute(
@@ -552,9 +603,19 @@ async def _load_stream_session_identity(
             .order_by(IdentityStateModel.last_updated.desc())
             .limit(1)
         )
-        return result.scalar_one_or_none()
+        identity = result.scalar_one_or_none()
     except Exception:
         return None
+    if identity is None:
+        return None
+    return {
+        "id": identity.id,
+        "session_id": identity.session_id,
+        "fixed": identity.fixed,
+        "slow": identity.slow,
+        "mood": identity.mood,
+        "last_updated": identity.last_updated,
+    }
 
 
 def _sse_data(payload: dict) -> str:
@@ -564,12 +625,13 @@ def _sse_data(payload: dict) -> str:
 def _maybe_schedule_title_generation(
     *,
     http_request: Request | None,
-    db_session: Session,
+    session_id: uuid.UUID,
+    session_title: str | None,
     user_message: str,
     assistant_message: str,
 ) -> None:
     """Schedule background title generation if the session has no title yet."""
-    if db_session.title is not None:
+    if session_title is not None:
         return
 
     if http_request is None:
@@ -595,8 +657,6 @@ def _maybe_schedule_title_generation(
     )
     if not provider_name and not model:
         provider_name = "openrouter"
-
-    session_id = db_session.id
 
     asyncio.create_task(
         _generate_conversation_title(
