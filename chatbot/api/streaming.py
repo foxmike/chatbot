@@ -124,93 +124,75 @@ async def _stream_turn(
     identity_state: Any,
     history: list[dict[str, Any]],
 ) -> AsyncIterator[str]:
-    stream_db = None
+    stream_db = async_session_factory()
     typing_active = False
     try:
-        async with async_session_factory() as stream_db:
-            metadata = _stream_metadata(http_request)
-            metadata["session_id"] = request.session_id
-            metadata["session_record"] = session_snapshot
-            metadata["db_session"] = stream_db
-            metadata["db"] = stream_db
-            metadata["user_id"] = current_user.user_id
-            metadata["companion_id"] = session_companion_id
-            metadata["room_id"] = session_room_id or request.room_id
+        metadata = _stream_metadata(http_request)
+        metadata["session_id"] = request.session_id
+        metadata["session_record"] = session_snapshot
+        metadata["db_session"] = stream_db
+        metadata["db"] = stream_db
+        metadata["user_id"] = current_user.user_id
+        metadata["companion_id"] = session_companion_id
+        metadata["room_id"] = session_room_id or request.room_id
 
-            _seed_stream_history_metadata(metadata, request.session_id, history)
+        _seed_stream_history_metadata(metadata, request.session_id, history)
 
-            ctx = TurnContext(
-                session_id=request.session_id,
-                user_message=request.message,
-                history=history,
-                persona={},
-                retrieved_memories=[],
-                compiled_context=None,
-                provider_response=None,
-                extracted_memories=[],
-                final_response=None,
-                metadata=metadata,
-            )
-            if character_profile is not None:
-                ctx.metadata["character_profile"] = character_profile
-            if identity_state is not None:
-                ctx.metadata["identity_state"] = identity_state
+        ctx = TurnContext(
+            session_id=request.session_id,
+            user_message=request.message,
+            history=history,
+            persona={},
+            retrieved_memories=[],
+            compiled_context=None,
+            provider_response=None,
+            extracted_memories=[],
+            final_response=None,
+            metadata=metadata,
+        )
+        if character_profile is not None:
+            ctx.metadata["character_profile"] = character_profile
+        if identity_state is not None:
+            ctx.metadata["identity_state"] = identity_state
 
-            pipeline = build_default_pipeline()
+        pipeline = build_default_pipeline()
 
-            yield _sse_data({"type": "typing", "status": "started"})
-            typing_active = True
+        yield _sse_data({"type": "typing", "status": "started"})
+        typing_active = True
 
-            provider_seen = False
-            for step in getattr(pipeline, "_steps", []):
-                step_name = _step_name(step)
-                if step_name == "update_identity":
-                    continue
+        provider_seen = False
+        for step in getattr(pipeline, "_steps", []):
+            step_name = _step_name(step)
+            if step_name == "update_identity":
+                continue
 
-                if step_name == "call_provider":
-                    provider_seen = True
-                    yield _sse_data({"step": step_name, "status": "streaming"})
-
-                    started_at = perf_counter()
-                    stream_attempted = False
-                    token_emitted = False
-                    if request.stream_tokens:
-                        async for token in _stream_provider_tokens(ctx):
-                            stream_attempted = True
-                            token_emitted = True
-                            if token.startswith("Provider stream error:"):
-                                yield _sse_data({"type": "error", "error": token})
-                            else:
-                                yield _sse_data({"type": "token", "text": token})
-                        stream_attempted = stream_attempted or bool(
-                            ctx.metadata.pop("_stream_provider_attempted", False)
-                        )
-
-                    if not stream_attempted:
-                        ctx = await step.run(ctx)
-                        for token in _provider_text_chunks(ctx):
-                            yield _sse_data({"type": "token", "text": token})
-                    elif not token_emitted:
-                        for token in _provider_text_chunks(ctx):
-                            yield _sse_data({"type": "token", "text": token})
-
-                    duration_ms = (perf_counter() - started_at) * 1000
-
-                    yield _sse_data(
-                        {
-                            "step": step_name,
-                            "status": "done",
-                            "duration_ms": duration_ms,
-                        }
-                    )
-                    yield _sse_data({"type": "typing", "status": "stopped"})
-                    typing_active = False
-                    continue
-
-                yield _sse_data({"step": step_name, "status": "running"})
+            if step_name == "call_provider":
+                provider_seen = True
+                yield _sse_data({"step": step_name, "status": "streaming"})
 
                 started_at = perf_counter()
-                ctx = await step.run(ctx)
+                stream_attempted = False
+                token_emitted = False
+                if request.stream_tokens:
+                    async for token in _stream_provider_tokens(ctx):
+                        stream_attempted = True
+                        token_emitted = True
+                        if token.startswith("Provider stream error:"):
+                            yield _sse_data({"type": "error", "error": token})
+                        else:
+                            yield _sse_data({"type": "token", "text": token})
+                    stream_attempted = stream_attempted or bool(
+                        ctx.metadata.pop("_stream_provider_attempted", False)
+                    )
+
+                if not stream_attempted:
+                    ctx = await step.run(ctx)
+                    for token in _provider_text_chunks(ctx):
+                        yield _sse_data({"type": "token", "text": token})
+                elif not token_emitted:
+                    for token in _provider_text_chunks(ctx):
+                        yield _sse_data({"type": "token", "text": token})
+
                 duration_ms = (perf_counter() - started_at) * 1000
 
                 yield _sse_data(
@@ -220,74 +202,80 @@ async def _stream_turn(
                         "duration_ms": duration_ms,
                     }
                 )
-
-                if step_name == "compile_context" and ctx.compiled_context:
-                    yield _sse_data(
-                        {"type": "context", "text": ctx.compiled_context}
-                    )
-
-            if not provider_seen and typing_active:
                 yield _sse_data({"type": "typing", "status": "stopped"})
                 typing_active = False
+                continue
 
-            response = ctx.final_response
-            if response is None:
-                response = str(ctx.metadata.get("pipeline_error", "No response"))
+            yield _sse_data({"step": step_name, "status": "running"})
 
-            try:
-                await stream_db.rollback()
-            except Exception as exc:
-                logger.warning(
-                    "Stream DB rollback before post-stream writes failed: %s",
-                    exc,
-                    exc_info=True,
+            started_at = perf_counter()
+            ctx = await step.run(ctx)
+            duration_ms = (perf_counter() - started_at) * 1000
+
+            yield _sse_data(
+                {
+                    "step": step_name,
+                    "status": "done",
+                    "duration_ms": duration_ms,
+                }
+            )
+
+            if step_name == "compile_context" and ctx.compiled_context:
+                yield _sse_data(
+                    {"type": "context", "text": ctx.compiled_context}
                 )
 
-            await _persist_messages(
-                session_id=session_id,
-                companion_id=session_companion_id,
-                current_user=current_user,
-                user_message=request.message,
-                assistant_message=response,
+        if not provider_seen and typing_active:
+            yield _sse_data({"type": "typing", "status": "stopped"})
+            typing_active = False
+
+        response = ctx.final_response
+        if response is None:
+            response = str(ctx.metadata.get("pipeline_error", "No response"))
+
+        try:
+            await stream_db.rollback()
+        except Exception as exc:
+            logger.warning(
+                "Stream DB rollback before post-stream writes failed: %s",
+                exc,
+                exc_info=True,
             )
 
-            _maybe_schedule_title_generation(
-                http_request=http_request,
-                session_id=session_id,
-                session_title=session_title,
-                user_message=request.message,
-                assistant_message=response,
-            )
+        await _persist_messages(
+            session_id=session_id,
+            companion_id=session_companion_id,
+            current_user=current_user,
+            user_message=request.message,
+            assistant_message=response,
+        )
 
-            await _run_post_stream_db_write(
-                ctx,
-                "message embedding generation",
-                _generate_message_embeddings,
-            )
+        _maybe_schedule_title_generation(
+            http_request=http_request,
+            session_id=session_id,
+            session_title=session_title,
+            user_message=request.message,
+            assistant_message=response,
+        )
 
-            yield _sse_data({"type": "response", "text": response})
+        await _run_post_stream_db_write(
+            ctx,
+            "message embedding generation",
+            _generate_message_embeddings,
+        )
 
-            await _run_post_stream_db_write(
-                ctx,
-                "identity update",
-                lambda post_ctx: UpdateIdentityStep().run(post_ctx),
-            )
+        yield _sse_data({"type": "response", "text": response})
 
-            if stream_db is not None:
-                try:
-                    await stream_db.close()
-                except Exception:
-                    pass
+        await _run_post_stream_db_write(
+            ctx,
+            "identity update",
+            lambda post_ctx: UpdateIdentityStep().run(post_ctx),
+        )
 
-            yield "data: [DONE]\n\n"
+        yield "data: [DONE]\n\n"
     except HTTPException:
         if typing_active:
             yield _sse_data({"type": "typing", "status": "stopped"})
-        if stream_db is not None:
-            try:
-                await stream_db.close()
-            except Exception:
-                pass
         raise
     except Exception as exc:
         import logging
@@ -300,12 +288,12 @@ async def _stream_turn(
         if typing_active:
             yield _sse_data({"type": "typing", "status": "stopped"})
         yield _sse_data({"type": "error", "error": "An internal error occurred"})
-        if stream_db is not None:
-            try:
-                await stream_db.close()
-            except Exception:
-                pass
         yield "data: [DONE]\n\n"
+    finally:
+        try:
+            await stream_db.close()
+        except Exception:
+            pass
 
 
 async def _stream_provider_tokens(ctx: TurnContext) -> AsyncIterator[str]:
