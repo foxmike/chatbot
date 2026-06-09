@@ -14,8 +14,11 @@ def _raise_missing_asyncpg(*_args: object, **_kwargs: object) -> None:
     raise error
 
 
+from sqlalchemy.pool import NullPool
+
 try:
     engine = create_async_engine(DATABASE_URL)
+    streaming_engine = create_async_engine(DATABASE_URL, poolclass=NullPool)
 except ModuleNotFoundError as exc:
     if exc.name != "asyncpg":
         raise
@@ -26,9 +29,16 @@ except ModuleNotFoundError as exc:
         paramstyle="numeric_dollar",
     )
     engine = create_async_engine(DATABASE_URL, module=missing_asyncpg)
+    streaming_engine = create_async_engine(DATABASE_URL, module=missing_asyncpg, poolclass=NullPool)
 
 async_session_factory = async_sessionmaker(
     engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+)
+
+streaming_session_factory = async_sessionmaker(
+    streaming_engine,
     class_=AsyncSession,
     expire_on_commit=False,
 )
@@ -39,4 +49,4 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
-__all__ = ["async_session_factory", "get_db"]
+__all__ = ["async_session_factory", "streaming_session_factory", "get_db"]

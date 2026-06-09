@@ -30,7 +30,7 @@ from chatbot.core.turn import (
     _store_llm_trace_metadata,
     build_default_pipeline,
 )
-from chatbot.db import async_session_factory, get_db
+from chatbot.db import async_session_factory, streaming_session_factory, get_db
 from chatbot.companions.companion import CompanionManager
 from chatbot.db.models import IdentityStateModel, Message, Session
 from chatbot.providers.base import ProviderConfig, ProviderRegistry
@@ -124,7 +124,7 @@ async def _stream_turn(
     identity_state: Any,
     history: list[dict[str, Any]],
 ) -> AsyncIterator[str]:
-    stream_db = async_session_factory()
+    stream_db = streaming_session_factory()
     typing_active = False
     try:
         metadata = _stream_metadata(http_request)
@@ -541,7 +541,7 @@ async def _persist_messages(
     user_uuid = uuid.UUID(current_user.user_id)
     user_msg_ts = datetime.now(timezone.utc)
     assistant_msg_ts = max(datetime.now(timezone.utc), user_msg_ts + timedelta(milliseconds=1))
-    db = async_session_factory()
+    db = streaming_session_factory()
     try:
         db.add(
             Message(
@@ -595,7 +595,7 @@ async def _run_post_stream_db_write(
 ) -> None:
     previous_db_session = ctx.metadata.get("db_session")
     previous_db = ctx.metadata.get("db")
-    db = async_session_factory()
+    db = streaming_session_factory()
     try:
         ctx.metadata["db_session"] = db
         ctx.metadata["db"] = db
@@ -826,7 +826,7 @@ async def _generate_conversation_title(
 
     # Persist the title in a fresh DB session
     try:
-        db = async_session_factory()
+        db = streaming_session_factory()
         try:
             from sqlalchemy import update as sa_update
 
