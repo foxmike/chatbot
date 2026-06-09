@@ -124,6 +124,7 @@ async def _stream_turn(
     identity_state: Any,
     history: list[dict[str, Any]],
 ) -> AsyncIterator[str]:
+    stream_db = None
     typing_active = False
     try:
         async with async_session_factory() as stream_db:
@@ -272,10 +273,21 @@ async def _stream_turn(
                 lambda post_ctx: UpdateIdentityStep().run(post_ctx),
             )
 
+            if stream_db is not None:
+                try:
+                    await stream_db.close()
+                except Exception:
+                    pass
+
             yield "data: [DONE]\n\n"
     except HTTPException:
         if typing_active:
             yield _sse_data({"type": "typing", "status": "stopped"})
+        if stream_db is not None:
+            try:
+                await stream_db.close()
+            except Exception:
+                pass
         raise
     except Exception as exc:
         import logging
@@ -288,6 +300,11 @@ async def _stream_turn(
         if typing_active:
             yield _sse_data({"type": "typing", "status": "stopped"})
         yield _sse_data({"type": "error", "error": "An internal error occurred"})
+        if stream_db is not None:
+            try:
+                await stream_db.close()
+            except Exception:
+                pass
         yield "data: [DONE]\n\n"
 
 
