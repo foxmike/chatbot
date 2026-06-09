@@ -455,6 +455,14 @@ function backendPath(path: string): string {
   return `${API_PREFIX}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
+function streamingBackendUrl(): string {
+  if (typeof window === "undefined") {
+    return `${BASE_URL}${backendPath("/chat/stream")}`;
+  }
+
+  return `http://${window.location.hostname}:8000/chat/stream`;
+}
+
 async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -604,7 +612,7 @@ export async function streamChat(
 
   let response: Response;
   try {
-    response = await fetch(`${BASE_URL}${backendPath("/chat/stream")}`, {
+    response = await fetch(streamingBackendUrl(), {
       method: "POST",
       headers,
       body: JSON.stringify({ session_id: sessionId, message, room_id: roomId }),
@@ -789,6 +797,13 @@ function processSseEvent(
 
   if (parsed.type === "response" && typeof parsed.text === "string") {
     callbacks.onResponse?.(parsed.text);
+    return;
+  }
+
+  if (parsed.type === "error") {
+    const message =
+      typeof parsed.error === "string" ? parsed.error : "Stream error";
+    callbacks.onError?.(new Error(message));
     return;
   }
 }

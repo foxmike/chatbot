@@ -177,7 +177,10 @@ async def _stream_turn(
                         async for token in _stream_provider_tokens(ctx):
                             stream_attempted = True
                             token_emitted = True
-                            yield _sse_data({"type": "token", "text": token})
+                            if token.startswith("Provider stream error:"):
+                                yield _sse_data({"type": "error", "error": token})
+                            else:
+                                yield _sse_data({"type": "token", "text": token})
                         stream_attempted = stream_attempted or bool(
                             ctx.metadata.pop("_stream_provider_attempted", False)
                         )
@@ -230,8 +233,16 @@ async def _stream_turn(
             if response is None:
                 response = str(ctx.metadata.get("pipeline_error", "No response"))
 
+            try:
+                await stream_db.rollback()
+            except Exception as exc:
+                logger.warning(
+                    "Stream DB rollback before post-stream writes failed: %s",
+                    exc,
+                    exc_info=True,
+                )
+
             await _persist_messages(
-                stream_db,
                 session_id=session_id,
                 companion_id=session_companion_id,
                 current_user=current_user,
@@ -247,18 +258,33 @@ async def _stream_turn(
                 assistant_message=response,
             )
 
-            await _generate_message_embeddings(ctx)
+            await _run_post_stream_db_write(
+                ctx,
+                "message embedding generation",
+                _generate_message_embeddings,
+            )
 
             yield _sse_data({"type": "response", "text": response})
 
-            await UpdateIdentityStep().run(ctx)
+            await _run_post_stream_db_write(
+                ctx,
+                "identity update",
+                lambda post_ctx: UpdateIdentityStep().run(post_ctx),
+            )
 
             yield "data: [DONE]\n\n"
     except HTTPException:
         if typing_active:
             yield _sse_data({"type": "typing", "status": "stopped"})
         raise
-    except Exception:
+    except Exception as exc:
+        import logging
+
+        logging.getLogger("chatbot.streaming").error(
+            "Stream turn error: %s",
+            exc,
+            exc_info=True,
+        )
         if typing_active:
             yield _sse_data({"type": "typing", "status": "stopped"})
         yield _sse_data({"type": "error", "error": "An internal error occurred"})
@@ -266,13 +292,11 @@ async def _stream_turn(
 
 
 async def _stream_provider_tokens(ctx: TurnContext) -> AsyncIterator[str]:
-    import logging; _sl = logging.getLogger("chatbot.streaming"); _sl.warning("STREAM_TOKENS: provider=%s type=%s", provider, type(provider).__name__)
     provider = _select_provider(ctx)
     if provider is None:
         return
 
     stream_method = _provider_stream_method(provider)
-    _sl.warning("STREAM_TOKENS: stream_method=%s", stream_method)
     if stream_method is None:
         return
     ctx.metadata["_stream_provider_attempted"] = True
@@ -300,9 +324,16 @@ async def _stream_provider_tokens(ctx: TurnContext) -> AsyncIterator[str]:
                 streamed_text_parts.append(text)
                 yield text
     except Exception as exc:
-        logger.warning("Stream provider error", exc_info=True)
+        import logging
+
+        logging.getLogger("chatbot.streaming").error(
+            "Stream provider error: %s",
+            exc,
+            exc_info=True,
+        )
         ctx.provider_response = f"Provider error: {exc}"
         _store_llm_trace_metadata(ctx, provider=provider, config=config, result=None)
+        yield f"Provider stream error: {exc}"
         return
 
     streamed_text = "".join(streamed_text_parts)
@@ -495,7 +526,6 @@ async def _load_db_session_history(
 
 
 async def _persist_messages(
-    db: AsyncSession,
     *,
     session_id: uuid.UUID,
     companion_id: str | None,
@@ -506,6 +536,7 @@ async def _persist_messages(
     user_uuid = uuid.UUID(current_user.user_id)
     user_msg_ts = datetime.now(timezone.utc)
     assistant_msg_ts = max(datetime.now(timezone.utc), user_msg_ts + timedelta(milliseconds=1))
+    db = async_session_factory()
     try:
         db.add(
             Message(
@@ -533,9 +564,65 @@ async def _persist_messages(
             .values(updated_at=datetime.now(timezone.utc))
         )
         await db.commit()
-    except Exception:
-        await db.rollback()
-        raise
+    except Exception as exc:
+        try:
+            await db.rollback()
+        except Exception:
+            logger.warning(
+                "Message persistence rollback failed for session %s",
+                session_id,
+                exc_info=True,
+            )
+        logger.error(
+            "Message persistence failed for session %s: %s",
+            session_id,
+            exc,
+            exc_info=True,
+        )
+    finally:
+        await db.close()
+
+
+async def _run_post_stream_db_write(
+    ctx: TurnContext,
+    label: str,
+    operation: Any,
+) -> None:
+    previous_db_session = ctx.metadata.get("db_session")
+    previous_db = ctx.metadata.get("db")
+    db = async_session_factory()
+    try:
+        ctx.metadata["db_session"] = db
+        ctx.metadata["db"] = db
+        await operation(ctx)
+        await db.commit()
+    except Exception as exc:
+        try:
+            await db.rollback()
+        except Exception:
+            logger.warning(
+                "Post-stream %s rollback failed for session %s",
+                label,
+                ctx.session_id,
+                exc_info=True,
+            )
+        logger.error(
+            "Post-stream %s failed for session %s: %s",
+            label,
+            ctx.session_id,
+            exc,
+            exc_info=True,
+        )
+    finally:
+        if previous_db_session is None:
+            ctx.metadata.pop("db_session", None)
+        else:
+            ctx.metadata["db_session"] = previous_db_session
+        if previous_db is None:
+            ctx.metadata.pop("db", None)
+        else:
+            ctx.metadata["db"] = previous_db
+        await db.close()
 
 
 def _session_snapshot(db_session: Session) -> dict[str, Any]:

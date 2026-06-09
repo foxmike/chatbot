@@ -101,6 +101,15 @@ class FakeStreamingHTTPClient:
         return FakeStreamContext(self.response)
 
 
+class ChunkedSSEStream(httpx.AsyncByteStream):
+    def __init__(self, chunks: Sequence[bytes]) -> None:
+        self._chunks = list(chunks)
+
+    async def __aiter__(self):
+        for chunk in self._chunks:
+            yield chunk
+
+
 class FakeCall:
     def __init__(self, response: Any) -> None:
         self.response = response
@@ -300,6 +309,101 @@ def test_openai_compat_stream_yields_sse_delta_tokens(monkeypatch: pytest.Monkey
             "timeout": 60.0,
         }
     ]
+
+
+def test_openai_compat_stream_ignores_ollama_extra_sse_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response = FakeStreamResponse(
+        [
+            'data: {"id":"chatcmpl-1","object":"chat.completion.chunk","created":1,'
+            '"model":"llama3","choices":[{"index":0,"delta":{"content":"hel"},'
+            '"finish_reason":null}],"usage":{"prompt_tokens":1}}',
+            'data: {"id":"chatcmpl-1","object":"chat.completion.chunk","created":1,'
+            '"model":"llama3","choices":[{"index":0,"delta":{"content":"lo"},'
+            '"finish_reason":null}],"done":false}',
+            'data: {"id":"chatcmpl-1","object":"chat.completion.chunk","created":1,'
+            '"model":"llama3","choices":[{"index":0,"delta":{},'
+            '"finish_reason":"stop"}],"done":true}',
+            "data: [DONE]",
+        ]
+    )
+    FakeStreamingHTTPClient.response = response
+    FakeStreamingHTTPClient.requests = []
+    monkeypatch.setattr(
+        "chatbot.providers.openai_compat.httpx.AsyncClient",
+        FakeStreamingHTTPClient,
+    )
+
+    provider = OpenAICompatProvider(
+        "http://localhost:11434/v1",
+        default_model="llama3",
+    )
+
+    async def collect_tokens() -> list[str]:
+        return [
+            token
+            async for token in provider.stream(
+                "Tell me",
+                [],
+                ProviderConfig(model=""),
+            )
+        ]
+
+    assert asyncio.run(collect_tokens()) == ["hel", "lo"]
+    assert response.closed is True
+    assert FakeStreamingHTTPClient.requests[0]["url"] == (
+        "http://localhost:11434/v1/chat/completions"
+    )
+    assert FakeStreamingHTTPClient.requests[0]["json"]["stream"] is True
+
+
+def test_openai_compat_stream_reads_chunked_httpx_sse(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_async_client = httpx.AsyncClient
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(
+            200,
+            headers={"content-type": "text/event-stream"},
+            stream=ChunkedSSEStream(
+                [
+                    b'data: {"choices":[{"delta":{"content":"he',
+                    b'llo"}}]}\n\ndata: {"choices":[{"delta":{"content":"!"}}]}',
+                    b"\n\ndata: [DONE]\n\n",
+                ]
+            ),
+        )
+
+    def client_factory(*_args: Any, **_kwargs: Any) -> httpx.AsyncClient:
+        return real_async_client(transport=httpx.MockTransport(handler))
+
+    monkeypatch.setattr(
+        "chatbot.providers.openai_compat.httpx.AsyncClient",
+        client_factory,
+    )
+
+    provider = OpenAICompatProvider(
+        "http://localhost:11434/v1",
+        default_model="llama3",
+    )
+
+    async def collect_tokens() -> list[str]:
+        return [
+            token
+            async for token in provider.stream(
+                "Tell me",
+                [],
+                ProviderConfig(model=""),
+            )
+        ]
+
+    assert asyncio.run(collect_tokens()) == ["hello", "!"]
+    assert len(requests) == 1
+    assert requests[0].url == "http://localhost:11434/v1/chat/completions"
 
 
 @pytest.mark.parametrize(
