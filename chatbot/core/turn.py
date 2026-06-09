@@ -3054,7 +3054,7 @@ def _provider_history(ctx: TurnContext) -> list[dict[str, Any]]:
             continue
         role = message.get("role")
         content = message.get("content")
-        if role in {"system", "user", "assistant", "tool"} and content is not None:
+        if role in {"user", "assistant", "tool"} and content is not None:
             history.append({"role": str(role), "content": str(content)})
 
     return history

@@ -56,6 +56,51 @@ class FakeHTTPClient:
         return self.response
 
 
+class FakeStreamResponse:
+    def __init__(self, lines: Sequence[str], status_code: int = 200) -> None:
+        self._lines = list(lines)
+        self.status_code = status_code
+        self.read_called = False
+        self.closed = False
+        self.text = ""
+
+    async def aiter_lines(self):
+        for line in self._lines:
+            yield line
+
+    async def aread(self) -> bytes:
+        self.read_called = True
+        return self.text.encode()
+
+
+class FakeStreamContext:
+    def __init__(self, response: FakeStreamResponse) -> None:
+        self.response = response
+
+    async def __aenter__(self) -> FakeStreamResponse:
+        return self.response
+
+    async def __aexit__(self, *_exc_info: object) -> None:
+        self.response.closed = True
+
+
+class FakeStreamingHTTPClient:
+    response: FakeStreamResponse | None = None
+    requests: list[dict[str, Any]] = []
+
+    async def __aenter__(self) -> FakeStreamingHTTPClient:
+        return self
+
+    async def __aexit__(self, *_exc_info: object) -> None:
+        return None
+
+    def stream(self, method: str, url: str, **kwargs: Any) -> FakeStreamContext:
+        self.requests.append({"method": method, "url": url, **kwargs})
+        if self.response is None:
+            raise AssertionError("FakeStreamingHTTPClient.response must be set")
+        return FakeStreamContext(self.response)
+
+
 class FakeCall:
     def __init__(self, response: Any) -> None:
         self.response = response
@@ -192,6 +237,65 @@ def test_openai_compat_complete_maps_success_response(monkeypatch: pytest.Monkey
                 "temperature": 0.2,
                 "max_tokens": 12,
                 "stop": ["END"],
+            },
+            "timeout": 60.0,
+        }
+    ]
+
+
+def test_openai_compat_stream_yields_sse_delta_tokens(monkeypatch: pytest.MonkeyPatch) -> None:
+    response = FakeStreamResponse(
+        [
+            "",
+            'data: {"choices":[{"delta":{"role":"assistant"}}]}',
+            'data: {"choices":[{"delta":{"content":"hel"}}]}',
+            'data: {"choices":[{"delta":{"content":"lo"}}]}',
+            "data: [DONE]",
+            'data: {"choices":[{"delta":{"content":"ignored"}}]}',
+        ]
+    )
+    FakeStreamingHTTPClient.response = response
+    FakeStreamingHTTPClient.requests = []
+    monkeypatch.setattr(
+        "chatbot.providers.openai_compat.httpx.AsyncClient",
+        FakeStreamingHTTPClient,
+    )
+
+    provider = OpenAICompatProvider(
+        "https://provider.example/v1/",
+        api_key="token",
+        default_model="default-model",
+    )
+
+    async def collect_tokens() -> list[str]:
+        return [
+            token
+            async for token in provider.stream(
+                "Tell me",
+                [{"role": "system", "content": "Be direct"}],
+                ProviderConfig(model="", temperature=0.2, max_tokens=12),
+            )
+        ]
+
+    assert asyncio.run(collect_tokens()) == ["hel", "lo"]
+    assert response.closed is True
+    assert FakeStreamingHTTPClient.requests == [
+        {
+            "method": "POST",
+            "url": "https://provider.example/v1/chat/completions",
+            "headers": {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer token",
+            },
+            "json": {
+                "model": "default-model",
+                "messages": [
+                    {"role": "system", "content": "Be direct"},
+                    {"role": "user", "content": "Tell me"},
+                ],
+                "temperature": 0.2,
+                "max_tokens": 12,
+                "stream": True,
             },
             "timeout": 60.0,
         }

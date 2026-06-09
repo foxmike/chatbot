@@ -48,7 +48,7 @@ class StreamRequest(BaseModel):
 
 
 streaming_router = APIRouter(prefix="/chat")
-_STREAM_METHOD_NAMES = ("stream_complete", "complete_stream", "stream_tokens", "stream")
+_STREAM_METHOD_NAMES = ("stream", "stream_complete", "complete_stream", "stream_tokens")
 
 
 @streaming_router.post("/stream")

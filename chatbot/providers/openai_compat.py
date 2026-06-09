@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
 from typing import Any
 
 import httpx
@@ -66,6 +66,46 @@ class OpenAICompatProvider(Provider):
             self._raise_provider_http_error(response)
 
         return self._to_provider_response(response)
+
+    async def stream(
+        self,
+        prompt: str,
+        history: Sequence[Mapping[str, Any]],
+        config: ProviderConfig,
+    ) -> AsyncIterator[str]:
+        model = self._resolve_model(config)
+        payload = self._build_payload(prompt, history, config, model)
+        payload["stream"] = True
+        headers = {
+            "Content-Type": "application/json",
+        }
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
+        try:
+            async with httpx.AsyncClient() as client:
+                async with client.stream(
+                    "POST",
+                    f"{self.base_url}/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=config.timeout_seconds or self.timeout_seconds,
+                ) as response:
+                    if response.status_code >= 400:
+                        await response.aread()
+                        self._raise_provider_http_error(response)
+
+                    async for line in response.aiter_lines():
+                        token = self._token_from_sse_line(line)
+                        if token is None:
+                            continue
+                        if token == "[DONE]":
+                            return
+                        yield token
+        except httpx.TimeoutException as exc:
+            raise ProviderTimeoutError("OpenAI-compatible provider stream timed out") from exc
+        except httpx.HTTPError as exc:
+            raise ProviderError(f"OpenAI-compatible provider stream failed: {exc}") from exc
 
     def _resolve_model(self, config: ProviderConfig) -> str:
         model = config.model.strip() if config.model else self.default_model.strip()
@@ -132,6 +172,40 @@ class OpenAICompatProvider(Provider):
             model=model if isinstance(model, str) else None,
             raw=raw,
         )
+
+    def _token_from_sse_line(self, line: str) -> str | None:
+        stripped = line.strip()
+        if not stripped or not stripped.startswith("data:"):
+            return None
+
+        data = stripped.removeprefix("data:").strip()
+        if data == "[DONE]":
+            return data
+
+        try:
+            raw = json.loads(data)
+        except ValueError as exc:
+            raise ProviderError("OpenAI-compatible provider returned invalid stream JSON") from exc
+
+        if not isinstance(raw, Mapping):
+            return None
+
+        choices = raw.get("choices")
+        if not isinstance(choices, Sequence) or isinstance(choices, (str, bytes)) or not choices:
+            return None
+
+        choice = choices[0]
+        if not isinstance(choice, Mapping):
+            return None
+
+        delta = choice.get("delta")
+        if isinstance(delta, Mapping):
+            content = delta.get("content")
+            if isinstance(content, str):
+                return content
+
+        text = choice.get("text")
+        return text if isinstance(text, str) else None
 
     def _raise_provider_http_error(self, response: httpx.Response) -> None:
         message = self._http_error_message(response)
