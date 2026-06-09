@@ -3,6 +3,7 @@ import {
   createRoom,
   createSession,
   createRoomSession,
+  getRoom,
   getRoomSession,
   getSessionMessages,
   listCompanions,
@@ -15,7 +16,7 @@ import ChatInput from "./components/ChatInput";
 import ChatMessage from "./components/ChatMessage";
 import MessageList from "./components/MessageList";
 import { NotificationFeed } from "./components/NotificationFeed";
-import AppShell from "./components/AppShell";
+import AppShell, { AppPanelKey } from "./components/AppShell";
 import SettingsPanel from "./components/SettingsPanel";
 import { MemoryPanel } from "./components/MemoryPanel";
 import TimelinePanel from "./components/TimelinePanel";
@@ -305,6 +306,7 @@ function NoActiveRoomView() {
 }
 
 export default function App() {
+  const [activePanel, setActivePanel] = useState<AppPanelKey>("chat");
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
@@ -730,6 +732,8 @@ export default function App() {
       ) : null}
       <AppShell
         user={user}
+        activePanel={activePanel}
+        onPanelChange={setActivePanel}
         companionSwitcher={
           <CompanionSwitcher current={selectedCompanion} onSwitch={handleSwitchCompanion} onManage={() => setSelectedCompanion(null)} />
         }
@@ -779,14 +783,28 @@ export default function App() {
         timeline: (
           <TimelinePanel sessionId={activeSessionId ?? ''} />
         ),
-        rooms: (
-          activeRoom && activeRoomType === ROLEPLAY_ROOM_TYPE ? (
-            <ScenePanel roomId={activeRoomId} roomType={activeRoomType} />
-          ) : activeRoom ? (
-            <RoomInfoView room={activeRoom} companion={selectedCompanion} />
-          ) : (
-            <NoActiveRoomView />
-          )
+        roleplay: (
+          <ScenePanel
+            userId={user.user_id}
+            activeRoom={activeRoomType === ROLEPLAY_ROOM_TYPE ? activeRoom : null}
+            onBeginScene={async (newRoom) => {
+              setRoomRefreshKey((key) => key + 1);
+              await handleRoomChange(newRoom.room_id, newRoom.room_type, newRoom);
+              setActivePanel("chat");
+            }}
+            onRoomUpdated={async (updatedRoom) => {
+              setRoomRefreshKey((key) => key + 1);
+              try {
+                const freshRoom = await getRoom(updatedRoom.room_id);
+                setActiveRoom(freshRoom);
+              } catch (err) {
+                console.error("Failed to refresh room after update", err);
+              }
+            }}
+            onCancel={() => {
+              setActivePanel("chat");
+            }}
+          />
         ),
         voice: (
           <div className="flex h-full flex-col items-center justify-center gap-6 p-4">

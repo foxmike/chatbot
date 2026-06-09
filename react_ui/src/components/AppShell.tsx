@@ -7,7 +7,7 @@ export type AppPanelKey =
   | "settings"
   | "memory"
   | "timeline"
-  | "rooms"
+  | "roleplay"
   | "voice"
   | "admin";
 
@@ -19,6 +19,8 @@ interface AppShellProps {
   chatPanel: ReactNode;
   companionPanel?: ReactNode;
   panels: Record<Exclude<AppPanelKey, "chat">, ReactNode>;
+  activePanel?: AppPanelKey;
+  onPanelChange?: (panel: AppPanelKey) => void;
 }
 
 const panelTabs: { key: AppPanelKey; label: string }[] = [
@@ -26,7 +28,7 @@ const panelTabs: { key: AppPanelKey; label: string }[] = [
   { key: "settings", label: "Settings" },
   { key: "memory", label: "Memory" },
   { key: "timeline", label: "Timeline" },
-  { key: "rooms", label: "Rooms" },
+  { key: "roleplay", label: "Roleplay" },
   { key: "voice", label: "Voice" },
   { key: "admin", label: "Admin" },
 ];
@@ -39,8 +41,12 @@ export function AppShell({
   chatPanel,
   companionPanel,
   panels,
+  activePanel: propActivePanel,
+  onPanelChange,
 }: AppShellProps) {
-  const [activePanel, setActivePanel] = useState<AppPanelKey>("chat");
+  const [localActivePanel, setLocalActivePanel] = useState<AppPanelKey>("chat");
+  const activePanel = propActivePanel !== undefined ? propActivePanel : localActivePanel;
+  const setActivePanel = onPanelChange !== undefined ? onPanelChange : setLocalActivePanel;
 
   const activeContent = useMemo(() => {
     if (activePanel === "chat") {
