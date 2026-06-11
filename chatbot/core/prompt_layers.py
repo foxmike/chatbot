@@ -7,6 +7,15 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+from chatbot.memory.timescale import (
+    ACTIVE_GOAL,
+    LONG_TERM_NARRATIVE_ARC,
+    MEMORY_TIMESCALES,
+    RECENT_CONVERSATIONAL_STATE,
+    STABLE_IDENTITY_FACT,
+    MemoryTimescale,
+)
+
 
 class PromptLayerName(str, Enum):
     """Canonical prompt layer identifiers in priority order."""
@@ -31,6 +40,37 @@ PROMPT_LAYER_ORDER: tuple[PromptLayerName, ...] = (
     PromptLayerName.MEMORY,
     PromptLayerName.SESSION_GOALS,
 )
+
+MEMORY_REALISM_DIRECTIVES: dict[MemoryTimescale, str] = {
+    RECENT_CONVERSATIONAL_STATE: (
+        "Recent conversational state represents fragments of the last 24 hours. "
+        "Details may be incomplete, compressed, or slightly misordered. "
+        "Treat this as continuity context, not as verbatim transcript. "
+        "If a detail feels off, acknowledge uncertainty rather than fabricating precision."
+    ),
+    STABLE_IDENTITY_FACT: (
+        "Stable identity facts are durable user details and preferences stored over time. "
+        "Treat these as reliable unless explicitly contradicted by the user. "
+        "If a fact seems outdated, implausible, or conflicts with recent conversation, "
+        "gently verify with the user rather than silently correcting. "
+        "When multiple identity facts contradict each other, defer to the most recent."
+    ),
+    LONG_TERM_NARRATIVE_ARC: (
+        "Long-term narrative arcs track ongoing themes, milestones, and recurring "
+        "patterns across sessions. These may contain gaps, merged events, or fuzzy "
+        "timelines. If a narrative reference feels incomplete or ambiguous, "
+        "acknowledge what you know and invite the user to fill in missing context. "
+        "Do not invent narrative connections that were not retrieved from memory."
+    ),
+    ACTIVE_GOAL: (
+        "Active goals represent current user intentions, projects, promises, and "
+        "open tasks. Treat these as active priorities unless the user indicates "
+        "otherwise. If a goal appears to be resolved, superseded, or abandoned "
+        "based on recent conversation, confirm before assuming it is no longer "
+        "relevant. Do not fabricate completion status for goals lacking resolution."
+    ),
+}
+
 
 PROMPT_LAYER_TITLES: dict[PromptLayerName, str] = {
     PromptLayerName.SAFETY_FLOOR: "Safety Floor",
@@ -125,6 +165,26 @@ def make_prompt_layer(
     return PromptLayer(name=normalize_layer_name(name), content=text)
 
 
+def compose_memory_realism_directives(
+    timescales: Iterable[MemoryTimescale] | None = None,
+    *,
+    header: str = "Memory realism directives:",
+) -> str:
+    """Compose memory realism directives for the given timescales.
+
+    When ``timescales`` is ``None``, directives for all known timescales are
+    included.  Each directive instructs the model how to handle uncertainty,
+    absence, or incompleteness in memories of that timescale.
+    """
+    selected = list(timescales) if timescales is not None else list(MEMORY_TIMESCALES)
+    parts = [header]
+    for ts in selected:
+        directive = MEMORY_REALISM_DIRECTIVES.get(ts)
+        if directive:
+            parts.append(f"- [{ts}]: {directive}")
+    return "\n".join(parts)
+
+
 def build_prompt_layers(
     *,
     safety_floor: Any = None,
@@ -135,8 +195,29 @@ def build_prompt_layers(
     mood_state: Any = None,
     memory: Any = None,
     session_goals: Any = None,
+    memory_timescales: Iterable[MemoryTimescale] | None = None,
+    inject_memory_realism: bool = True,
 ) -> list[PromptLayer]:
-    """Build prompt layers from named blocks in canonical priority order."""
+    """Build prompt layers from named blocks in canonical priority order.
+
+    When ``inject_memory_realism`` is ``True`` (the default) and memory
+    content is present, imperfection-handling directives segmented by
+    timescale are appended to the memory layer.  Pass a subset of
+    ``memory_timescales`` to restrict which timescale directives are emitted.
+    """
+    memory_layer = make_prompt_layer(PromptLayerName.MEMORY, memory)
+    if (
+        inject_memory_realism
+        and memory_layer is not None
+    ):
+        directives = compose_memory_realism_directives(
+            timescales=memory_timescales,
+        )
+        memory_layer = PromptLayer(
+            name=PromptLayerName.MEMORY,
+            content=f"{memory_layer.content}\n\n{directives}",
+        )
+
     return sorted_prompt_layers(
         (
             make_prompt_layer(PromptLayerName.SAFETY_FLOOR, safety_floor),
@@ -145,7 +226,7 @@ def build_prompt_layers(
             make_prompt_layer(PromptLayerName.RELATIONSHIP_STAGE, relationship_stage),
             make_prompt_layer(PromptLayerName.ROOM_SCENE, room_scene),
             make_prompt_layer(PromptLayerName.MOOD_STATE, mood_state),
-            make_prompt_layer(PromptLayerName.MEMORY, memory),
+            memory_layer,
             make_prompt_layer(PromptLayerName.SESSION_GOALS, session_goals),
         )
     )
@@ -261,12 +342,14 @@ def _coerce_layer_content(content: Any) -> str:
 
 
 __all__ = [
+    "MEMORY_REALISM_DIRECTIVES",
     "PROMPT_LAYER_ORDER",
     "PROMPT_LAYER_TITLES",
     "PromptLayer",
     "PromptLayerName",
     "build_prompt_layers",
     "compile_system_prompt",
+    "compose_memory_realism_directives",
     "compose_prompt_layers",
     "make_prompt_layer",
     "normalize_layer_name",
