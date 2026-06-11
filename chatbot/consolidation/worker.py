@@ -362,6 +362,18 @@ class ConsolidationWorker:
                     entry_b,
                     result,
                 )
+                try:
+                    from chatbot.observability.logs import structured_logger
+                    await structured_logger.log_contradiction(
+                        session_id=session_id,
+                        turn_id=None,
+                        user_id=None,
+                        original_memory_id=str(entry_a.get("id") or ""),
+                        new_memory_id=str(entry_b.get("id") or ""),
+                        conflict_fields=result.contradictory_facts or [],
+                    )
+                except Exception as log_exc:
+                    logger.warning("Failed to log contradiction", exc_info=log_exc)
                 resolved += 1
         return resolved
 

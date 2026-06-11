@@ -347,6 +347,20 @@ class RetrieveStep(TurnStep):
                 exc,
             )
             ctx.retrieved_memories = []
+            if structured_logger is not None:
+                try:
+                    await _maybe_await(
+                        structured_logger.log_failed_retrieval(
+                            session_id=ctx.session_id,
+                            turn_id=ctx.metadata.get("turn_id"),
+                            user_id=_trace_user_id(ctx),
+                            query=ctx.user_message,
+                            reason=str(exc),
+                            retry_count=0,
+                        )
+                    )
+                except Exception as log_exc:
+                    logger.warning("Failed to log failed retrieval", exc_info=log_exc)
         _store_retrieved_memories(ctx)
         return ctx
 
@@ -676,6 +690,8 @@ class ExtractMemoryStep(TurnStep):
             return ctx
 
         try:
+            import time
+            start = time.monotonic()
             if ctx.metadata.get("scene_memory_isolation"):
                 storage = _scene_memory_storage(ctx, storage, database)
                 database = None
@@ -689,6 +705,25 @@ class ExtractMemoryStep(TurnStep):
                 user_message=ctx.user_message,
                 provider_response=ctx.provider_response or "",
             )
+            duration_ms = (time.monotonic() - start) * 1000
+
+            if structured_logger is not None:
+                for memory in ctx.extracted_memories:
+                    memory_id = str(memory.get("id") or memory.get("memory_id") or "")
+                    content_length = len(str(memory.get("content") or memory.get("text") or ""))
+                    try:
+                        await _maybe_await(
+                            structured_logger.log_memory_write(
+                                session_id=ctx.session_id,
+                                turn_id=ctx.metadata.get("turn_id"),
+                                user_id=_trace_user_id(ctx),
+                                memory_id=memory_id,
+                                content_length=content_length,
+                                extraction_time_ms=duration_ms,
+                            )
+                        )
+                    except Exception as log_exc:
+                        logger.warning("Failed to log memory write", exc_info=log_exc)
         except Exception:
             logger.warning(
                 "Memory extraction failed for session %s",
