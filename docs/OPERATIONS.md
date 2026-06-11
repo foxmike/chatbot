@@ -150,7 +150,27 @@ To verify a locally running stack:
    ```
 4. Verify chat persistence: Create a chat in the UI at `http://localhost:3000`, send a message, and reload the page. The chat and message should persist.
 
-## 15. Operational Boundaries
+## 15. Prompt Configuration and Telemetry
+
+### Prompt Compression
+The system automatically compresses prompts to fit within model context windows.
+
+- **Compression Logic**: The `PromptCompressor` manages token budgets for persona, memory, history, and scene sections.
+- **Thresholds**: If the total estimated tokens exceed the model's context window (resolved via `chatbot.core.token_budget`), compression is triggered.
+- **Methods**:
+    - **Persona**: LLM-based summarization (if available) or heuristic pruning of blocks, prioritizing safety and core identity.
+    - **History**: Recency pruning (preserves last 3 turns) and LLM-based summarization of older turns.
+    - **Memories**: Relevance-score based filtering.
+    - **Scene**: Heuristic truncation.
+
+### Prompt Telemetry
+Telemetry is used to track the effectiveness of prompt configurations.
+
+- **Collector**: `PromptTelemetryCollector` in `chatbot/observability/prompt_telemetry.py` records events.
+- **Observed Data**: Each generation records the `prompt_template`, `model_id`, `mode`, and `formatter`.
+- **Monitoring**: Telemetry events can be retrieved via `get_events()` to analyze which configurations produce the best responses.
+
+## 16. Operational Boundaries
 
 - `docs/OPERATIONS.md` is strictly for running, administering, using, and troubleshooting the system.
 - `docs/ARCHITECTURE.md` is strictly for outlining system design, codebase map, and runtime wiring. 
