@@ -9,6 +9,7 @@ from typing import Literal
 RelationshipType = Literal["friend", "mentor", "peer", "partner", "custom"]
 RelationshipTone = Literal["warm", "neutral", "formal", "playful", "sarcastic"]
 ContentLevel = Literal["light", "moderate", "deep", "intellectual"]
+RelationshipStage = Literal["acquaintance", "established_bond", "intimate"]
 
 RELATIONSHIP_TYPES: tuple[str, ...] = (
     "friend",
@@ -30,6 +31,11 @@ CONTENT_LEVELS: tuple[str, ...] = (
     "deep",
     "intellectual",
 )
+RELATIONSHIP_STAGES: tuple[str, ...] = (
+    "acquaintance",
+    "established_bond",
+    "intimate",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +48,7 @@ class RelationshipConfig:
     warmth: float
     initiative_level: float
     content_level: ContentLevel
+    depth: float = 0.0
 
     def __post_init__(self) -> None:
         if self.type not in RELATIONSHIP_TYPES:
@@ -58,6 +65,15 @@ class RelationshipConfig:
             "initiative_level",
             _clamp(float(self.initiative_level), 0.0, 1.0),
         )
+        object.__setattr__(self, "depth", _clamp(float(self.depth), 0.0, 1.0))
+
+    @property
+    def stage(self) -> RelationshipStage:
+        if self.depth < 0.3:
+            return "acquaintance"
+        elif self.depth < 0.7:
+            return "established_bond"
+        return "intimate"
 
     @classmethod
     def defaults(cls) -> "RelationshipConfig":
@@ -75,10 +91,20 @@ class RelationshipConfig:
     def to_prompt_fragment(self) -> str:
         """Render compact relationship guidance for persona prompt injection."""
 
+        if self.stage == "acquaintance":
+            stage_guidance = "Keep interactions polite, relatively safe, and exploratory."
+        elif self.stage == "established_bond":
+            stage_guidance = "Interact with familiarity, shared context, and comfortable directness."
+        else:
+            stage_guidance = "Communicate with deep trust, high emotional resonance, and vulnerability."
+
         return "\n".join(
             (
                 "Relationship:",
                 f"- Type: {self.type}",
+                f"- Stage: {self.stage.replace('_', ' ').title()}",
+                f"- Depth: {_format_ratio(self.depth)}",
+                f"- Guidance: {stage_guidance}",
                 f"- Tone: {self.tone}",
                 f"- Directness: {_format_ratio(self.directness)}",
                 f"- Warmth: {_format_ratio(self.warmth)}",
@@ -98,10 +124,12 @@ def _format_ratio(value: float) -> str:
 
 __all__ = [
     "CONTENT_LEVELS",
+    "RELATIONSHIP_STAGES",
     "RELATIONSHIP_TONES",
     "RELATIONSHIP_TYPES",
     "ContentLevel",
     "RelationshipConfig",
+    "RelationshipStage",
     "RelationshipTone",
     "RelationshipType",
 ]
