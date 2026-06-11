@@ -101,6 +101,11 @@ except ImportError:
     compose_prompt_layers = None  # type: ignore[assignment]
 
 try:
+    from chatbot.core.prompt_formatter import format_prompt_for_model
+except ImportError:
+    format_prompt_for_model = None  # type: ignore[assignment]
+
+try:
     from chatbot.soul.character import CharacterProfile
 except ImportError:
     CharacterProfile = None  # type: ignore[assignment]
@@ -620,11 +625,12 @@ class CallProviderStep(TurnStep):
             return ctx
 
         history = _provider_history(ctx)
+        prompt, history = _formatted_provider_inputs(ctx, provider, config, history)
         ctx.metadata["llm_history"] = history
-        ctx.metadata["llm_prompt"] = _render_trace_prompt(ctx.user_message, history)
+        ctx.metadata["llm_prompt"] = _render_trace_prompt(prompt, history)
         try:
             result = await provider.complete(
-                prompt=ctx.user_message,
+                prompt=prompt,
                 history=history,
                 config=config,
             )
@@ -3136,6 +3142,111 @@ def _provider_history(ctx: TurnContext) -> list[dict[str, Any]]:
             history.append({"role": str(role), "content": str(content)})
 
     return history
+
+
+def _formatted_provider_inputs(
+    ctx: TurnContext,
+    provider: Any,
+    config: ProviderConfig,
+    history: list[dict[str, Any]],
+) -> tuple[str, list[dict[str, Any]]]:
+    if format_prompt_for_model is None:
+        return ctx.user_message, history
+
+    model = config.model or _trace_model_id(ctx)
+    provider_name = _trace_provider_name(ctx, provider, model)
+    try:
+        formatted = format_prompt_for_model(
+            model,
+            ctx.user_message,
+            history,
+            provider=provider_name,
+        )
+    except Exception:
+        logger.warning("Prompt formatting failed; using unformatted inputs", exc_info=True)
+        return ctx.user_message, history
+
+    family = getattr(formatted, "family", None)
+    if family is not None:
+        ctx.metadata["llm_prompt_family"] = getattr(family, "value", str(family))
+
+    payload = getattr(formatted, "payload", None)
+    if not isinstance(payload, Mapping):
+        return ctx.user_message, history
+
+    ctx.metadata["llm_prompt_payload"] = _json_safe(payload)
+    return _provider_inputs_from_prompt_payload(payload, ctx.user_message, history)
+
+
+def _provider_inputs_from_prompt_payload(
+    payload: Mapping[str, Any],
+    fallback_prompt: str,
+    fallback_history: list[dict[str, Any]],
+) -> tuple[str, list[dict[str, Any]]]:
+    messages = _messages_from_prompt_payload(payload)
+    if not messages:
+        return fallback_prompt, fallback_history
+
+    if messages[-1]["role"] == "user":
+        return messages[-1]["content"], messages[:-1]
+    return fallback_prompt, messages
+
+
+def _messages_from_prompt_payload(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
+    messages = payload.get("messages")
+    if isinstance(messages, Sequence) and not isinstance(messages, (str, bytes)):
+        formatted_messages: list[dict[str, Any]] = []
+        system = _prompt_payload_text(payload.get("system"))
+        if system:
+            formatted_messages.append({"role": "system", "content": system})
+        for message in messages:
+            if not isinstance(message, Mapping):
+                continue
+            content = _prompt_payload_text(message.get("content"))
+            if not content:
+                continue
+            role = str(message.get("role") or "user").strip() or "user"
+            formatted_messages.append({"role": role, "content": content})
+        return formatted_messages
+
+    contents = payload.get("contents")
+    if isinstance(contents, Sequence) and not isinstance(contents, (str, bytes)):
+        formatted_messages = []
+        system = _prompt_payload_text(payload.get("system_instruction"))
+        if system:
+            formatted_messages.append({"role": "system", "content": system})
+        for content_item in contents:
+            if not isinstance(content_item, Mapping):
+                continue
+            content = _prompt_payload_text(content_item.get("parts"))
+            if not content:
+                continue
+            role = str(content_item.get("role") or "user").strip().lower()
+            formatted_messages.append({
+                "role": "assistant" if role == "model" else "user",
+                "content": content,
+            })
+        return formatted_messages
+
+    return []
+
+
+def _prompt_payload_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, Mapping):
+        for key in ("text", "content"):
+            text = _prompt_payload_text(value.get(key))
+            if text:
+                return text
+        return _prompt_payload_text(value.get("parts"))
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        return "\n".join(
+            part for part in (_prompt_payload_text(item) for item in value) if part
+        )
+    return str(value).strip()
 
 
 def _fallback_provider_response(ctx: TurnContext) -> str:
