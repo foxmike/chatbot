@@ -138,14 +138,33 @@ async def consolidate_handler(task: BackgroundTask) -> None:
 
     session_id = _payload_text(payload, "session_id")
 
-    logger.warning(
-        "consolidate_handler called without a configured provider "
-        "and memory_store; use make_consolidate_handler() to create a "
-        "fully-wired handler.  Skipping consolidation for user_id=%s "
-        "session_id=%s",
-        user_id,
-        session_id,
+    provider = _default_consolidation_provider()
+    if provider is None:
+        logger.warning(
+            "consolidate_handler called without a configured provider. "
+            "Skipping consolidation for user_id=%s session_id=%s",
+            user_id,
+            session_id,
+        )
+        return
+
+    memory_store = payload.get("database")
+    worker = ConsolidationWorker(
+        provider=provider,
+        memory_store=memory_store,
     )
+
+    session_ids: list[str] = [session_id] if session_id else [user_id]
+
+    for sid in session_ids:
+        try:
+            await worker.run_consolidation(sid)
+        except Exception as exc:
+            logger.warning(
+                "Consolidation failed for session_id=%s: %s",
+                sid,
+                exc,
+            )
 
 
 def make_consolidate_handler(
@@ -180,6 +199,15 @@ def make_consolidate_handler(
     if provider is None:
         provider = _default_consolidation_provider()
 
+    if provider is None:
+        async def skip_handler(task: BackgroundTask) -> None:
+            logger.warning(
+                "consolidate_handler called without a configured provider. "
+                "Skipping consolidation task %s",
+                task.task_id,
+            )
+        return skip_handler
+
     worker = ConsolidationWorker(
         provider=provider,
         memory_store=memory_store,
@@ -212,26 +240,26 @@ def make_consolidate_handler(
     return handler
 
 
-def _default_consolidation_provider() -> Provider:
+def _default_consolidation_provider() -> Provider | None:
     """Return the default LLM provider from application settings."""
 
     try:
         from chatbot.config import get_settings
     except ImportError:
-        raise RuntimeError(
-            "Unable to import chatbot.config; ensure the settings module is available"
-        )
+        return None
 
     try:
         from chatbot.providers.bootstrap import build_default_registry
     except ImportError:
-        raise RuntimeError(
-            "Unable to import chatbot.providers.bootstrap; ensure the provider bootstrap is available"
-        )
+        return None
 
-    settings = get_settings()
-    registry = build_default_registry(settings)
-    return registry.get(settings.default_provider)
+    try:
+        settings = get_settings()
+        registry = build_default_registry(settings)
+        return registry.get(settings.default_provider)
+    except Exception as exc:
+        logger.debug("Failed to initialize default provider: %s", exc)
+        return None
 
 
 __all__ = ["consolidate_handler", "make_consolidate_handler", "memory_extract_handler"]

@@ -104,6 +104,15 @@ def get_settings() -> Settings:
     return Settings()
 
 
+def get_embedding_config() -> dict[str, str]:
+    settings = get_settings()
+    return {
+        "api_key": settings.openrouter_api_key,
+        "base_url": getattr(settings, "embedding_base_url", settings.openrouter_base_url),
+        "model": settings.embedding_model,
+    }
+
+
 def get_llm_config() -> dict[str, str]:
     settings = get_settings()
     provider = settings.llm_provider.lower()

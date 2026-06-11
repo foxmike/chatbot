@@ -18,6 +18,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import StreamingResponse
 
+from chatbot.api.chat import _prepare_memory_workflow
 from chatbot.auth.dependencies import CurrentUser, get_current_user
 from chatbot.core import TurnContext, TurnStep
 from chatbot.core.turn import (
@@ -138,6 +139,10 @@ async def _stream_turn(
 
         _seed_stream_history_metadata(metadata, request.session_id, history)
 
+        retrieval_engine = metadata.get("retrieval_engine") or metadata.get("memory_retriever")
+        if retrieval_engine is not None and not callable(getattr(retrieval_engine, "retrieve", None)):
+            retrieval_engine = None
+
         ctx = TurnContext(
             session_id=request.session_id,
             user_message=request.message,
@@ -149,11 +154,15 @@ async def _stream_turn(
             extracted_memories=[],
             final_response=None,
             metadata=metadata,
+            retrieval_engine=retrieval_engine,
         )
         if character_profile is not None:
             ctx.metadata["character_profile"] = character_profile
         if identity_state is not None:
             ctx.metadata["identity_state"] = identity_state
+
+        if http_request is not None:
+            await _prepare_memory_workflow(http_request, ctx, stream_db, session_id)
 
         pipeline = build_default_pipeline()
 

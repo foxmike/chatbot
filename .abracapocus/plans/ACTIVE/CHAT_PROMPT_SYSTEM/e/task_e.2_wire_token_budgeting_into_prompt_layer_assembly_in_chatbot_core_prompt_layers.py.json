@@ -11,7 +11,6 @@
     "Prompt layer assembly enforces the computed token budget bounds"
   ],
   "selected_backend": "claude_code_cli",
-  "model": "sonnet",
   "verification_profile": "focused",
   "allowed_write_paths": [
     "chatbot/core/prompt_layers.py"

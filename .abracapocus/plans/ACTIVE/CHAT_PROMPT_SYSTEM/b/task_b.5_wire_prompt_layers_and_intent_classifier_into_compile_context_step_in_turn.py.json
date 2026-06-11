@@ -13,7 +13,6 @@
     "No file outside the task's allowed_write_paths is created or modified"
   ],
   "selected_backend": "claude_code_cli",
-  "model": "sonnet",
   "verification_profile": "focused",
   "allowed_write_paths": [
     "chatbot/core/turn.py",

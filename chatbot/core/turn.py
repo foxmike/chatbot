@@ -326,7 +326,8 @@ class RetrieveStep(TurnStep):
         )
 
         retrieval_engine = (
-            _first_metadata_value(ctx, "retrieval_engine", "memory_retriever")
+            ctx.retrieval_engine
+            or _first_metadata_value(ctx, "retrieval_engine", "memory_retriever")
             or self._retrieval_engine
         )
         if retrieval_engine is None:

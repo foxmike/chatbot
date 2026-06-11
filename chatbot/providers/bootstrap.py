@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import logging
 
-from chatbot.config import Settings, get_llm_config
+from chatbot.config import Settings, get_embedding_config, get_llm_config
+from chatbot.memory.embeddings import EmbeddingProvider
+from chatbot.memory.retrieval import DisabledEmbeddingProvider, OpenRouterEmbeddingProvider
 from chatbot.providers.base import ProviderRegistry
 from chatbot.providers.openrouter import OpenRouterProvider
 
@@ -45,4 +47,22 @@ def build_default_registry(settings: Settings) -> ProviderRegistry:
     return registry
 
 
-__all__ = ["build_default_registry"]
+def build_embedding_provider(settings: Settings) -> EmbeddingProvider:
+    """Initialize the embedding provider from application settings.
+
+    Returns an :class:`OpenRouterEmbeddingProvider` when an API key is
+    configured, or a :class:`DisabledEmbeddingProvider` otherwise.
+    """
+    embed_config = get_embedding_config()
+    if embed_config["api_key"]:
+        return OpenRouterEmbeddingProvider(
+            api_key=embed_config["api_key"],
+            base_url=embed_config["base_url"],
+            model=embed_config["model"],
+        )
+    return DisabledEmbeddingProvider(
+        "Embedding provider not initialized because no API key is configured"
+    )
+
+
+__all__ = ["build_default_registry", "build_embedding_provider"]

@@ -150,6 +150,14 @@ async def chat(
     )
     history = _inject_room_system_prompt(history, room_system_prompt, effective_room_id)
     persona = _load_persona(request, body.session_id, session)
+    retrieval_engine = _first_state_value(
+        request,
+        "retrieval_engine",
+        "memory_retriever",
+    )
+    if retrieval_engine is not None and not callable(getattr(retrieval_engine, "retrieve", None)):
+        retrieval_engine = None
+
     ctx = TurnContext(
         session_id=body.session_id,
         user_message=body.message,
@@ -161,6 +169,7 @@ async def chat(
         extracted_memories=[],
         final_response=None,
         metadata=_build_metadata(request, body.session_id, session, history, persona),
+        retrieval_engine=retrieval_engine,
     )
     ctx.metadata["db"] = db
     ctx.metadata["user_id"] = current_user.user_id
@@ -313,13 +322,14 @@ async def _prepare_memory_workflow(
     """Wire embeddings and retrieval before the turn pipeline reaches the LLM."""
     await _generate_recent_message_embeddings(db, session_id, ctx)
 
-    retrieval_engine = _metadata_retrieval_engine(ctx.metadata)
+    retrieval_engine = ctx.retrieval_engine or _metadata_retrieval_engine(ctx.metadata)
     if retrieval_engine is None:
         retrieval_engine = _build_chat_retrieval_engine(request, db)
 
     if retrieval_engine is not None:
         ctx.metadata["retrieval_engine"] = retrieval_engine
         ctx.metadata["memory_retriever"] = retrieval_engine
+        ctx.retrieval_engine = retrieval_engine
 
 
 async def _generate_recent_message_embeddings(
