@@ -14,6 +14,7 @@ export interface User {
   user_id: string;
   username: string;
   email: string;
+  adaptive_verbosity: number | null;
 }
 
 export interface AuthTokens {
@@ -33,6 +34,12 @@ export interface Companion {
   personality_sliders: Record<string, number> | null;
   humor_style: string | null;
   communication_style: string | null;
+  punctuation_habits: Record<string, unknown> | null;
+  sentence_length_profile: Record<string, unknown> | null;
+  emoji_style: Record<string, unknown> | null;
+  vocabulary_density: number | null;
+  slang_profile: Record<string, unknown> | null;
+  adaptive_verbosity: number | null;
   favorite_topics: string[] | null;
 }
 
@@ -45,6 +52,12 @@ export interface CompanionCreate {
   personality_sliders?: Record<string, number> | null;
   humor_style?: string | null;
   communication_style?: string | null;
+  punctuation_habits?: Record<string, unknown> | null;
+  sentence_length_profile?: Record<string, unknown> | null;
+  emoji_style?: Record<string, unknown> | null;
+  vocabulary_density?: number | null;
+  slang_profile?: Record<string, unknown> | null;
+  adaptive_verbosity?: number | null;
   favorite_topics?: string[] | null;
 }
 

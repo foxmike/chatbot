@@ -25,6 +25,7 @@ def _user_to_response(user: User) -> UserResponse:
         user_id=str(user.id),
         username=user.username,
         email=user.email,
+        adaptive_verbosity=user.adaptive_verbosity,
         created_at=user.created_at.isoformat(),
     )
 

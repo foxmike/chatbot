@@ -30,6 +30,12 @@ class CompanionCreateRequest(BaseModel):
     personality_sliders: dict[str, float] | None = None
     humor_style: str | None = None
     communication_style: str | None = None
+    punctuation_habits: dict[str, object] | None = None
+    sentence_length_profile: dict[str, object] | None = None
+    emoji_style: dict[str, object] | None = None
+    vocabulary_density: float | None = Field(default=None, ge=0.0, le=1.0)
+    slang_profile: dict[str, object] | None = None
+    adaptive_verbosity: float | None = Field(default=None, ge=0.0, le=1.0)
     favorite_topics: list[str] | None = None
 
     @field_validator("avatar_url")
@@ -57,6 +63,12 @@ class CompanionResponse(BaseModel):
     personality_sliders: dict[str, float] | None
     humor_style: str | None
     communication_style: str | None
+    punctuation_habits: dict[str, object] | None
+    sentence_length_profile: dict[str, object] | None
+    emoji_style: dict[str, object] | None
+    vocabulary_density: float | None
+    slang_profile: dict[str, object] | None
+    adaptive_verbosity: float | None = None
     favorite_topics: list[str] | None
     display: CompanionDisplay
     created_at: str
@@ -83,6 +95,11 @@ COMPANION_MODEL_DEFINITIONS: dict[str, dict[str, dict]] = {
         "personality_sliders": {"type": "JSON", "nullable": True},
         "humor_style": {"type": "String(20)", "nullable": True},
         "communication_style": {"type": "String(30)", "nullable": True},
+        "punctuation_habits": {"type": "JSON", "nullable": True},
+        "sentence_length_profile": {"type": "JSON", "nullable": True},
+        "emoji_style": {"type": "JSON", "nullable": True},
+        "vocabulary_density": {"type": "Float", "nullable": True},
+        "slang_profile": {"type": "JSON", "nullable": True},
         "favorite_topics": {"type": "JSON", "nullable": True},
         "created_at": {"type": "DateTime", "default": "func.now()"},
         "updated_at": {"type": "DateTime", "onupdate": "func.now()"},
@@ -178,6 +195,12 @@ def _row_to_companion(row: object) -> CompanionResponse:
         personality_sliders=m.get("personality_sliders"),
         humor_style=m.get("humor_style"),
         communication_style=m.get("communication_style"),
+        punctuation_habits=m.get("punctuation_habits"),
+        sentence_length_profile=m.get("sentence_length_profile"),
+        emoji_style=m.get("emoji_style"),
+        vocabulary_density=m.get("vocabulary_density"),
+        slang_profile=m.get("slang_profile"),
+        adaptive_verbosity=m.get("adaptive_verbosity"),
         favorite_topics=m.get("favorite_topics"),
         display=_build_companion_display(
             companion_id=companion_id,
@@ -211,9 +234,14 @@ class CompanionManager:
             """INSERT INTO companions (
                    companion_id, user_id, name, persona, description, avatar_url,
                    backstory, personality_sliders, humor_style, communication_style,
-                   favorite_topics, created_at
+                   punctuation_habits, sentence_length_profile, emoji_style,
+                   vocabulary_density, slang_profile, favorite_topics, created_at
                )
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11::jsonb, now())
+               VALUES (
+                   $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10,
+                   $11::jsonb, $12::jsonb, $13::jsonb, $14, $15::jsonb,
+                   $16::jsonb, now()
+               )
                RETURNING *""",
             (
                 companion_id,
@@ -226,6 +254,11 @@ class CompanionManager:
                 json.dumps(data.personality_sliders) if data.personality_sliders is not None else None,
                 data.humor_style,
                 data.communication_style,
+                json.dumps(data.punctuation_habits) if data.punctuation_habits is not None else None,
+                json.dumps(data.sentence_length_profile) if data.sentence_length_profile is not None else None,
+                json.dumps(data.emoji_style) if data.emoji_style is not None else None,
+                data.vocabulary_density,
+                json.dumps(data.slang_profile) if data.slang_profile is not None else None,
                 json.dumps(data.favorite_topics) if data.favorite_topics is not None else None,
             ),
         )
@@ -257,7 +290,12 @@ class CompanionManager:
         return persisted.image_url
 
     async def list_by_user(self, user_id: str) -> CompanionListResponse:
-        stmt = text("SELECT * FROM companions WHERE user_id = :user_id")
+        stmt = text(
+            """SELECT c.*, u.adaptive_verbosity
+               FROM companions c
+               JOIN users u ON c.user_id = u.id
+               WHERE c.user_id = :user_id"""
+        )
         result = await self._session.execute(stmt, dict(user_id=user_id))
         rows = result.fetchall()
         return CompanionListResponse(
@@ -266,7 +304,10 @@ class CompanionManager:
 
     async def get(self, user_id: str, companion_id: str) -> CompanionResponse | None:
         stmt = text(
-            "SELECT * FROM companions WHERE companion_id = :companion_id"
+            """SELECT c.*, u.adaptive_verbosity
+               FROM companions c
+               JOIN users u ON c.user_id = u.id
+               WHERE c.companion_id = :companion_id"""
         )
         result = await self._session.execute(stmt, dict(companion_id=companion_id))
         row = result.fetchone()
@@ -285,17 +326,21 @@ class CompanionManager:
             return None
 
         conn = await self._session.connection()
-        result = await conn.exec_driver_sql(
+        await conn.exec_driver_sql(
             """UPDATE companions
                SET name = $1, persona = $2, description = $3, avatar_url = $4,
                    backstory = $5,
                    personality_sliders = $6::jsonb,
                    humor_style = $7,
                    communication_style = $8,
-                   favorite_topics = $9::jsonb,
+                   punctuation_habits = $9::jsonb,
+                   sentence_length_profile = $10::jsonb,
+                   emoji_style = $11::jsonb,
+                   vocabulary_density = $12,
+                   slang_profile = $13::jsonb,
+                   favorite_topics = $14::jsonb,
                    updated_at = now()
-               WHERE companion_id = $10
-               RETURNING *""",
+               WHERE companion_id = $15""",
             (
                 data.name,
                 data.persona,
@@ -305,13 +350,24 @@ class CompanionManager:
                 json.dumps(data.personality_sliders) if data.personality_sliders is not None else None,
                 data.humor_style,
                 data.communication_style,
+                json.dumps(data.punctuation_habits) if data.punctuation_habits is not None else None,
+                json.dumps(data.sentence_length_profile) if data.sentence_length_profile is not None else None,
+                json.dumps(data.emoji_style) if data.emoji_style is not None else None,
+                data.vocabulary_density,
+                json.dumps(data.slang_profile) if data.slang_profile is not None else None,
                 json.dumps(data.favorite_topics) if data.favorite_topics is not None else None,
                 companion_id,
             ),
         )
-        row = result.fetchone()
+        await conn.exec_driver_sql(
+            """UPDATE users
+               SET adaptive_verbosity = $1,
+                   updated_at = now()
+               WHERE id = $2""",
+            (data.adaptive_verbosity, user_id),
+        )
         await self._session.commit()
-        return _row_to_companion(row)
+        return await self.get(user_id, companion_id)
 
     async def delete(self, user_id: str, companion_id: str) -> bool:
         existing = await self.get(user_id, companion_id)

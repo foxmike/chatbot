@@ -9,6 +9,7 @@ import {
 } from "../api/client";
 import type {
   Companion,
+  CompanionCreate,
   GeneratedCompanionImage,
   GenerateVisualImageResponse,
 } from "../api/client";
@@ -33,6 +34,28 @@ const COMM_STYLES = [
   "question_driven",
   "aphoristic",
 ] as const;
+const FINGERPRINT_FIELDS = [
+  {
+    key: "punctuation_habits",
+    label: "Punctuation habits",
+    placeholder: '{"ellipsis_usage":"frequent","capitalization":"lowercase"}',
+  },
+  {
+    key: "sentence_length_profile",
+    label: "Sentence length profile",
+    placeholder: '{"preference":"short","max_words":12}',
+  },
+  {
+    key: "emoji_style",
+    label: "Emoji style",
+    placeholder: '{"frequency":"rare","placement":"end"}',
+  },
+  {
+    key: "slang_profile",
+    label: "Slang profile",
+    placeholder: '{"frequency":"occasional","type":"gen_z"}',
+  },
+] as const;
 
 const DEFAULT_SLIDERS: Record<string, number> = {
   openness: 0.7,
@@ -51,8 +74,18 @@ interface EditorForm {
   personality_sliders: Record<string, number>;
   humor_style: string;
   communication_style: string;
+  punctuation_habits: string;
+  sentence_length_profile: string;
+  emoji_style: string;
+  vocabulary_density: number | null;
+  slang_profile: string;
+  adaptive_verbosity: number | null;
   favorite_topics: string[];
   avatar_url: string | null;
+}
+
+function jsonObjectToFormValue(value: Record<string, unknown> | null | undefined): string {
+  return value ? JSON.stringify(value, null, 2) : "";
 }
 
 function companionToForm(c: Companion): EditorForm {
@@ -65,6 +98,12 @@ function companionToForm(c: Companion): EditorForm {
       : { ...DEFAULT_SLIDERS },
     humor_style: c.humor_style ?? "witty",
     communication_style: c.communication_style ?? "concise",
+    punctuation_habits: jsonObjectToFormValue(c.punctuation_habits),
+    sentence_length_profile: jsonObjectToFormValue(c.sentence_length_profile),
+    emoji_style: jsonObjectToFormValue(c.emoji_style),
+    vocabulary_density: c.vocabulary_density ?? null,
+    slang_profile: jsonObjectToFormValue(c.slang_profile),
+    adaptive_verbosity: c.adaptive_verbosity ?? null,
     favorite_topics: c.favorite_topics ?? [],
     avatar_url: c.avatar_url ?? null,
   };
@@ -85,6 +124,25 @@ function getErrorDetail(error: unknown): string {
 
 function fmtLabel(v: string) {
   return v.replace(/_/g, " ");
+}
+
+function parseJsonObjectField(label: string, value: string): Record<string, unknown> | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    if (
+      parsed === null ||
+      typeof parsed !== "object" ||
+      Array.isArray(parsed)
+    ) {
+      throw new Error("not an object");
+    }
+    return parsed as Record<string, unknown>;
+  } catch {
+    throw new Error(`${label} must be a valid JSON object.`);
+  }
 }
 
 function generatedImageUrl(image: GenerateVisualImageResponse): string {
@@ -232,22 +290,36 @@ export function CompanionEditor({
       form.favorite_topics.filter((x) => x !== t),
     );
 
+  const buildPayload = (avatarUrl = form.avatar_url): Partial<CompanionCreate> => ({
+    name: form.name.trim() || "Companion",
+    persona: form.persona.trim() || null,
+    description: null,
+    avatar_url: avatarUrl,
+    backstory: form.backstory.trim() || null,
+    personality_sliders: form.personality_sliders,
+    humor_style: form.humor_style || null,
+    communication_style: form.communication_style || null,
+    punctuation_habits: parseJsonObjectField(
+      "Punctuation habits",
+      form.punctuation_habits,
+    ),
+    sentence_length_profile: parseJsonObjectField(
+      "Sentence length profile",
+      form.sentence_length_profile,
+    ),
+    emoji_style: parseJsonObjectField("Emoji style", form.emoji_style),
+    vocabulary_density: form.vocabulary_density,
+    slang_profile: parseJsonObjectField("Slang profile", form.slang_profile),
+    adaptive_verbosity: form.adaptive_verbosity,
+    favorite_topics: form.favorite_topics,
+  });
+
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
     setError(null);
     try {
-      const updated = await updateCompanion(companionId, {
-        name: form.name.trim() || "Companion",
-        persona: form.persona.trim() || null,
-        description: null,
-        avatar_url: form.avatar_url,
-        backstory: form.backstory.trim() || null,
-        personality_sliders: form.personality_sliders,
-        humor_style: form.humor_style || null,
-        communication_style: form.communication_style || null,
-        favorite_topics: form.favorite_topics,
-      });
+      const updated = await updateCompanion(companionId, buildPayload());
       setForm(companionToForm(updated));
       setSaved(true);
       onSave?.(updated);
@@ -262,17 +334,7 @@ export function CompanionEditor({
     setSaving(true);
     setError(null);
     try {
-      const updated = await updateCompanion(companionId, {
-        name: form.name.trim() || "Companion",
-        persona: form.persona.trim() || null,
-        description: null,
-        avatar_url: avatarUrl,
-        backstory: form.backstory.trim() || null,
-        personality_sliders: form.personality_sliders,
-        humor_style: form.humor_style || null,
-        communication_style: form.communication_style || null,
-        favorite_topics: form.favorite_topics,
-      });
+      const updated = await updateCompanion(companionId, buildPayload(avatarUrl));
       setForm(companionToForm(updated));
       setSaved(true);
       onSave?.(updated);
@@ -562,6 +624,69 @@ export function CompanionEditor({
               ))}
             </select>
           </label>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <p className="text-sm font-medium text-gray-200">
+            Linguistic fingerprint
+          </p>
+          <div className="grid gap-4 md:grid-cols-2">
+            {FINGERPRINT_FIELDS.map((field) => (
+              <label key={field.key} className={LABEL}>
+                {field.label}
+                <textarea
+                  rows={4}
+                  value={form[field.key]}
+                  disabled={saving}
+                  className={`resize-y font-mono ${INPUT}`}
+                  placeholder={field.placeholder}
+                  onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
+                    set(field.key, e.target.value)
+                  }
+                />
+              </label>
+            ))}
+
+            <label className={LABEL}>
+              Vocabulary density
+              <input
+                type="number"
+                min="0"
+                max="1"
+                step="0.05"
+                value={form.vocabulary_density ?? ""}
+                disabled={saving}
+                className={INPUT}
+                placeholder="0.50"
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  set(
+                    "vocabulary_density",
+                    e.target.value === "" ? null : Number(e.target.value),
+                  )
+                }
+              />
+            </label>
+
+            <label className={LABEL}>
+              Adaptive verbosity
+              <input
+                type="number"
+                min="0"
+                max="1"
+                step="0.05"
+                value={form.adaptive_verbosity ?? ""}
+                disabled={saving}
+                className={INPUT}
+                placeholder="0.50"
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  set(
+                    "adaptive_verbosity",
+                    e.target.value === "" ? null : Number(e.target.value),
+                  )
+                }
+              />
+            </label>
+          </div>
         </div>
 
         <div className="flex flex-col gap-3">

@@ -22,6 +22,7 @@ class UserResponse(BaseModel):
     user_id: str
     username: str
     email: str
+    adaptive_verbosity: float | None = None
     created_at: str
 
 
@@ -37,6 +38,7 @@ AUTH_MODEL_DEFINITIONS: dict[str, dict[str, dict]] = {
         "username": {"type": "String(64)", "unique": True, "nullable": False},
         "email": {"type": "String(255)", "unique": True, "nullable": False},
         "password_hash": {"type": "String(128)", "nullable": False},
+        "adaptive_verbosity": {"type": "Float", "nullable": True},
         "created_at": {"type": "DateTime", "default": "func.now()"},
         "updated_at": {"type": "DateTime", "onupdate": "func.now()"},
     },
