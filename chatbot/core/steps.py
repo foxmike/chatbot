@@ -20,6 +20,7 @@ class TurnContext:
     final_response: str | None
     metadata: dict[str, Any] = field(default_factory=dict)
     retrieval_engine: Any | None = None
+    intent_classification: Any | None = None
 
 
 class TurnStep(ABC):

@@ -91,6 +91,16 @@ except ImportError:
     PersonaPromptAssembler = None  # type: ignore[assignment]
 
 try:
+    from chatbot.core.intent_classifier import IntentClassifier
+except ImportError:
+    IntentClassifier = None  # type: ignore[assignment]
+
+try:
+    from chatbot.core.prompt_layers import compose_prompt_layers
+except ImportError:
+    compose_prompt_layers = None  # type: ignore[assignment]
+
+try:
     from chatbot.soul.character import CharacterProfile
 except ImportError:
     CharacterProfile = None  # type: ignore[assignment]
@@ -485,6 +495,7 @@ class CompileContextStep(TurnStep):
         self,
         assembler: Any | None = None,
         persona_cache: PersonaCache | None = None,
+        intent_classifier: Any | None = None,
     ) -> None:
         if assembler is not None:
             self._assembler = assembler
@@ -493,20 +504,47 @@ class CompileContextStep(TurnStep):
         else:
             self._assembler = None
         self._persona_cache = persona_cache
+        if intent_classifier is not None:
+            self._intent_classifier = intent_classifier
+        elif IntentClassifier is not None:
+            self._intent_classifier = IntentClassifier()
+        else:
+            self._intent_classifier = None
 
     def set_persona_cache(self, persona_cache: PersonaCache | None) -> None:
         self._persona_cache = persona_cache
 
     async def run(self, ctx: TurnContext) -> TurnContext:
+        if self._intent_classifier is not None:
+            try:
+                classification = self._intent_classifier.classify(ctx.user_message)
+                ctx.intent_classification = classification
+                ctx.metadata["intent"] = classification.intent.value
+                ctx.metadata["intent_classification"] = classification
+            except Exception:
+                logger.warning(
+                    "Intent classification failed for session %s",
+                    ctx.session_id,
+                    exc_info=True,
+                )
+
         mood_state = _current_mood_state(ctx) if _emotional_intelligence_ready(ctx) else None
         mode = _current_conversation_mode(ctx) if _emotional_intelligence_ready(ctx) else None
         persona_prompt = await self._persona_prompt(ctx, mood=mood_state, mode=mode)
         scene_prompt = _roleplay_scene_prompt(ctx)
-        if scene_prompt:
-            persona_prompt = "\n\n".join(
-                part for part in (persona_prompt.strip(), scene_prompt) if part
-            )
-            ctx.metadata["roleplay_scene_prompt"] = scene_prompt
+        if compose_prompt_layers is not None:
+            persona_prompt = compose_prompt_layers({
+                "companion_identity": persona_prompt,
+                "room_scene": scene_prompt,
+            })
+            if scene_prompt:
+                ctx.metadata["roleplay_scene_prompt"] = scene_prompt
+        else:
+            if scene_prompt:
+                persona_prompt = "\n\n".join(
+                    part for part in (persona_prompt.strip(), scene_prompt) if part
+                )
+                ctx.metadata["roleplay_scene_prompt"] = scene_prompt
         ctx.compiled_context = _compile_context_text(
             persona_prompt=persona_prompt,
             history=ctx.history,
