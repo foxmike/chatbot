@@ -63,6 +63,7 @@ class User(Base):
         server_default=sa.sql.func.now(),
         onupdate=sa.sql.func.now(),
     )
+    adaptive_verbosity: Mapped[float | None] = mapped_column(sa.Float, nullable=True)
 
     sessions: Mapped[list[Session]] = relationship(back_populates="user")
     semantic_facts: Mapped[list[SemanticFact]] = relationship(back_populates="user")
@@ -123,6 +124,11 @@ class Companion(Base):
     )
     humor_style: Mapped[str | None] = mapped_column(sa.String(20), nullable=True)
     communication_style: Mapped[str | None] = mapped_column(sa.String(30), nullable=True)
+    punctuation_habits: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
+    sentence_length_profile: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
+    emoji_style: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
+    vocabulary_density: Mapped[float | None] = mapped_column(sa.Float, nullable=True)
+    slang_profile: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
     favorite_topics: Mapped[list[str] | None] = mapped_column(sa.JSON, nullable=True)
     appearance_id: Mapped[str | None] = mapped_column(
         sa.ForeignKey(
