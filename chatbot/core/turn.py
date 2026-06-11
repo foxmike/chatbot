@@ -96,6 +96,11 @@ except ImportError:
     IntentClassifier = None  # type: ignore[assignment]
 
 try:
+    from chatbot.providers.sampling import get_sampling_settings
+except ImportError:
+    get_sampling_settings = None  # type: ignore[assignment]
+
+try:
     from chatbot.core.prompt_layers import compose_prompt_layers
 except ImportError:
     compose_prompt_layers = None  # type: ignore[assignment]
@@ -176,6 +181,8 @@ ROOM_FAST_PATH_STEPS: list[str] = [
     "update_identity",
 ]
 DEFERRED_STEPS: list[str] = ["extract_memory", "consolidate"]
+
+_FAST_PATH_INTENTS: frozenset[str] = frozenset({"greeting", "casual", "feedback"})
 
 _MILESTONE_KEYWORDS: tuple[str, ...] = (
     "accepted",
@@ -520,7 +527,7 @@ class CompileContextStep(TurnStep):
         self._persona_cache = persona_cache
 
     async def run(self, ctx: TurnContext) -> TurnContext:
-        if self._intent_classifier is not None:
+        if self._intent_classifier is not None and ctx.metadata.get("intent") is None:
             try:
                 classification = self._intent_classifier.classify(ctx.user_message)
                 ctx.intent_classification = classification
@@ -1127,6 +1134,7 @@ class TurnPipeline:
         self._consolidation_threshold = max(1, consolidation_threshold)
         self._last_ctx: TurnContext | None = None
         self._session_turn_counts: dict[str, int] = {}
+        self._intent_classifier = IntentClassifier() if IntentClassifier is not None else None
         if persona_cache is not None:
             self._configure_persona_cache(persona_cache)
 
@@ -1134,15 +1142,23 @@ class TurnPipeline:
         return await self.execute_turn(ctx, update_identity=update_identity)
 
     async def execute_turn(self, ctx: TurnContext, *, update_identity: bool = True) -> TurnContext:
+        routing_path = self._route_by_intent(ctx)
+        ctx.metadata["routing_path"] = routing_path
+
         steps = self._active_steps(update_identity=update_identity)
         if self._background_queue is not None:
             if _room_id_present(ctx):
                 return await self._run_steps(ctx, steps)
 
-            ctx = await self._run_fast_path(ctx, update_identity=update_identity)
-            await self.enqueue_deferred(ctx)
-            return ctx
+            if routing_path == "fast":
+                ctx = await self._run_fast_path(ctx, update_identity=update_identity)
+                await self.enqueue_deferred(ctx)
+                return ctx
 
+            return await self._run_steps(ctx, steps)
+
+        if routing_path == "fast":
+            return await self._run_fast_path(ctx, update_identity=update_identity)
         return await self._run_steps(ctx, steps)
 
     def _active_steps(self, *, update_identity: bool = True) -> list[TurnStep]:
@@ -1160,6 +1176,40 @@ class TurnPipeline:
     async def run_fast(self, ctx: TurnContext) -> TurnContext:
         step_names = ROOM_FAST_PATH_STEPS if _room_id_present(ctx) else FAST_PATH_STEPS
         return await self._run_steps(ctx, self._selected_steps(step_names))
+
+    def _route_by_intent(self, ctx: TurnContext) -> str:
+        """Return 'fast' or 'deep' based on intent classification.
+
+        Fast path skips emotional-intelligence and soul steps; appropriate for
+        simple intents like greetings, casual chat, and feedback.  Deep path
+        runs the full pipeline and is required for venting, roleplay, planning,
+        questions, and commands.
+        """
+        intent_str: str | None = ctx.metadata.get("intent")
+
+        if intent_str is None and ctx.intent_classification is not None:
+            from enum import Enum as _Enum
+            intent_attr = getattr(ctx.intent_classification, "intent", None)
+            if intent_attr is not None:
+                intent_str = intent_attr.value if isinstance(intent_attr, _Enum) else str(intent_attr)
+
+        if intent_str is None and self._intent_classifier is not None:
+            try:
+                classification = self._intent_classifier.classify(ctx.user_message)
+                intent_str = classification.intent.value
+                ctx.intent_classification = classification
+                ctx.metadata["intent"] = intent_str
+                ctx.metadata["intent_classification"] = classification
+            except Exception:
+                logger.warning(
+                    "Routing intent classification failed for session %s",
+                    ctx.session_id,
+                    exc_info=True,
+                )
+
+        if intent_str in _FAST_PATH_INTENTS:
+            return "fast"
+        return "deep"
 
     async def enqueue_deferred(self, ctx: TurnContext) -> None:
         if self._background_queue is None:
@@ -3100,15 +3150,46 @@ def _select_provider(ctx: TurnContext) -> Any | None:
     return None
 
 
+def _apply_sampling_profile(ctx: TurnContext, config: ProviderConfig) -> ProviderConfig:
+    """Fill in unset temperature/top_p from the sampling profile for this model+mode."""
+    if get_sampling_settings is None:
+        return config
+    if config.temperature is not None and config.top_p is not None:
+        return config
+
+    mode = _current_conversation_mode(ctx)
+    provider = _trace_model_provider(ctx)
+    try:
+        settings = get_sampling_settings(
+            model=config.model or None,
+            mode=mode or "normal",
+            provider=provider,
+        )
+    except Exception:
+        logger.warning("Sampling profile application failed", exc_info=True)
+        return config
+
+    ctx.metadata["sampling_profile"] = settings.to_dict()
+    return ProviderConfig(
+        model=config.model,
+        temperature=config.temperature if config.temperature is not None else settings.temperature,
+        max_tokens=config.max_tokens,
+        top_p=config.top_p if config.top_p is not None else settings.top_p,
+        stop=config.stop,
+        timeout_seconds=config.timeout_seconds,
+        extra=dict(config.extra),
+    )
+
+
 def _provider_config(ctx: TurnContext) -> ProviderConfig:
     config = ctx.metadata.get("provider_config")
     if isinstance(config, ProviderConfig):
-        return config
+        return _apply_sampling_profile(ctx, config)
 
     if isinstance(config, Mapping):
         model = str(config.get("model") or "")
         extra = config.get("extra") if isinstance(config.get("extra"), Mapping) else {}
-        return ProviderConfig(
+        built = ProviderConfig(
             model=model,
             temperature=_optional_float(config.get("temperature")),
             max_tokens=_optional_int(config.get("max_tokens")),
@@ -3117,8 +3198,9 @@ def _provider_config(ctx: TurnContext) -> ProviderConfig:
             timeout_seconds=_optional_float(config.get("timeout_seconds")),
             extra=dict(extra),
         )
+        return _apply_sampling_profile(ctx, built)
 
-    return ProviderConfig(
+    built = ProviderConfig(
         model=str(ctx.metadata.get("model") or ctx.metadata.get("default_model") or ""),
         temperature=_optional_float(ctx.metadata.get("temperature")),
         max_tokens=_optional_int(ctx.metadata.get("max_tokens")),
@@ -3126,6 +3208,7 @@ def _provider_config(ctx: TurnContext) -> ProviderConfig:
         stop=_optional_stop(ctx.metadata.get("stop")),
         timeout_seconds=_optional_float(ctx.metadata.get("timeout_seconds")),
     )
+    return _apply_sampling_profile(ctx, built)
 
 
 def _provider_history(ctx: TurnContext) -> list[dict[str, Any]]:
