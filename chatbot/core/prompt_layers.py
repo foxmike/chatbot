@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+from chatbot.core.token_budget import TokenBudget, estimate_tokens
 from chatbot.memory.timescale import (
     ACTIVE_GOAL,
     LONG_TERM_NARRATIVE_ARC,
@@ -225,6 +226,66 @@ def compose_assistantism_scrub_directive(
     return ASSISTANTISM_SCRUB_DIRECTIVE
 
 
+_LAYER_BUDGET_SECTION: dict[PromptLayerName, str] = {
+    PromptLayerName.SAFETY_FLOOR: "persona",
+    PromptLayerName.PLATFORM_BEHAVIOR: "persona",
+    PromptLayerName.COMPANION_IDENTITY: "persona",
+    PromptLayerName.RELATIONSHIP_STAGE: "persona",
+    PromptLayerName.MEMORY: "memory",
+    PromptLayerName.ROOM_SCENE: "scene",
+    PromptLayerName.MOOD_STATE: "scene",
+    PromptLayerName.SESSION_GOALS: "scene",
+}
+
+
+def _truncate_to_budget(content: str, max_tokens: int) -> str:
+    """Truncate text to approximately fit within max_tokens."""
+    if max_tokens <= 0:
+        return ""
+    if estimate_tokens(content) <= max_tokens:
+        return content
+    char_limit = max_tokens * 4
+    truncated = content[:char_limit]
+    for sep in ("\n\n", "\n", ". ", " "):
+        idx = truncated.rfind(sep)
+        if idx > char_limit // 2:
+            return truncated[: idx + len(sep)].rstrip()
+    return truncated.rstrip()
+
+
+def _apply_layer_budgets(layers: list[PromptLayer], budget: TokenBudget) -> list[PromptLayer]:
+    """Trim layers proportionally to respect per-section token budgets."""
+    section_layers: dict[str, list[PromptLayer]] = {}
+    for layer in layers:
+        section = _LAYER_BUDGET_SECTION.get(layer.name)
+        if section is not None:
+            section_layers.setdefault(section, []).append(layer)
+
+    by_name: dict[PromptLayerName, PromptLayer] = {layer.name: layer for layer in layers}
+
+    for section, section_layer_list in section_layers.items():
+        section_budget = budget.sections.get(section)
+        if section_budget is None or section_budget.budget_tokens <= 0:
+            continue
+        max_tokens = section_budget.budget_tokens
+        token_counts = {
+            layer.name: estimate_tokens(layer.content) for layer in section_layer_list
+        }
+        total = sum(token_counts.values())
+        if total <= max_tokens:
+            continue
+        for layer in section_layer_list:
+            layer_tokens = token_counts[layer.name]
+            if layer_tokens == 0:
+                continue
+            layer_budget = max(64, int(max_tokens * layer_tokens / total))
+            if layer_tokens > layer_budget:
+                trimmed = _truncate_to_budget(layer.content, layer_budget)
+                by_name[layer.name] = PromptLayer(name=layer.name, content=trimmed)
+
+    return [by_name[layer.name] for layer in layers]
+
+
 def build_prompt_layers(
     *,
     safety_floor: Any = None,
@@ -235,9 +296,11 @@ def build_prompt_layers(
     mood_state: Any = None,
     memory: Any = None,
     session_goals: Any = None,
+    attention_anchors: Any = None,
     memory_timescales: Iterable[MemoryTimescale] | None = None,
     inject_memory_realism: bool = True,
     inject_assistantism_scrub: bool = True,
+    token_budget: TokenBudget | None = None,
 ) -> list[PromptLayer]:
     """Build prompt layers from named blocks in canonical priority order.
 
@@ -249,15 +312,17 @@ def build_prompt_layers(
     When ``inject_assistantism_scrub`` is ``True`` (the default), the
     assistantism scrubbing directive is appended to the companion identity
     layer to suppress AI chatbot verbal tics.
+
+    When ``attention_anchors`` is provided, the pre-formatted anchor content
+    (unresolved questions, companion promises, active goals) is appended to
+    the session goals layer.
+
+    When ``token_budget`` is provided, layer content is trimmed proportionally
+    to respect the per-section token allocations.
     """
     memory_layer = make_prompt_layer(PromptLayerName.MEMORY, memory)
-    if (
-        inject_memory_realism
-        and memory_layer is not None
-    ):
-        directives = compose_memory_realism_directives(
-            timescales=memory_timescales,
-        )
+    if inject_memory_realism and memory_layer is not None:
+        directives = compose_memory_realism_directives(timescales=memory_timescales)
         memory_layer = PromptLayer(
             name=PromptLayerName.MEMORY,
             content=f"{memory_layer.content}\n\n{directives}",
@@ -277,7 +342,22 @@ def build_prompt_layers(
                 content=scrub,
             )
 
-    return sorted_prompt_layers(
+    goals_layer = make_prompt_layer(PromptLayerName.SESSION_GOALS, session_goals)
+    if attention_anchors is not None:
+        anchor_text = _coerce_layer_content(attention_anchors)
+        if anchor_text:
+            if goals_layer is not None:
+                goals_layer = PromptLayer(
+                    name=PromptLayerName.SESSION_GOALS,
+                    content=f"{goals_layer.content}\n\n{anchor_text}",
+                )
+            else:
+                goals_layer = PromptLayer(
+                    name=PromptLayerName.SESSION_GOALS,
+                    content=anchor_text,
+                )
+
+    assembled = sorted_prompt_layers(
         (
             make_prompt_layer(PromptLayerName.SAFETY_FLOOR, safety_floor),
             make_prompt_layer(PromptLayerName.PLATFORM_BEHAVIOR, platform_behavior),
@@ -286,9 +366,14 @@ def build_prompt_layers(
             make_prompt_layer(PromptLayerName.ROOM_SCENE, room_scene),
             make_prompt_layer(PromptLayerName.MOOD_STATE, mood_state),
             memory_layer,
-            make_prompt_layer(PromptLayerName.SESSION_GOALS, session_goals),
+            goals_layer,
         )
     )
+
+    if token_budget is not None:
+        assembled = _apply_layer_budgets(assembled, token_budget)
+
+    return assembled
 
 
 def sorted_prompt_layers(
@@ -402,7 +487,7 @@ def _coerce_layer_content(content: Any) -> str:
 
 __all__ = [
     "ASSISTANTISM_SCRUB_DIRECTIVE",
-    "MEMORY_REALISM_DIRECTIVES",
+"MEMORY_REALISM_DIRECTIVES",
     "PROMPT_LAYER_ORDER",
     "PROMPT_LAYER_TITLES",
     "PromptLayer",
