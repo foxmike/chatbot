@@ -20,6 +20,9 @@ interface MessageListProps {
   onStreamComplete?: (message: Message) => void;
   /** Called when a streaming request encounters an error. */
   onStreamError?: (error: Error) => void;
+  debugMode?: boolean;
+  inspectedTurnId?: string | null;
+  onInspectTurnId?: (turnId: string) => void;
 }
 
 export function MessageList({
@@ -30,6 +33,9 @@ export function MessageList({
   streamRequest,
   onStreamComplete,
   onStreamError,
+  debugMode,
+  inspectedTurnId,
+  onInspectTurnId,
 }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -144,6 +150,13 @@ export function MessageList({
           message={message}
           companion={companion}
           user={user}
+          debugMode={debugMode}
+          isInspected={inspectedTurnId === message.turn_id}
+          onInspect={() => {
+            if (message.turn_id && onInspectTurnId) {
+              onInspectTurnId(message.turn_id);
+            }
+          }}
         />
       ))}
 

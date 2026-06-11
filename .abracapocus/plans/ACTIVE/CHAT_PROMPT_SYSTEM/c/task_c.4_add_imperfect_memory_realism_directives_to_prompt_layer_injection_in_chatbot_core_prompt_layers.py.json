@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "task_id": "c.4",
+  "phase": "C",
+  "phase_id": "c",
+  "title": "Add imperfect memory realism directives to prompt layer injection in chatbot/core/prompt_layers.py",
+  "description": "Add imperfect memory realism directives to prompt layer injection in chatbot/core/prompt_layers.py. Define prompt layers that tell the model how to handle uncertainty or absence of details in retrieved memory. Use timescale structuring to segment different memory types.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- chatbot/memory/timescale.py\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/core/prompt_layers.py. Do NOT modify any other file under any circumstance. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/core/prompt_layers.py exists",
+    "python -m py_compile chatbot/core/prompt_layers.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/core/prompt_layers.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/core/prompt_layers.py",
+    "modify active routing/chat pipeline flow"
+  ],
+  "allowed_symbols": [
+    "inject_memory_directives"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "add static realism directive strings",
+      "format sections using memory timescale headers"
+    ],
+    "forbidden": [
+      "rewrite monolithic system prompt assembler entirely"
+    ]
+  },
+  "dependencies": [
+    "c.1"
+  ],
+  "task_timeout_seconds": 900
+}

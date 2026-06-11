@@ -68,6 +68,7 @@ class ChatResponse(BaseModel):
     session_id: str
     response: str
     step_results: list[dict[str, Any]]
+    turn_id: str | None = None
 
 
 chat_router = APIRouter(prefix="/chat")
@@ -189,6 +190,7 @@ async def chat(
             companion_id=db_session.companion_id or companion_id,
             role="user",
             content=body.message,
+            turn_id=ctx.metadata.get("turn_id"),
             created_at=user_msg_ts,
         )
     )
@@ -199,6 +201,7 @@ async def chat(
             companion_id=db_session.companion_id or companion_id,
             role="assistant",
             content=response,
+            turn_id=ctx.metadata.get("turn_id"),
             created_at=assistant_msg_ts,
         )
     )
@@ -216,6 +219,7 @@ async def chat(
         session_id=ctx.session_id,
         response=response,
         step_results=_summarize_step_results(ctx.metadata.get("step_results", [])),
+        turn_id=ctx.metadata.get("turn_id"),
     )
 
 

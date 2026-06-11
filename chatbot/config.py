@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 
 from pydantic import RedisDsn, model_validator
@@ -28,6 +29,7 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434/v1"
     ollama_model: str = ""
     ollama_api_key: str = ""
+    ollama_num_ctx: int = int(os.getenv("OLLAMA_NUM_CTX", "8192"))
 
     task_class_routing_enabled: bool = True
     task_class_default_provider: str = "openrouter"
@@ -47,19 +49,19 @@ class Settings(BaseSettings):
     embedding_model: str = "openai/text-embedding-3-small"
 
     # TTS (Text-to-Speech) Configuration
-    tts_provider: str = "kokoro"
-    tts_model: str = "hexgrad/kokoro-82m"
-    tts_voice: str = "alloy"
-    tts_speed: float = 1.0
-    tts_api_key: str = ""
-    tts_base_url: str = "https://openrouter.ai/api/v1"
+    tts_provider: str = os.getenv("TTS_PROVIDER", "elevenlabs")
+    tts_model: str = os.getenv("TTS_MODEL", "monolingual-v1")
+    tts_voice: str = os.getenv("TTS_VOICE", "")
+    tts_speed: float = float(os.getenv("TTS_SPEED", "1.0"))
+    tts_api_key: str = os.getenv("TTS_API_KEY", "")
+    tts_base_url: str = os.getenv("TTS_BASE_URL", "https://api.elevenlabs.io")
 
     # STT (Speech-to-Text) Configuration
-    stt_provider: str = "deepgram"
-    stt_model: str = "deepgram/nova-2"
-    stt_language: str = "en"
-    stt_api_key: str = ""
-    stt_base_url: str = "https://openrouter.ai/api/v1"
+    stt_provider: str = os.getenv("STT_PROVIDER", "deepgram")
+    stt_model: str = os.getenv("STT_MODEL", "nova-2")
+    stt_language: str = os.getenv("STT_LANGUAGE", "en")
+    stt_api_key: str = os.getenv("STT_API_KEY", "")
+    stt_base_url: str = os.getenv("STT_BASE_URL", "https://api.deepgram.com/v1")
 
     # Image Generation Configuration
     image_generation_provider: str = "openrouter"

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "task_id": "d.6",
+  "phase": "d",
+  "phase_id": "d",
+  "title": "Create pacing control module chatbot/soul/pacing.py",
+  "description": "Create a pacing control system that generates prompt directives based on scene type and conversation momentum.\n\nBefore editing, inspect:\n- chatbot/soul/ directory",
+  "acceptance_criteria": [
+    "chatbot/soul/pacing.py exists and exports momentum and pacing adjustment functions",
+    "python -m py_compile chatbot/soul/pacing.py passes"
+  ],
+  "selected_backend": "antigravity_cli",
+  "model": "Gemini 3.1 Pro (High)",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/soul/pacing.py"
+  ],
+  "forbidden_changes": [
+    "modify existing database structures"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

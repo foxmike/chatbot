@@ -10,6 +10,9 @@ interface ChatMessageProps {
   message: Message;
   companion?: Companion | null;
   user?: User | null;
+  debugMode?: boolean;
+  isInspected?: boolean;
+  onInspect?: () => void;
 }
 
 function MessageAvatar({
@@ -51,14 +54,22 @@ function MessageAvatar({
   );
 }
 
-export function ChatMessage({ message, companion, user }: ChatMessageProps) {
+export function ChatMessage({ message, companion, user, debugMode, isInspected, onInspect }: ChatMessageProps) {
   const isUser = message.role === "user";
   const alignmentClasses = isUser ? "items-end text-right" : "items-start";
   const bubbleClasses = isUser ? "bg-indigo-600" : "bg-gray-700";
   const rowClasses = isUser ? "flex-row-reverse" : "flex-row";
 
+  const isInteractive = debugMode && !isUser;
+  const containerStyle = isInteractive
+    ? `cursor-pointer transition-colors hover:bg-gray-800 rounded-lg p-2 -mx-2 -my-1 ${isInspected ? "border-l-4 border-indigo-500 bg-gray-800" : "border-l-4 border-transparent"}`
+    : "";
+
   return (
-    <div className={`flex w-full gap-2 ${rowClasses}`}>
+    <div 
+      className={`flex w-full gap-2 ${rowClasses} ${containerStyle}`}
+      onClick={isInteractive && onInspect ? onInspect : undefined}
+    >
       <MessageAvatar isUser={isUser} companion={companion} user={user} />
       <div className={`flex min-w-0 flex-col ${alignmentClasses}`}>
         <div

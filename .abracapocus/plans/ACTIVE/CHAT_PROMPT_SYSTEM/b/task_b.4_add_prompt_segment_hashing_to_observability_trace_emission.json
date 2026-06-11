@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "task_id": "b.4",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Add prompt segment hashing to observability trace emission",
+  "description": "Add prompt segment hashing to the observability trace emission in `chatbot/observability/traces.py`.\n\nModify `chatbot/observability/traces.py` to hash prompt segments and record these hashes in the observability traces. This ensures we can trace prompt telemetry and trace composition patterns without logging sensitive user/companion prompt text directly.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- chatbot/observability/traces.py to see how traces are emitted and structured\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/observability/traces.py exists and is a valid Python module",
+    "python -m py_compile chatbot/observability/traces.py passes",
+    "Trace emissions include hashed segments for prompt components",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/observability/traces.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/observability/traces.py",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use standard python hashlib (e.g. md5 or sha256) for hashing prompt segments",
+      "add hash fields to trace objects/payloads"
+    ],
+    "forbidden": [
+      "log raw/unhashed prompt text to the trace stream",
+      "change external API interfaces for telemetry dashboards"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

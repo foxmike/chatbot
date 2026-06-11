@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "task_id": "a.6",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Wire consolidation worker with default LLM provider in chatbot/perf/handlers.py",
+  "description": "Wire the consolidation worker with a default LLM provider in chatbot/perf/handlers.py. Update chatbot/perf/worker.py if needed. Ensure the worker handles missing provider scenarios gracefully without raising errors.\n\nBefore editing, inspect:\n- chatbot/perf/handlers.py\n- chatbot/perf/worker.py",
+  "acceptance_criteria": [
+    "chatbot/perf/handlers.py wires consolidation worker",
+    "python -m py_compile chatbot/perf/handlers.py passes",
+    "python -m py_compile chatbot/perf/worker.py passes"
+  ],
+  "selected_backend": "antigravity_cli",
+  "model": "Gemini 3.1 Pro (High)",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/perf/handlers.py",
+    "chatbot/perf/worker.py"
+  ],
+  "forbidden_changes": [
+    "modify unrelated files",
+    "add new third-party packages to wire LLM provider"
+  ],
+  "dependencies": [
+    "a.5"
+  ],
+  "task_timeout_seconds": 900
+}

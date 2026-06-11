@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "task_id": "d.5",
+  "phase": "d",
+  "phase_id": "d",
+  "title": "Add assistantism scrubber and memory realism directives to prompt layer assembly in chatbot/core/prompt_layers.py",
+  "description": "Add layers/filters to chatbot/core/prompt_layers.py that scrub AI traits ('assistantisms') and formats memory retrieval to feel natural.\n\nBefore editing, inspect:\n- chatbot/core/prompt_layers.py",
+  "acceptance_criteria": [
+    "chatbot/core/prompt_layers.py contains logic/directives for assistantism scrubbing and memory realism",
+    "python -m py_compile chatbot/core/prompt_layers.py passes"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/core/prompt_layers.py"
+  ],
+  "forbidden_changes": [
+    "modify chatbot/soul/persona_prompt.py",
+    "remove existing prompt layers"
+  ],
+  "dependencies": [
+    "d.3",
+    "d.4"
+  ],
+  "task_timeout_seconds": 900
+}

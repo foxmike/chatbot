@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "task_id": "a.5",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Add background worker service to docker-compose.yml",
+  "description": "Configure the background worker service in docker-compose.yml.\n\nBefore editing, inspect:\n- docker-compose.yml",
+  "acceptance_criteria": [
+    "docker-compose.yml contains the background worker service definition"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "docker-compose.yml"
+  ],
+  "forbidden_changes": [
+    "modify unrelated files",
+    "remove existing services from docker-compose.yml"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "task_id": "c.2",
+  "phase": "C",
+  "phase_id": "c",
+  "title": "Create retrieval confidence scoring module chatbot/memory/confidence.py",
+  "description": "Create retrieval confidence scoring module chatbot/memory/confidence.py to compute relevance scores for memories. Low-relevance memories falling below a specified threshold should be dropped/filtered.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/memory/confidence.py. Do NOT modify any other file under any circumstance. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/memory/confidence.py exists",
+    "python -m py_compile chatbot/memory/confidence.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "antigravity_cli",
+  "model": "Gemini 3.1 Pro (High)",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/memory/confidence.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/memory/confidence.py",
+    "add new third-party dependencies"
+  ],
+  "allowed_symbols": [
+    "ConfidenceScorer"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use mathematical formula or thresholding based on vector distances",
+      "support custom relevance criteria in scoring"
+    ],
+    "forbidden": [
+      "load embeddings models directly inside this module"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

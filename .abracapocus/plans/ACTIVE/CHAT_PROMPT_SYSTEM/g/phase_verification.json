@@ -1,0 +1,42 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "compile_telemetry",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/observability/prompt_telemetry.py"
+        ]
+      },
+      {
+        "name": "compile_traces",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/observability/traces.py"
+        ]
+      },
+      {
+        "name": "compile_compressor",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/core/prompt_compressor.py"
+        ]
+      },
+      {
+        "name": "compile_turn",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/core/turn.py"
+        ]
+      }
+    ]
+  }
+}

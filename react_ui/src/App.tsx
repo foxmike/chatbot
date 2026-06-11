@@ -30,6 +30,7 @@ import type { ApiError, CreateSessionResponse, Message, Session } from "./types"
 import type { RoomData, RoomType } from "./api/client";
 import { AdminDashboard } from "./components/AdminDashboard";
 import { AuthScreen } from "./components/AuthScreen";
+import PromptInspector from "./components/PromptInspector";
 import type { Companion, User } from "./api/client";
 import { avatarColorForCompanion, getInitial } from "./utils/avatar";
 
@@ -195,63 +196,6 @@ function CompanionSwitcher({
   );
 }
 
-const ADMIN_PASSWORD = "admin";
-
-function AdminGate() {
-  const [password, setPassword] = useState("");
-  const [authenticated, setAuthenticated] = useState(false);
-  const [error, setError] = useState(false);
-
-  const handleSubmit = () => {
-    if (password === ADMIN_PASSWORD) {
-      setAuthenticated(true);
-      setError(false);
-    } else {
-      setError(true);
-    }
-  };
-
-  if (authenticated) {
-    return <AdminDashboard />;
-  }
-
-  return (
-    <section className="flex h-full items-center justify-center p-4 sm:p-6">
-      <div className="w-full max-w-sm rounded-lg border border-gray-700 bg-gray-800 p-6">
-        <h2 className="text-xl font-semibold text-gray-100">Admin Gate</h2>
-        <p className="mt-2 text-sm text-gray-400">
-          Enter the admin password to access the dashboard.
-        </p>
-        <div className="mt-4 flex flex-col gap-3">
-          <input
-            type="password"
-            value={password}
-            placeholder="Password"
-            className="rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100 placeholder:text-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-            onChange={(e) => {
-              setPassword(e.target.value);
-              setError(false);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleSubmit();
-            }}
-          />
-          <button
-            type="button"
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 focus:ring-offset-gray-900"
-            onClick={handleSubmit}
-          >
-            Enter Admin
-          </button>
-          {error ? (
-            <p className="text-sm text-red-300">Incorrect password.</p>
-          ) : null}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function RoomInfoView({
   room,
   companion,
@@ -323,6 +267,8 @@ export default function App() {
   );
   const [callModeActive, setCallModeActive] = useState(false);
   const [useStreamingChat, setUseStreamingChat] = useState(false);
+  const [debugMode, setDebugMode] = useState(false);
+  const [inspectedTurnId, setInspectedTurnId] = useState<string | null>(null);
   const [streamRequest, setStreamRequest] = useState<{
     sessionId: string;
     message: string;
@@ -489,13 +435,27 @@ export default function App() {
         } else {
           try {
             const response = await sendMessage(text, sessionId, roomId ?? undefined);
-            setMessagesBySession((currentMessages) => ({
-              ...currentMessages,
-              [sessionId]: [
-                ...(currentMessages[sessionId] ?? []),
-                createMessage("assistant", response.response),
-              ],
-            }));
+            setMessagesBySession((currentMessages) => {
+              const currentList = currentMessages[sessionId] ?? [];
+              const updatedList = [...currentList];
+              
+              if (updatedList.length > 0 && updatedList[updatedList.length - 1].role === "user") {
+                updatedList[updatedList.length - 1] = {
+                  ...updatedList[updatedList.length - 1],
+                  turn_id: response.turn_id,
+                };
+              }
+              
+              updatedList.push({
+                ...createMessage("assistant", response.response),
+                turn_id: response.turn_id,
+              });
+              
+              return {
+                ...currentMessages,
+                [sessionId]: updatedList,
+              };
+            });
           } catch (messageError) {
             console.error("Failed to send message", messageError);
             setMessagesBySession((currentMessages) => ({
@@ -548,13 +508,27 @@ export default function App() {
 
     if (!pending) return;
 
-    setMessagesBySession((currentMessages) => ({
-      ...currentMessages,
-      [pending.sessionId]: [
-        ...(currentMessages[pending.sessionId] ?? []),
-        message,
-      ],
-    }));
+    setMessagesBySession((currentMessages) => {
+      const currentList = currentMessages[pending.sessionId] ?? [];
+      const updatedList = [...currentList];
+      
+      if (updatedList.length > 0 && updatedList[updatedList.length - 1].role === "user") {
+        updatedList[updatedList.length - 1] = {
+          ...updatedList[updatedList.length - 1],
+          turn_id: message.turn_id,
+        };
+      }
+      
+      updatedList.push({
+        ...message,
+        turn_id: message.turn_id,
+      });
+      
+      return {
+        ...currentMessages,
+        [pending.sessionId]: updatedList,
+      };
+    });
     setStreamRequest(null);
     pending.resolve();
   };
@@ -682,10 +656,17 @@ export default function App() {
   }
 
   const chatPanel = (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 flex-col relative">
       <AvatarDisplay companion={selectedCompanion} />
+      <button 
+        type="button"
+        className={`absolute top-4 right-4 z-10 px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${debugMode ? "bg-indigo-600 border-indigo-500 text-white" : "bg-gray-800 border-gray-700 text-gray-400 hover:text-gray-200"}`}
+        onClick={() => setDebugMode(!debugMode)}
+      >
+        Debug
+      </button>
       {error ? (
-        <div className="border-b border-red-900/70 bg-red-950/40 p-4">
+        <div className="border-b border-red-900/70 bg-red-950/40 p-4 shrink-0">
           <ChatMessage
             message={createMessage("assistant", error)}
             companion={selectedCompanion}
@@ -694,31 +675,43 @@ export default function App() {
         </div>
       ) : null}
 
-      <MessageList
-        messages={messages}
-        isLoading={isLoading}
-        companion={selectedCompanion}
-        user={user}
-        streamRequest={streamRequest}
-        onStreamComplete={handleStreamComplete}
-        onStreamError={handleStreamError}
-      />
-      <div className="border-t border-gray-700 bg-gray-800 px-4 py-3">
-        <label className="flex items-center gap-3 text-sm font-medium text-gray-200">
-          <input
-            type="checkbox"
-            className="h-4 w-4 rounded border-gray-600 bg-gray-900 text-indigo-600 focus:ring-2 focus:ring-indigo-500"
-            checked={useStreamingChat}
-            disabled={isLoading}
-            onChange={(event) => setUseStreamingChat(event.target.checked)}
+      <div className="flex min-h-0 flex-1">
+        <div className={`flex flex-col min-h-0 ${debugMode ? "w-1/2" : "w-full"}`}>
+          <MessageList
+            messages={messages}
+            isLoading={isLoading}
+            companion={selectedCompanion}
+            user={user}
+            streamRequest={streamRequest}
+            onStreamComplete={handleStreamComplete}
+            onStreamError={handleStreamError}
+            debugMode={debugMode}
+            inspectedTurnId={inspectedTurnId}
+            onInspectTurnId={setInspectedTurnId}
           />
-          <span>Stream responses</span>
-        </label>
+          <div className="border-t border-gray-700 bg-gray-800 px-4 py-3 shrink-0">
+            <label className="flex items-center gap-3 text-sm font-medium text-gray-200">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-gray-600 bg-gray-900 text-indigo-600 focus:ring-2 focus:ring-indigo-500"
+                checked={useStreamingChat}
+                disabled={isLoading}
+                onChange={(event) => setUseStreamingChat(event.target.checked)}
+              />
+              <span>Stream responses</span>
+            </label>
+          </div>
+          <ChatInput
+            onSend={handleSend}
+            disabled={!activeSessionId}
+          />
+        </div>
+        {debugMode && (
+          <div className="w-1/2 h-full min-h-0 border-l border-gray-700 bg-gray-900">
+            <PromptInspector turnId={inspectedTurnId} />
+          </div>
+        )}
       </div>
-      <ChatInput
-        onSend={handleSend}
-        disabled={!activeSessionId}
-      />
     </div>
   );
 
@@ -819,7 +812,7 @@ export default function App() {
             </button>
           </div>
         ),
-        admin: <AdminGate />,
+        admin: <AdminDashboard />,
         }}
       />
     </>

@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "task_id": "c.6",
+  "phase": "C",
+  "phase_id": "c",
+  "title": "Create session-resume delta injection module chatbot/memory/session_delta.py",
+  "description": "Create session-resume delta injection module chatbot/memory/session_delta.py. This module will format a summarized block containing previous context/parameters to quickly resume an existing conversation session.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/memory/session_delta.py. Do NOT modify any other file under any circumstance. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/memory/session_delta.py exists",
+    "python -m py_compile chatbot/memory/session_delta.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "antigravity_cli",
+  "model": "Gemini 3.1 Pro (High)",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/memory/session_delta.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/memory/session_delta.py"
+  ],
+  "allowed_symbols": [
+    "SessionDeltaInjector"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "construct plain text resume summaries of previous parameters",
+      "handle missing or new session parameters gracefully"
+    ],
+    "forbidden": [
+      "modify session database storage schema"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

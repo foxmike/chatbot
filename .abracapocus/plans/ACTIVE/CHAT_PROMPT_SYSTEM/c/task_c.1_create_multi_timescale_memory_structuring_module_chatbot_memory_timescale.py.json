@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "task_id": "c.1",
+  "phase": "C",
+  "phase_id": "c",
+  "title": "Create multi-timescale memory structuring module chatbot/memory/timescale.py",
+  "description": "Create the module chatbot/memory/timescale.py to handle multi-timescale memory structuring. Define a classification system that categorizes retrieved memories into distinct timescales: recent conversational state, stable identity facts, long-term narrative arcs, and active goals.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/memory/timescale.py. Do NOT modify any other file under any circumstance. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/memory/timescale.py exists",
+    "python -m py_compile chatbot/memory/timescale.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/memory/timescale.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/memory/timescale.py",
+    "add new third-party dependencies"
+  ],
+  "allowed_symbols": [
+    "Timescale",
+    "TimescaleMemoryStructurer"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "define timescales using Enum or dataclass structs",
+      "add helper methods to categorize memory entries by age or metadata"
+    ],
+    "forbidden": [
+      "implement database retrieval logic in this module",
+      "import prompt formatting layers directly"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

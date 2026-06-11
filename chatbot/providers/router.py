@@ -118,6 +118,22 @@ class ProviderRouter:
             if name in excluded or not _provider_is_available(provider):
                 unavailable.append(name)
                 continue
+            if name == "ollama" and config is not None:
+                from chatbot.config import get_settings
+                settings = get_settings()
+                if hasattr(config, "extra"):
+                    if config.extra is None:
+                        config.extra = {}
+                    if "options" not in config.extra:
+                        config.extra["options"] = {}
+                    config.extra["options"]["num_ctx"] = settings.ollama_num_ctx
+                elif isinstance(config, dict):
+                    if "extra" not in config:
+                        config["extra"] = {}
+                    if "options" not in config["extra"]:
+                        config["extra"]["options"] = {}
+                    config["extra"]["options"]["num_ctx"] = settings.ollama_num_ctx
+
             return provider
 
         if candidates:

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "task_id": "d.4",
+  "phase": "d",
+  "phase_id": "d",
+  "title": "Create anti-repetition directive generation module chatbot/soul/anti_repetition.py",
+  "description": "Create a module that tracks recent output patterns and outputs prompt directives to enforce vocabulary and structure variety.\n\nBefore editing, inspect:\n- chatbot/soul/ directory structure",
+  "acceptance_criteria": [
+    "chatbot/soul/anti_repetition.py exists and exports anti-repetition logic",
+    "python -m py_compile chatbot/soul/anti_repetition.py passes"
+  ],
+  "selected_backend": "antigravity_cli",
+  "model": "Gemini 3.5 Flash (Medium)",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/soul/anti_repetition.py"
+  ],
+  "forbidden_changes": [
+    "modify existing files in chatbot/soul/"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

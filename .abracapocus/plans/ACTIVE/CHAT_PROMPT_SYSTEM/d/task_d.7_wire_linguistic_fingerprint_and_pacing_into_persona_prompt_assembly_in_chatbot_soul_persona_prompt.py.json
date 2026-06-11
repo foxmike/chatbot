@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "task_id": "d.7",
+  "phase": "d",
+  "phase_id": "d",
+  "title": "Wire linguistic fingerprint and pacing into persona_prompt assembly in chatbot/soul/persona_prompt.py",
+  "description": "Integrate the pacing and linguistic fingerprint systems into chatbot/soul/persona_prompt.py to build the final system/persona prompt.\n\nBefore editing, inspect:\n- chatbot/soul/persona_prompt.py",
+  "acceptance_criteria": [
+    "chatbot/soul/persona_prompt.py references the new fingerprint and pacing systems and adds their directives to prompt assembly",
+    "python -m py_compile chatbot/soul/persona_prompt.py passes"
+  ],
+  "selected_backend": "antigravity_cli",
+  "model": "Gemini 3.5 Flash (Medium)",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/soul/persona_prompt.py"
+  ],
+  "forbidden_changes": [
+    "modify chatbot/core/prompt_layers.py"
+  ],
+  "dependencies": [
+    "d.3",
+    "d.6"
+  ],
+  "task_timeout_seconds": 900
+}

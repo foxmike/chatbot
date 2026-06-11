@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "task_id": "f.2",
+  "phase": "F",
+  "phase_id": "f",
+  "title": "Create voice-vs-text prompt variant adapter chatbot/voice/prompt_adapter.py",
+  "description": "Implement voice-vs-text prompt variant logic that adjusts formatting for TTS output, such as omitting markdown syntax, formatting numbers, or tailoring layout lengths.\n\nBefore editing, inspect:\n- Existing prompt generation modules to align output formatting styles.",
+  "acceptance_criteria": [
+    "chatbot/voice/prompt_adapter.py exists and compiles cleanly",
+    "python -m py_compile chatbot/voice/prompt_adapter.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "antigravity_cli",
+  "model": "Gemini 3.1 Pro (High)",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/voice/prompt_adapter.py"
+  ],
+  "forbidden_changes": [
+    "modify unrelated files",
+    "modify chatbot/core/mode_contracts.py"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

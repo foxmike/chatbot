@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "task_id": "f.3",
+  "phase": "F",
+  "phase_id": "f",
+  "title": "Create temperature and sampling profile module chatbot/providers/sampling.py",
+  "description": "Create temperature and sampling profile configurations per model family and per conversation mode. Allow retrieving sampling settings based on model + mode.\n\nBefore editing, inspect:\n- provider client initialization code to see how model families are classified.",
+  "acceptance_criteria": [
+    "chatbot/providers/sampling.py exists and compiles cleanly",
+    "python -m py_compile chatbot/providers/sampling.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "antigravity_cli",
+  "model": "Gemini 3.1 Pro (High)",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/providers/sampling.py"
+  ],
+  "forbidden_changes": [
+    "modify unrelated files"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

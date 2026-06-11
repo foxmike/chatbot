@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "task_id": "g.3",
+  "phase": "g",
+  "phase_id": "g",
+  "title": "Create prompt compression module for small-context models chatbot/core/prompt_compressor.py",
+  "description": "Create a prompt compression module for small-context local models in chatbot/core/prompt_compressor.py. The module should summarize or prioritize prompt sections to fit within constrained windows.\n\nBefore editing, inspect:\n- chatbot/core/turn.py",
+  "acceptance_criteria": [
+    "chatbot/core/prompt_compressor.py exists and compiles cleanly",
+    "python -m py_compile chatbot/core/prompt_compressor.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "antigravity_cli",
+  "model": "Gemini 3.5 Flash (Medium)",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/core/prompt_compressor.py"
+  ],
+  "forbidden_changes": [
+    "modify files outside chatbot/core/prompt_compressor.py"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

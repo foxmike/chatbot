@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "task_id": "b.1",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Create deterministic prompt layer ordering module chatbot/core/prompt_layers.py",
+  "description": "Create the prompt layers module `chatbot/core/prompt_layers.py`.\n\nThis module must define a deterministic composition and prioritization of system prompt layers. The composing pipeline should stack prompt blocks in the following order (from general safety to dynamic turn-level details):\n1. Safety Floor\n2. Platform Behavior\n3. Companion Identity\n4. Relationship Stage\n5. Room/Scene\n6. Mood/State\n7. Memory\n8. Session Goals\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- chatbot/core/ (if any existing modules) for import conventions and prompt handling\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/core/prompt_layers.py exists and is a valid Python module",
+    "python -m py_compile chatbot/core/prompt_layers.py passes",
+    "Prompt composition compiles system prompts in safety -> session goals priority order",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/core/prompt_layers.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/core/prompt_layers.py",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "define helper dataclasses or Pydantic models for prompt blocks",
+      "add unit tests specifically for prompt_layers module if needed"
+    ],
+    "forbidden": [
+      "modify turn execution flow outside prompt_layers.py",
+      "introduce external formatting libraries"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

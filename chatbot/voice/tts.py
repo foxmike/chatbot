@@ -12,14 +12,6 @@ from chatbot.voice.base import TTSProvider, VoiceSynthesisRequest, VoiceSynthesi
 from chatbot.voice.cadence import CadenceMapper, CadenceProfile
 
 
-_VALID_TTS_IDENTIFIERS = frozenset(
-    {
-        ("kokoro", "kokoro-82m"),
-        ("kokoro", "hexgrad/kokoro-82m"),
-        ("elevenlabs", "monolingual-v1"),
-    }
-)
-
 
 class TTSAdapter(TTSProvider):
     """Provider-neutral TTS adapter that applies mood/mode cadence."""
@@ -35,9 +27,6 @@ class TTSAdapter(TTSProvider):
         timeout_seconds: float = 60.0,
         cadence_mapper: CadenceMapper | None = None,
     ) -> None:
-        if not self.validate_identifier(provider_id, model_id):
-            raise ValueError(f"unsupported TTS provider/model pair: {provider_id}/{model_id}")
-
         self.provider_id = provider_id
         self.model_id = model_id
         self.params: dict[str, Any] = dict(params or {})
@@ -65,10 +54,6 @@ class TTSAdapter(TTSProvider):
             duration_ms=0.0,
             format=request.format,
         )
-
-    @classmethod
-    def validate_identifier(cls, provider_id: str, model_id: str) -> bool:
-        return (provider_id, model_id) in _VALID_TTS_IDENTIFIERS
 
     def _raise_if_voice_disabled(self, voice_params: Mapping[str, Any]) -> None:
         for source in (
@@ -135,6 +120,10 @@ class TTSAdapter(TTSProvider):
         voice = _preference_value(request.voice_params, "voice")
         if voice is None:
             voice = _preference_value(request.voice_params, "voice_id")
+        if voice is None:
+            voice = _preference_value(self.params, "voice")
+        if voice is None:
+            voice = _preference_value(self.params, "voice_id")
         if voice is not None:
             payload["voice"] = voice
 
@@ -145,6 +134,8 @@ class TTSAdapter(TTSProvider):
         provider = payload.get("provider", "")
 
         if provider == "kokoro":
+            return await self._call_openai_compatible_tts(payload)
+        if provider == "openrouter":
             return await self._call_openai_compatible_tts(payload)
         if provider == "elevenlabs":
             return await self._call_elevenlabs_tts(payload)

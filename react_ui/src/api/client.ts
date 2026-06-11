@@ -561,6 +561,7 @@ export function getSessionMessages(sessionId: string): Promise<Message[]> {
       role: string;
       content: string;
       created_at: string;
+      turn_id?: string;
     }>
   >(`/api/sessions/${sessionId}/messages`, {
     method: "GET",
@@ -572,6 +573,7 @@ export function getSessionMessages(sessionId: string): Promise<Message[]> {
         role: message.role as Message["role"],
         content: message.content,
         timestamp: message.created_at,
+        turn_id: message.turn_id,
       })),
   );
 }
@@ -1653,6 +1655,7 @@ export interface TraceDetail {
   userId: string | null;
   modelProvider: string | null;
   prompt: string;
+  rawResponse: string;
   routingDecision: Record<string, unknown>;
   retrievalSnippets: string[];
   steps: Record<string, unknown>[];
@@ -1743,6 +1746,12 @@ export function fetchTraces(
 
 export function fetchTraceDetail(traceId: string): Promise<TraceDetail> {
   return requestJson<TraceDetail>(`/admin/traces/${traceId}`, {
+    method: "GET",
+  });
+}
+
+export function fetchTraceByTurn(turnId: string): Promise<TraceDetail> {
+  return requestJson<TraceDetail>(`/admin/traces/by-turn/${turnId}`, {
     method: "GET",
   });
 }

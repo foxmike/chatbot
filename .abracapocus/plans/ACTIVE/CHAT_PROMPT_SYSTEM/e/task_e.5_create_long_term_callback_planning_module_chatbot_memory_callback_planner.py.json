@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "task_id": "e.5",
+  "phase": "E",
+  "phase_id": "e",
+  "title": "Create long-term callback planning module chatbot/memory/callback_planner.py",
+  "description": "Create chatbot/memory/callback_planner.py to implement a long-term callback planning mechanism. This allows companions to register, queue, and retrieve topics to raise in future conversations.\n\nBefore editing, inspect:\n- chatbot/memory/ to ensure consistency with existing memory modules.",
+  "acceptance_criteria": [
+    "chatbot/memory/callback_planner.py exists and imports cleanly",
+    "python -m py_compile chatbot/memory/callback_planner.py passes",
+    "The module exposes functions or classes to schedule and retrieve future callback topics"
+  ],
+  "selected_backend": "antigravity_cli",
+  "model": "Gemini 3.1 Pro (High)",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/memory/callback_planner.py"
+  ],
+  "forbidden_changes": [
+    "modify existing database structures without backward-compatibility layers"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

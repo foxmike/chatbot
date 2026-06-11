@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "task_id": "g.1",
+  "phase": "g",
+  "phase_id": "g",
+  "title": "Create prompt effectiveness telemetry module chatbot/observability/prompt_telemetry.py",
+  "description": "Implement the prompt effectiveness telemetry module in chatbot/observability/prompt_telemetry.py. This module logs which prompt template, model, mode, and formatter combo produced each response.\n\nBefore editing, inspect:\n- chatbot/observability/traces.py",
+  "acceptance_criteria": [
+    "chatbot/observability/prompt_telemetry.py exists and imports cleanly",
+    "python -m py_compile chatbot/observability/prompt_telemetry.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "antigravity_cli",
+  "model": "Gemini 3.1 Pro (High)",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/observability/prompt_telemetry.py"
+  ],
+  "forbidden_changes": [
+    "modify files outside chatbot/observability/prompt_telemetry.py"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

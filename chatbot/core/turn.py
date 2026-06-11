@@ -1328,6 +1328,10 @@ async def _complete_turn_trace(ctx: TurnContext, trace_id: str | None) -> None:
     model_id = _trace_model_id(ctx)
 
     try:
+        trace = getattr(trace_collector, "_traces_by_id", {}).get(trace_id)
+        if trace is not None:
+            trace.raw_response = str(ctx.provider_response or ctx.final_response or "")
+
         trace_record = await trace_collector.complete_trace(
             trace_id,
             model_provider,

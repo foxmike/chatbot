@@ -248,6 +248,7 @@ async def _stream_turn(
             current_user=current_user,
             user_message=request.message,
             assistant_message=response,
+            turn_id=ctx.metadata.get("turn_id"),
         )
 
         _maybe_schedule_title_generation(
@@ -264,7 +265,7 @@ async def _stream_turn(
             _generate_message_embeddings,
         )
 
-        yield _sse_data({"type": "response", "text": response})
+        yield _sse_data({"type": "response", "text": response, "turn_id": ctx.metadata.get("turn_id")})
 
         await _run_post_stream_db_write(
             ctx,
@@ -537,6 +538,7 @@ async def _persist_messages(
     current_user: CurrentUser,
     user_message: str,
     assistant_message: str,
+    turn_id: str | None = None,
 ) -> None:
     user_uuid = uuid.UUID(current_user.user_id)
     user_msg_ts = datetime.now(timezone.utc)
@@ -550,6 +552,7 @@ async def _persist_messages(
                 companion_id=companion_id,
                 role="user",
                 content=user_message,
+                turn_id=turn_id,
                 created_at=user_msg_ts,
             )
         )
@@ -560,6 +563,7 @@ async def _persist_messages(
                 companion_id=companion_id,
                 role="assistant",
                 content=assistant_message,
+                turn_id=turn_id,
                 created_at=assistant_msg_ts,
             )
         )
@@ -721,6 +725,7 @@ def _maybe_schedule_title_generation(
     session_title: str | None,
     user_message: str,
     assistant_message: str,
+    turn_id: str | None = None,
 ) -> None:
     """Schedule background title generation if the session has no title yet."""
     if session_title is not None:
@@ -770,6 +775,7 @@ async def _generate_conversation_title(
     session_id: uuid.UUID,
     user_message: str,
     assistant_message: str,
+    turn_id: str | None = None,
 ) -> None:
     """Generate a short conversation title using the LLM (runs in background)."""
     try:

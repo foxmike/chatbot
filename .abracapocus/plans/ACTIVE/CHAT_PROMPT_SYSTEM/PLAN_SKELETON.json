@@ -1,0 +1,341 @@
+{
+  "plan_name": "CHATBOT_PROMPT_SYSTEM",
+  "purpose": "Wire up memory infrastructure (embeddings, retrieval, background worker, structured logger), then build a modular prompt assembly system with deterministic layer ordering, per-model formatting, intent classification, dynamic token budgeting, companion personality enhancement, mode-aware routing, and prompt observability telemetry. Transforms the current monolithic PersonaPromptAssembler into a layered, model-aware, scene-adaptive prompt engine while preserving all existing chat pipeline behavior.",
+  "async_strategy": "Phases run sequentially (a through g). Within each phase, tasks with disjoint allowed_write_paths run in parallel waves as described per-phase in async_notes. Shared fan-in files (chatbot/core/turn.py, chatbot/api/chat.py, chatbot/api/streaming.py, chatbot/config.py, chatbot/db/models.py, react_ui/src/App.tsx) are serialized via dependencies.",
+  "cost_estimate": "medium-high",
+  "operator_questions": [],
+  "phases": [
+    {
+      "phase_id": "a",
+      "goal": "Activate memory infrastructure: configure embedding provider, wire retrieval_engine into TurnContext for both chat and streaming endpoints, add background worker service to docker-compose, wire consolidation worker with a default LLM provider, and wire structured_logger event emission into the pipeline so the admin Logs tab populates.",
+      "expected_changed_files": [
+        "chatbot/config.py",
+        "chatbot/providers/bootstrap.py",
+        "chatbot/api/chat.py",
+        "chatbot/api/streaming.py",
+        "chatbot/core/turn.py",
+        "chatbot/observability/logs.py",
+        "chatbot/perf/worker.py",
+        "chatbot/perf/handlers.py",
+        "docker-compose.yml"
+      ],
+      "async_notes": "Wave 1: a.1 (config.py), a.5 (docker-compose.yml), a.7 (observability/logs.py) — disjoint files. Wave 2: a.2 (bootstrap.py) depends on a.1. a.6 (perf/handlers.py + perf/worker.py) depends on a.5. Wave 3: a.3 (chat.py) and a.4 (streaming.py) depend on a.2 — disjoint files, can run in parallel. a.3 also touches turn.py so serialize a.3 before a.4 if both touch turn.py; if only a.3 touches turn.py they can parallelize.",
+      "risk_notes": "chat.py and streaming.py are critical path files. Retrieval wiring must not break existing chat flow when no embeddings exist yet. Consolidation worker must gracefully no-op when provider is unavailable.",
+      "estimated_task_count": 7,
+      "task_hints": [
+        {
+          "title": "Add embedding provider and model config to chatbot/config.py",
+          "selected_backend": "pi_cli",
+          "model": "openrouter/deepseek/deepseek-v4-pro"
+        },
+        {
+          "title": "Initialize embedding provider in chatbot/providers/bootstrap.py",
+          "selected_backend": "pi_cli",
+          "model": "openrouter/deepseek/deepseek-v4-pro"
+        },
+        {
+          "title": "Wire retrieval_engine into TurnContext in chatbot/api/chat.py",
+          "selected_backend": "antigravity_cli",
+          "model": "Gemini 3.5 Flash (Medium)"
+        },
+        {
+          "title": "Wire retrieval_engine into TurnContext in chatbot/api/streaming.py",
+          "selected_backend": "antigravity_cli",
+          "model": "Gemini 3.5 Flash (Medium)"
+        },
+        {
+          "title": "Add background worker service to docker-compose.yml",
+          "selected_backend": "pi_cli",
+          "model": "openrouter/deepseek/deepseek-v4-pro"
+        },
+        {
+          "title": "Wire consolidation worker with default LLM provider in chatbot/perf/handlers.py",
+          "selected_backend": "antigravity_cli",
+          "model": "Gemini 3.1 Pro (High)"
+        },
+        {
+          "title": "Wire structured_logger event emission into pipeline for admin Logs tab",
+          "selected_backend": "antigravity_cli",
+          "model": "Gemini 3.1 Pro (High)"
+        }
+      ]
+    },
+    {
+      "phase_id": "b",
+      "goal": "Build prompt architecture foundation: create a deterministic prompt layer ordering module that composes system prompts from prioritized blocks (safety floor, platform behavior, companion identity, relationship stage, room/scene, mood/state, memory, session goals), create a per-model prompt formatter that selects formatting strategy by model family, create an intent classifier that categorizes user messages before prompt assembly, add prompt segment hashing to observability traces, and wire both new modules into the compile_context and call_provider pipeline steps.",
+      "expected_changed_files": [
+        "chatbot/core/prompt_layers.py",
+        "chatbot/core/prompt_formatter.py",
+        "chatbot/core/intent_classifier.py",
+        "chatbot/core/turn.py",
+        "chatbot/core/steps.py",
+        "chatbot/observability/traces.py"
+      ],
+      "async_notes": "Wave 1: b.1 (prompt_layers.py), b.2 (prompt_formatter.py), b.3 (intent_classifier.py) — all new files, fully disjoint. Wave 2: b.4 (observability/traces.py) can run in parallel with Wave 1. Wave 3: b.5 (turn.py + steps.py wiring) depends on b.1, b.2, b.3. b.6 depends on b.5 — serialize b.5 before b.6 since both may touch turn.py.",
+      "risk_notes": "turn.py is the pipeline core — wiring must preserve existing step execution order. Prompt formatter must gracefully fall back to current behavior for unknown model families.",
+      "estimated_task_count": 6,
+      "task_hints": [
+        {
+          "title": "Create deterministic prompt layer ordering module chatbot/core/prompt_layers.py",
+          "selected_backend": "codex_cli"
+        },
+        {
+          "title": "Create per-model prompt formatter module chatbot/core/prompt_formatter.py",
+          "selected_backend": "codex_cli"
+        },
+        {
+          "title": "Create intent classifier module chatbot/core/intent_classifier.py",
+          "selected_backend": "antigravity_cli",
+          "model": "Gemini 3.5 Flash (Medium)"
+        },
+        {
+          "title": "Add prompt segment hashing to observability trace emission",
+          "selected_backend": "pi_cli",
+          "model": "openrouter/deepseek/deepseek-v4-pro"
+        },
+        {
+          "title": "Wire prompt_layers and intent_classifier into compile_context step in turn.py",
+          "selected_backend": "claude_code_cli",
+          "model": "sonnet"
+        },
+        {
+          "title": "Wire prompt_formatter into call_provider step in turn.py",
+          "selected_backend": "codex_cli"
+        }
+      ]
+    },
+    {
+      "phase_id": "c",
+      "goal": "Build memory-aware prompting features on top of the retrieval engine wired in phase a and the prompt layer system built in phase b. Create multi-timescale memory structuring that separates retrieved memories into recent conversational state, stable identity facts, long-term narrative arcs, and active goals. Add retrieval confidence scoring so low-relevance memories are dropped. Add contradiction-aware recency tagging. Add imperfect memory realism directives. Add narrative gravity weighting for emotionally salient events. Create a session-resume delta injection block.",
+      "expected_changed_files": [
+        "chatbot/memory/retrieval.py",
+        "chatbot/memory/timescale.py",
+        "chatbot/memory/confidence.py",
+        "chatbot/memory/narrative_gravity.py",
+        "chatbot/memory/session_delta.py",
+        "chatbot/core/prompt_layers.py"
+      ],
+      "async_notes": "Wave 1: c.1 (timescale.py), c.2 (confidence.py), c.5 (narrative_gravity.py), c.6 (session_delta.py) — all new files, disjoint. Wave 2: c.3 (retrieval.py) depends on c.1 and c.2 to integrate scoring and timescale structuring. c.4 (prompt_layers.py) depends on c.1 for timescale-aware injection format and can run in parallel with c.3 since different files.",
+      "risk_notes": "retrieval.py modifications must not break existing retrieval path when embeddings are absent. Confidence scoring must gracefully pass through all memories when scoring is unavailable.",
+      "estimated_task_count": 6,
+      "task_hints": [
+        {
+          "title": "Create multi-timescale memory structuring module chatbot/memory/timescale.py",
+          "selected_backend": "codex_cli"
+        },
+        {
+          "title": "Create retrieval confidence scoring module chatbot/memory/confidence.py",
+          "selected_backend": "antigravity_cli",
+          "model": "Gemini 3.1 Pro (High)"
+        },
+        {
+          "title": "Wire contradiction-aware recency tagging into chatbot/memory/retrieval.py",
+          "selected_backend": "antigravity_cli",
+          "model": "Gemini 3.1 Pro (High)"
+        },
+        {
+          "title": "Add imperfect memory realism directives to prompt layer injection in chatbot/core/prompt_layers.py",
+          "selected_backend": "pi_cli",
+          "model": "openrouter/deepseek/deepseek-v4-pro"
+        },
+        {
+          "title": "Create narrative gravity weighting module chatbot/memory/narrative_gravity.py",
+          "selected_backend": "antigravity_cli",
+          "model": "Gemini 3.1 Pro (High)"
+        },
+        {
+          "title": "Create session-resume delta injection module chatbot/memory/session_delta.py",
+          "selected_backend": "antigravity_cli",
+          "model": "Gemini 3.1 Pro (High)"
+        }
+      ]
+    },
+    {
+      "phase_id": "d",
+      "goal": "Enhance companion personality in prompts. Add linguistic_fingerprint structured columns to the Companion model (punctuation_habits, sentence_length_profile, emoji_style, vocabulary_density, slang_profile). Create Alembic migration. Build a linguistic fingerprint injection module that converts fingerprint data into concrete prompt directives. Add anti-repetition directive generation that tracks recent output patterns. Add assistantism scrubber directives that suppress corporate AI tone. Add a pacing control system driven by scene type and conversation momentum. Add adaptive verbosity tracking as a user-level preference. Wire fingerprint fields into the CompanionEditor UI.",
+      "expected_changed_files": [
+        "chatbot/db/models.py",
+        "migrations/versions/NNNN_add_linguistic_fingerprint.py",
+        "chatbot/soul/linguistic_fingerprint.py",
+        "chatbot/soul/anti_repetition.py",
+        "chatbot/soul/pacing.py",
+        "chatbot/soul/persona_prompt.py",
+        "chatbot/core/prompt_layers.py",
+        "react_ui/src/components/CompanionEditor.tsx"
+      ],
+      "async_notes": "Wave 1: d.1 (models.py), d.3 (linguistic_fingerprint.py), d.4 (anti_repetition.py), d.6 (pacing.py) — d.3, d.4, d.6 are new files. d.1 touches models.py only. Wave 2: d.2 (migration) depends on d.1. d.5 (prompt_layers.py) depends on d.3 and d.4. d.7 (persona_prompt.py) depends on d.3. Wave 3: d.8 (CompanionEditor.tsx) depends on d.1 and d.2 for schema awareness.",
+      "risk_notes": "models.py is a shared file — only d.1 writes it in this phase. Migration must be additive only (new nullable columns). CompanionEditor.tsx is a complex existing component.",
+      "estimated_task_count": 8,
+      "task_hints": [
+        {
+          "title": "Add linguistic_fingerprint and adaptive_verbosity columns to Companion and User models in chatbot/db/models.py",
+          "selected_backend": "pi_cli",
+          "model": "openrouter/deepseek/deepseek-v4-pro"
+        },
+        {
+          "title": "Create Alembic migration for linguistic fingerprint and adaptive verbosity fields",
+          "selected_backend": "pi_cli",
+          "model": "openrouter/deepseek/deepseek-v4-pro"
+        },
+        {
+          "title": "Create linguistic fingerprint injection module chatbot/soul/linguistic_fingerprint.py",
+          "selected_backend": "antigravity_cli",
+          "model": "Gemini 3.5 Flash (Medium)"
+        },
+        {
+          "title": "Create anti-repetition directive generation module chatbot/soul/anti_repetition.py",
+          "selected_backend": "antigravity_cli",
+          "model": "Gemini 3.5 Flash (Medium)"
+        },
+        {
+          "title": "Add assistantism scrubber and memory realism directives to prompt layer assembly in chatbot/core/prompt_layers.py",
+          "selected_backend": "pi_cli",
+          "model": "openrouter/deepseek/deepseek-v4-pro"
+        },
+        {
+          "title": "Create pacing control module chatbot/soul/pacing.py",
+          "selected_backend": "antigravity_cli",
+          "model": "Gemini 3.1 Pro (High)"
+        },
+        {
+          "title": "Wire linguistic fingerprint and pacing into persona_prompt assembly in chatbot/soul/persona_prompt.py",
+          "selected_backend": "antigravity_cli",
+          "model": "Gemini 3.5 Flash (Medium)"
+        },
+        {
+          "title": "Add linguistic fingerprint and verbosity fields to CompanionEditor UI",
+          "selected_backend": "codex_cli"
+        }
+      ]
+    },
+    {
+      "phase_id": "e",
+      "goal": "Build context and scene intelligence features. Create a dynamic token budget calculator that allocates context window across persona, memory, history, and scene based on model window size and content relevance. Wire token budgeting into the prompt layer system. Add relationship-stage-aware prompting that adapts prompt framing based on relationship depth (new acquaintance vs established bond vs intimate). Create an attention anchoring system that tracks and injects unresolved questions, companion promises, and active user goals. Add a long-term callback planning mechanism so companions can flag topics to raise later. Add contextual short response permission logic.",
+      "expected_changed_files": [
+        "chatbot/core/token_budget.py",
+        "chatbot/core/prompt_layers.py",
+        "chatbot/soul/relationship.py",
+        "chatbot/core/attention_anchor.py",
+        "chatbot/memory/callback_planner.py",
+        "chatbot/core/steps.py"
+      ],
+      "async_notes": "Wave 1: e.1 (token_budget.py), e.3 (relationship.py), e.4 (attention_anchor.py), e.5 (callback_planner.py) — all disjoint. e.6 can run in Wave 1 since it creates new logic in steps.py not touching token budget or attention files. Wave 2: e.2 (prompt_layers.py) depends on e.1 for budget integration and must also account for e.4 attention anchoring output format.",
+      "risk_notes": "prompt_layers.py is modified in phases c and d — phase e modifications must be additive. relationship.py already exists; modifications must preserve existing RelationshipConfig behavior.",
+      "estimated_task_count": 6,
+      "task_hints": [
+        {
+          "title": "Create dynamic token budget calculator module chatbot/core/token_budget.py",
+          "selected_backend": "codex_cli"
+        },
+        {
+          "title": "Wire token budgeting into prompt layer assembly in chatbot/core/prompt_layers.py",
+          "selected_backend": "claude_code_cli",
+          "model": "sonnet"
+        },
+        {
+          "title": "Add relationship-stage-aware prompt framing to chatbot/soul/relationship.py",
+          "selected_backend": "antigravity_cli",
+          "model": "Gemini 3.1 Pro (High)"
+        },
+        {
+          "title": "Create attention anchoring system module chatbot/core/attention_anchor.py",
+          "selected_backend": "antigravity_cli",
+          "model": "Gemini 3.5 Flash (Medium)"
+        },
+        {
+          "title": "Create long-term callback planning module chatbot/memory/callback_planner.py",
+          "selected_backend": "antigravity_cli",
+          "model": "Gemini 3.1 Pro (High)"
+        },
+        {
+          "title": "Add contextual short response permission logic to compile_context step in chatbot/core/steps.py",
+          "selected_backend": "pi_cli",
+          "model": "openrouter/deepseek/deepseek-v4-pro"
+        }
+      ]
+    },
+    {
+      "phase_id": "f",
+      "goal": "Build mode and platform routing features. Create per-mode response contracts that define behavioral specs for distinct conversation modes (bedtime, advisor, deep_talk, roleplay, brainstorming, companion) including tone, length, pacing, and active prompt sections. Create voice-vs-text prompt variant logic that adjusts formatting for TTS output. Create temperature and sampling profile configuration per model family and per mode. Wire fast-path vs deep-path routing that uses intent classification from phase b to select lightweight or heavy prompt assembly. Wire mode contracts into room type configuration.",
+      "expected_changed_files": [
+        "chatbot/core/mode_contracts.py",
+        "chatbot/voice/prompt_adapter.py",
+        "chatbot/providers/sampling.py",
+        "chatbot/core/turn.py",
+        "chatbot/core/prompt_layers.py",
+        "chatbot/api/rooms.py"
+      ],
+      "async_notes": "Wave 1: f.1 (mode_contracts.py), f.2 (voice/prompt_adapter.py), f.3 (providers/sampling.py) — all new files, disjoint. Wave 2: f.4 (turn.py) depends on f.1 and f.3 for fast/deep routing. f.5 (rooms.py) depends on f.1 for mode contract integration. Wave 3: f.4 must complete before any further turn.py modifications.",
+      "risk_notes": "turn.py is the pipeline core — routing changes must preserve backward compatibility. Sampling profiles must not override explicit user temperature settings if they exist.",
+      "estimated_task_count": 5,
+      "task_hints": [
+        {
+          "title": "Create per-mode response contracts module chatbot/core/mode_contracts.py",
+          "selected_backend": "antigravity_cli",
+          "model": "Gemini 3.5 Flash (Medium)"
+        },
+        {
+          "title": "Create voice-vs-text prompt variant adapter chatbot/voice/prompt_adapter.py",
+          "selected_backend": "antigravity_cli",
+          "model": "Gemini 3.1 Pro (High)"
+        },
+        {
+          "title": "Create temperature and sampling profile module chatbot/providers/sampling.py",
+          "selected_backend": "antigravity_cli",
+          "model": "Gemini 3.1 Pro (High)"
+        },
+        {
+          "title": "Wire fast-path vs deep-path routing and sampling profiles into turn.py pipeline",
+          "selected_backend": "claude_code_cli",
+          "model": "sonnet"
+        },
+        {
+          "title": "Wire mode contracts into room type configuration in chatbot/api/rooms.py",
+          "selected_backend": "pi_cli",
+          "model": "openrouter/deepseek/deepseek-v4-pro"
+        }
+      ]
+    },
+    {
+      "phase_id": "g",
+      "goal": "Add prompt observability and telemetry. Create a prompt effectiveness telemetry module that logs which prompt template, model, mode, and formatter combo produced each response. Wire telemetry into existing observability trace emission. Create a prompt compression module for small-context local models that summarizes or prioritizes prompt sections to fit within constrained windows. Update ARCHITECTURE.md and OPERATIONS.md to document the new prompt system, its configuration, and operational procedures.",
+      "expected_changed_files": [
+        "chatbot/observability/prompt_telemetry.py",
+        "chatbot/observability/traces.py",
+        "chatbot/core/prompt_compressor.py",
+        "chatbot/core/turn.py",
+        "docs/ARCHITECTURE.md",
+        "docs/OPERATIONS.md"
+      ],
+      "async_notes": "Wave 1: g.1 (prompt_telemetry.py), g.3 (prompt_compressor.py) — new files, disjoint. Wave 2: g.2 (traces.py + turn.py) depends on g.1. Wave 3: g.4 (ARCHITECTURE.md) and g.5 (OPERATIONS.md) depend on all implementation tasks completing. g.4 and g.5 are disjoint and can run in parallel.",
+      "risk_notes": "turn.py is modified again — must be additive to phase b and f changes. Documentation tasks need extended timeout since they require reading multiple source files.",
+      "estimated_task_count": 5,
+      "task_hints": [
+        {
+          "title": "Create prompt effectiveness telemetry module chatbot/observability/prompt_telemetry.py",
+          "selected_backend": "antigravity_cli",
+          "model": "Gemini 3.1 Pro (High)"
+        },
+        {
+          "title": "Wire prompt telemetry into observability trace emission in chatbot/observability/traces.py and chatbot/core/turn.py",
+          "selected_backend": "codex_cli"
+        },
+        {
+          "title": "Create prompt compression module for small-context models chatbot/core/prompt_compressor.py",
+          "selected_backend": "antigravity_cli",
+          "model": "Gemini 3.5 Flash (Medium)"
+        },
+        {
+          "title": "Update docs/ARCHITECTURE.md with prompt system documentation",
+          "selected_backend": "opencode_cli",
+          "model": "openrouter/google/gemma-4-31b-it"
+        },
+        {
+          "title": "Update docs/OPERATIONS.md with prompt configuration and operational procedures",
+          "selected_backend": "opencode_cli",
+          "model": "openrouter/google/gemma-4-31b-it"
+        }
+      ]
+    }
+  ]
+}

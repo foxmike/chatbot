@@ -1,0 +1,206 @@
+# Plan Review Report
+
+Plan directory: /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM
+
+## Warnings
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/a/task_a.1_add_embedding_provider_and_model_config_to_chatbot_config.py.json] allowed_write_paths entry 'chatbot/config.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/a/task_a.2_initialize_embedding_provider_in_chatbot_providers_bootstrap.py.json] allowed_write_paths entry 'chatbot/providers/bootstrap.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/a/task_a.3_wire_retrieval_engine_into_turncontext_in_chatbot_api_chat.py.json] allowed_write_paths entry 'chatbot/api/chat.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/a/task_a.3_wire_retrieval_engine_into_turncontext_in_chatbot_api_chat.py.json] allowed_write_paths entry 'chatbot/core/turn.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/a/task_a.4_wire_retrieval_engine_into_turncontext_in_chatbot_api_streaming.py.json] allowed_write_paths entry 'chatbot/api/streaming.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/a/task_a.5_add_background_worker_service_to_docker_compose.yml.json] allowed_write_paths entry 'docker-compose.yml' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/a/task_a.6_wire_consolidation_worker_with_default_llm_provider_in_chatbot_perf_handlers.py.json] allowed_write_paths entry 'chatbot/perf/handlers.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/a/task_a.6_wire_consolidation_worker_with_default_llm_provider_in_chatbot_perf_handlers.py.json] allowed_write_paths entry 'chatbot/perf/worker.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/a/task_a.7_wire_structured_logger_event_emission_into_pipeline_for_admin_logs_tab.json] allowed_write_paths entry 'chatbot/observability/logs.py' does not exist in working root
+- Task 'a.2' depends on 'a.1' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'a.3' depends on 'a.2' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'a.4' depends on 'a.3' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'a.6' depends on 'a.5' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/b/task_b.1_create_deterministic_prompt_layer_ordering_module_chatbot_core_prompt_layers.py.json] allowed_write_paths entry 'chatbot/core/prompt_layers.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/b/task_b.1_create_deterministic_prompt_layer_ordering_module_chatbot_core_prompt_layers.py.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/b/task_b.2_create_per_model_prompt_formatter_module_chatbot_core_prompt_formatter.py.json] allowed_write_paths entry 'chatbot/core/prompt_formatter.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/b/task_b.2_create_per_model_prompt_formatter_module_chatbot_core_prompt_formatter.py.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/b/task_b.3_create_intent_classifier_module_chatbot_core_intent_classifier.py.json] allowed_write_paths entry 'chatbot/core/intent_classifier.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/b/task_b.3_create_intent_classifier_module_chatbot_core_intent_classifier.py.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/b/task_b.4_add_prompt_segment_hashing_to_observability_trace_emission.json] allowed_write_paths entry 'chatbot/observability/traces.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/b/task_b.4_add_prompt_segment_hashing_to_observability_trace_emission.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/b/task_b.5_wire_prompt_layers_and_intent_classifier_into_compile_context_step_in_turn.py.json] allowed_write_paths entry 'chatbot/core/turn.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/b/task_b.5_wire_prompt_layers_and_intent_classifier_into_compile_context_step_in_turn.py.json] allowed_write_paths entry 'chatbot/core/steps.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/b/task_b.5_wire_prompt_layers_and_intent_classifier_into_compile_context_step_in_turn.py.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/b/task_b.6_wire_prompt_formatter_into_call_provider_step_in_turn.py.json] allowed_write_paths entry 'chatbot/core/turn.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/b/task_b.6_wire_prompt_formatter_into_call_provider_step_in_turn.py.json] description field length > 300 characters
+- Task 'b.5' depends on 'b.1' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'b.5' depends on 'b.3' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'b.5' has overlapping allowed_write_paths with 'b.6' but no dependency declared
+- Task 'b.6' depends on 'b.2' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'b.1' uses expensive backend 'codex_cli' but appears simple enough for a cheaper model
+- Task 'b.6' uses expensive backend 'codex_cli' but appears simple enough for a cheaper model
+- Task 'b.1' acceptance_criteria[2] may produce unsatisfied reconciliation: 'Prompt composition compiles system prompts in safety -> sess...' lacks file reference or test command
+- Task 'b.1' acceptance_criteria[3] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'b.2' acceptance_criteria[2] may produce unsatisfied reconciliation: 'Prompt formatting supports Anthropic/OpenAI/Gemini formattin...' lacks file reference or test command
+- Task 'b.2' acceptance_criteria[3] may produce unsatisfied reconciliation: 'Formatting gracefully falls back to default layout for unkno...' lacks file reference or test command
+- Task 'b.2' acceptance_criteria[4] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'b.3' acceptance_criteria[2] may produce unsatisfied reconciliation: 'Intent classifier correctly categorizes messages into predef...' lacks file reference or test command
+- Task 'b.3' acceptance_criteria[3] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'b.4' acceptance_criteria[2] may produce unsatisfied reconciliation: 'Trace emissions include hashed segments for prompt component...' lacks file reference or test command
+- Task 'b.4' acceptance_criteria[3] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'b.5' acceptance_criteria[3] may produce unsatisfied reconciliation: 'The compile_context step invokes intent classification and l...' lacks file reference or test command
+- Task 'b.5' acceptance_criteria[4] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'b.6' acceptance_criteria[2] may produce unsatisfied reconciliation: 'The call_provider step uses the per-model prompt formatter t...' lacks file reference or test command
+- Task 'b.6' acceptance_criteria[3] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/c/task_c.1_create_multi_timescale_memory_structuring_module_chatbot_memory_timescale.py.json] allowed_write_paths entry 'chatbot/memory/timescale.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/c/task_c.1_create_multi_timescale_memory_structuring_module_chatbot_memory_timescale.py.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/c/task_c.2_create_retrieval_confidence_scoring_module_chatbot_memory_confidence.py.json] allowed_write_paths entry 'chatbot/memory/confidence.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/c/task_c.2_create_retrieval_confidence_scoring_module_chatbot_memory_confidence.py.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/c/task_c.3_wire_contradiction_aware_recency_tagging_into_chatbot_memory_retrieval.py.json] allowed_write_paths entry 'chatbot/memory/retrieval.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/c/task_c.3_wire_contradiction_aware_recency_tagging_into_chatbot_memory_retrieval.py.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/c/task_c.4_add_imperfect_memory_realism_directives_to_prompt_layer_injection_in_chatbot_core_prompt_layers.py.json] allowed_write_paths entry 'chatbot/core/prompt_layers.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/c/task_c.4_add_imperfect_memory_realism_directives_to_prompt_layer_injection_in_chatbot_core_prompt_layers.py.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/c/task_c.5_create_narrative_gravity_weighting_module_chatbot_memory_narrative_gravity.py.json] allowed_write_paths entry 'chatbot/memory/narrative_gravity.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/c/task_c.5_create_narrative_gravity_weighting_module_chatbot_memory_narrative_gravity.py.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/c/task_c.6_create_session_resume_delta_injection_module_chatbot_memory_session_delta.py.json] allowed_write_paths entry 'chatbot/memory/session_delta.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/c/task_c.6_create_session_resume_delta_injection_module_chatbot_memory_session_delta.py.json] description field length > 300 characters
+- Task 'c.3' depends on 'c.1' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'c.3' depends on 'c.2' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'c.4' depends on 'c.1' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'c.1' uses expensive backend 'codex_cli' but appears simple enough for a cheaper model
+- Task 'c.1' acceptance_criteria[2] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'c.2' acceptance_criteria[2] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'c.3' acceptance_criteria[2] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'c.4' acceptance_criteria[2] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'c.5' acceptance_criteria[2] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'c.6' acceptance_criteria[2] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/d/task_d.1_add_linguistic_fingerprint_and_adaptive_verbosity_columns_to_companion_and_user_models_in_chatbot_db_models.py.json] allowed_write_paths entry 'chatbot/db/models.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/d/task_d.1_add_linguistic_fingerprint_and_adaptive_verbosity_columns_to_companion_and_user_models_in_chatbot_db_models.py.json] acceptance_criteria item length > 120 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/d/task_d.2_create_alembic_migration_for_linguistic_fingerprint_and_adaptive_verbosity_fields.json] allowed_write_paths contains a directory root instead of a specific file
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/d/task_d.2_create_alembic_migration_for_linguistic_fingerprint_and_adaptive_verbosity_fields.json] acceptance_criteria item length > 120 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/d/task_d.3_create_linguistic_fingerprint_injection_module_chatbot_soul_linguistic_fingerprint.py.json] allowed_write_paths entry 'chatbot/soul/linguistic_fingerprint.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/d/task_d.4_create_anti_repetition_directive_generation_module_chatbot_soul_anti_repetition.py.json] allowed_write_paths entry 'chatbot/soul/anti_repetition.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/d/task_d.5_add_assistantism_scrubber_and_memory_realism_directives_to_prompt_layer_assembly_in_chatbot_core_prompt_layers.py.json] allowed_write_paths entry 'chatbot/core/prompt_layers.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/d/task_d.6_create_pacing_control_module_chatbot_soul_pacing.py.json] allowed_write_paths entry 'chatbot/soul/pacing.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/d/task_d.7_wire_linguistic_fingerprint_and_pacing_into_persona_prompt_assembly_in_chatbot_soul_persona_prompt.py.json] allowed_write_paths entry 'chatbot/soul/persona_prompt.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/d/task_d.7_wire_linguistic_fingerprint_and_pacing_into_persona_prompt_assembly_in_chatbot_soul_persona_prompt.py.json] acceptance_criteria item length > 120 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/d/task_d.8_add_linguistic_fingerprint_and_verbosity_fields_to_companioneditor_ui.json] allowed_write_paths entry 'react_ui/src/components/CompanionEditor.tsx' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/d/task_d.8_add_linguistic_fingerprint_and_verbosity_fields_to_companioneditor_ui.json] acceptance_criteria item length > 120 characters
+- Task 'd.2' depends on 'd.1' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'd.5' depends on 'd.3' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'd.5' depends on 'd.4' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'd.7' depends on 'd.3' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'd.7' depends on 'd.6' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'd.8' depends on 'd.1' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'd.8' depends on 'd.2' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'd.8' uses expensive backend 'codex_cli' but appears simple enough for a cheaper model
+- Task 'd.1' acceptance_criteria[0] may produce unsatisfied reconciliation: 'Companion model has punctuation_habits, sentence_length_prof...' lacks file reference or test command
+- Task 'd.1' acceptance_criteria[1] may produce unsatisfied reconciliation: 'User model has adaptive_verbosity nullable column...' lacks file reference or test command
+- Task 'd.2' acceptance_criteria[0] may produce unsatisfied reconciliation: 'A new migration script is generated in migrations/versions/ ...' lacks file reference or test command
+- Task 'd.8' acceptance_criteria[1] may produce unsatisfied reconciliation: 'New field values are saved to state and updated via the edit...' lacks file reference or test command
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/e/task_e.1_create_dynamic_token_budget_calculator_module_chatbot_core_token_budget.py.json] allowed_write_paths entry 'chatbot/core/token_budget.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/e/task_e.1_create_dynamic_token_budget_calculator_module_chatbot_core_token_budget.py.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/e/task_e.2_wire_token_budgeting_into_prompt_layer_assembly_in_chatbot_core_prompt_layers.py.json] allowed_write_paths entry 'chatbot/core/prompt_layers.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/e/task_e.2_wire_token_budgeting_into_prompt_layer_assembly_in_chatbot_core_prompt_layers.py.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/e/task_e.3_add_relationship_stage_aware_prompt_framing_to_chatbot_soul_relationship.py.json] allowed_write_paths entry 'chatbot/soul/relationship.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/e/task_e.3_add_relationship_stage_aware_prompt_framing_to_chatbot_soul_relationship.py.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/e/task_e.3_add_relationship_stage_aware_prompt_framing_to_chatbot_soul_relationship.py.json] acceptance_criteria[3] contains broad word: all
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/e/task_e.4_create_attention_anchoring_system_module_chatbot_core_attention_anchor.py.json] allowed_write_paths entry 'chatbot/core/attention_anchor.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/e/task_e.5_create_long_term_callback_planning_module_chatbot_memory_callback_planner.py.json] allowed_write_paths entry 'chatbot/memory/callback_planner.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/e/task_e.6_add_contextual_short_response_permission_logic_to_compile_context_step_in_chatbot_core_steps.py.json] allowed_write_paths entry 'chatbot/core/steps.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/e/task_e.6_add_contextual_short_response_permission_logic_to_compile_context_step_in_chatbot_core_steps.py.json] description field length > 300 characters
+- Task 'e.2' depends on 'e.1' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'e.2' depends on 'e.4' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'e.1' uses expensive backend 'codex_cli' but appears simple enough for a cheaper model
+- Task 'e.2' uses expensive backend 'claude_code_cli' but appears simple enough for a cheaper model
+- Task 'e.1' acceptance_criteria[2] may produce unsatisfied reconciliation: 'The module exposes a calculator that computes budgets for pe...' lacks file reference or test command
+- Task 'e.2' acceptance_criteria[2] may produce unsatisfied reconciliation: 'Prompt layer assembly enforces the computed token budget bou...' lacks file reference or test command
+- Task 'e.3' acceptance_criteria[2] may produce unsatisfied reconciliation: 'Prompt framing output changes dynamically based on relations...' lacks file reference or test command
+- Task 'e.3' acceptance_criteria[3] may produce unsatisfied reconciliation: 'All existing RelationshipConfig behaviors and properties rem...' lacks file reference or test command
+- Task 'e.4' acceptance_criteria[2] may produce unsatisfied reconciliation: 'The system can track unresolved questions and active user go...' lacks file reference or test command
+- Task 'e.5' acceptance_criteria[2] may produce unsatisfied reconciliation: 'The module exposes functions or classes to schedule and retr...' lacks file reference or test command
+- Task 'e.6' acceptance_criteria[2] may produce unsatisfied reconciliation: 'Contextual short response permission logic is executed durin...' lacks file reference or test command
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/f/task_f.1_create_per_mode_response_contracts_module_chatbot_core_mode_contracts.py.json] allowed_write_paths entry 'chatbot/core/mode_contracts.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/f/task_f.1_create_per_mode_response_contracts_module_chatbot_core_mode_contracts.py.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/f/task_f.2_create_voice_vs_text_prompt_variant_adapter_chatbot_voice_prompt_adapter.py.json] allowed_write_paths entry 'chatbot/voice/prompt_adapter.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/f/task_f.3_create_temperature_and_sampling_profile_module_chatbot_providers_sampling.py.json] allowed_write_paths entry 'chatbot/providers/sampling.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/f/task_f.4_wire_fast_path_vs_deep_path_routing_and_sampling_profiles_into_turn.py_pipeline.json] allowed_write_paths entry 'chatbot/core/turn.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/f/task_f.4_wire_fast_path_vs_deep_path_routing_and_sampling_profiles_into_turn.py_pipeline.json] allowed_write_paths entry 'chatbot/core/prompt_layers.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/f/task_f.4_wire_fast_path_vs_deep_path_routing_and_sampling_profiles_into_turn.py_pipeline.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/f/task_f.5_wire_mode_contracts_into_room_type_configuration_in_chatbot_api_rooms.py.json] allowed_write_paths entry 'chatbot/api/rooms.py' does not exist in working root
+- Task 'f.4' depends on 'f.1' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'f.4' depends on 'f.3' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'f.5' depends on 'f.1' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'f.4' uses expensive backend 'claude_code_cli' but appears simple enough for a cheaper model
+- Task 'f.1' acceptance_criteria[2] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'f.2' acceptance_criteria[2] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'f.3' acceptance_criteria[2] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'f.4' acceptance_criteria[2] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'f.5' acceptance_criteria[2] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/g/task_g.1_create_prompt_effectiveness_telemetry_module_chatbot_observability_prompt_telemetry.py.json] allowed_write_paths entry 'chatbot/observability/prompt_telemetry.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/g/task_g.2_wire_prompt_telemetry_into_observability_trace_emission_in_chatbot_observability_traces.py_and_chatbot_core_turn.py.json] allowed_write_paths entry 'chatbot/observability/traces.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/g/task_g.2_wire_prompt_telemetry_into_observability_trace_emission_in_chatbot_observability_traces.py_and_chatbot_core_turn.py.json] allowed_write_paths entry 'chatbot/core/turn.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/g/task_g.2_wire_prompt_telemetry_into_observability_trace_emission_in_chatbot_observability_traces.py_and_chatbot_core_turn.py.json] description field length > 300 characters
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/g/task_g.3_create_prompt_compression_module_for_small_context_models_chatbot_core_prompt_compressor.py.json] allowed_write_paths entry 'chatbot/core/prompt_compressor.py' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/g/task_g.4_update_docs_architecture.md_with_prompt_system_documentation.json] allowed_write_paths entry 'docs/ARCHITECTURE.md' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/g/task_g.5_update_docs_operations.md_with_prompt_configuration_and_operational_procedures.json] allowed_write_paths entry 'docs/OPERATIONS.md' does not exist in working root
+- [/home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/g/task_g.5_update_docs_operations.md_with_prompt_configuration_and_operational_procedures.json] description field length > 300 characters
+- Task 'g.2' depends on 'g.1' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'g.4' depends on 'g.1' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'g.4' depends on 'g.2' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'g.4' depends on 'g.3' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'g.5' depends on 'g.1' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'g.5' depends on 'g.2' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'g.5' depends on 'g.3' but their allowed_write_paths are disjoint; dependency may be unnecessary
+- Task 'g.2' uses expensive backend 'codex_cli' but appears simple enough for a cheaper model
+- Task 'g.1' acceptance_criteria[2] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'g.2' acceptance_criteria[3] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'g.3' acceptance_criteria[2] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'g.4' acceptance_criteria[1] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+- Task 'g.5' acceptance_criteria[1] may produce unsatisfied reconciliation: 'No file outside the task's allowed_write_paths is created or...' lacks file reference or test command
+
+## Lint Results
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/a/task_a.1_add_embedding_provider_and_model_config_to_chatbot_config.py.json: 0 errors, 1 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/a/task_a.2_initialize_embedding_provider_in_chatbot_providers_bootstrap.py.json: 0 errors, 1 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/a/task_a.3_wire_retrieval_engine_into_turncontext_in_chatbot_api_chat.py.json: 0 errors, 2 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/a/task_a.4_wire_retrieval_engine_into_turncontext_in_chatbot_api_streaming.py.json: 0 errors, 1 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/a/task_a.5_add_background_worker_service_to_docker_compose.yml.json: 0 errors, 1 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/a/task_a.6_wire_consolidation_worker_with_default_llm_provider_in_chatbot_perf_handlers.py.json: 0 errors, 2 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/a/task_a.7_wire_structured_logger_event_emission_into_pipeline_for_admin_logs_tab.json: 0 errors, 1 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/b/task_b.1_create_deterministic_prompt_layer_ordering_module_chatbot_core_prompt_layers.py.json: 0 errors, 2 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/b/task_b.2_create_per_model_prompt_formatter_module_chatbot_core_prompt_formatter.py.json: 0 errors, 2 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/b/task_b.3_create_intent_classifier_module_chatbot_core_intent_classifier.py.json: 0 errors, 2 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/b/task_b.4_add_prompt_segment_hashing_to_observability_trace_emission.json: 0 errors, 2 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/b/task_b.5_wire_prompt_layers_and_intent_classifier_into_compile_context_step_in_turn.py.json: 0 errors, 3 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/b/task_b.6_wire_prompt_formatter_into_call_provider_step_in_turn.py.json: 0 errors, 2 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/c/task_c.1_create_multi_timescale_memory_structuring_module_chatbot_memory_timescale.py.json: 0 errors, 2 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/c/task_c.2_create_retrieval_confidence_scoring_module_chatbot_memory_confidence.py.json: 0 errors, 2 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/c/task_c.3_wire_contradiction_aware_recency_tagging_into_chatbot_memory_retrieval.py.json: 0 errors, 2 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/c/task_c.4_add_imperfect_memory_realism_directives_to_prompt_layer_injection_in_chatbot_core_prompt_layers.py.json: 0 errors, 2 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/c/task_c.5_create_narrative_gravity_weighting_module_chatbot_memory_narrative_gravity.py.json: 0 errors, 2 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/c/task_c.6_create_session_resume_delta_injection_module_chatbot_memory_session_delta.py.json: 0 errors, 2 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/d/task_d.1_add_linguistic_fingerprint_and_adaptive_verbosity_columns_to_companion_and_user_models_in_chatbot_db_models.py.json: 0 errors, 2 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/d/task_d.2_create_alembic_migration_for_linguistic_fingerprint_and_adaptive_verbosity_fields.json: 0 errors, 2 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/d/task_d.3_create_linguistic_fingerprint_injection_module_chatbot_soul_linguistic_fingerprint.py.json: 0 errors, 1 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/d/task_d.4_create_anti_repetition_directive_generation_module_chatbot_soul_anti_repetition.py.json: 0 errors, 1 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/d/task_d.5_add_assistantism_scrubber_and_memory_realism_directives_to_prompt_layer_assembly_in_chatbot_core_prompt_layers.py.json: 0 errors, 1 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/d/task_d.6_create_pacing_control_module_chatbot_soul_pacing.py.json: 0 errors, 1 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/d/task_d.7_wire_linguistic_fingerprint_and_pacing_into_persona_prompt_assembly_in_chatbot_soul_persona_prompt.py.json: 0 errors, 2 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/d/task_d.8_add_linguistic_fingerprint_and_verbosity_fields_to_companioneditor_ui.json: 0 errors, 2 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/e/task_e.1_create_dynamic_token_budget_calculator_module_chatbot_core_token_budget.py.json: 0 errors, 2 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/e/task_e.2_wire_token_budgeting_into_prompt_layer_assembly_in_chatbot_core_prompt_layers.py.json: 0 errors, 2 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/e/task_e.3_add_relationship_stage_aware_prompt_framing_to_chatbot_soul_relationship.py.json: 0 errors, 3 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/e/task_e.4_create_attention_anchoring_system_module_chatbot_core_attention_anchor.py.json: 0 errors, 1 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/e/task_e.5_create_long_term_callback_planning_module_chatbot_memory_callback_planner.py.json: 0 errors, 1 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/e/task_e.6_add_contextual_short_response_permission_logic_to_compile_context_step_in_chatbot_core_steps.py.json: 0 errors, 2 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/f/task_f.1_create_per_mode_response_contracts_module_chatbot_core_mode_contracts.py.json: 0 errors, 2 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/f/task_f.2_create_voice_vs_text_prompt_variant_adapter_chatbot_voice_prompt_adapter.py.json: 0 errors, 1 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/f/task_f.3_create_temperature_and_sampling_profile_module_chatbot_providers_sampling.py.json: 0 errors, 1 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/f/task_f.4_wire_fast_path_vs_deep_path_routing_and_sampling_profiles_into_turn.py_pipeline.json: 0 errors, 3 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/f/task_f.5_wire_mode_contracts_into_room_type_configuration_in_chatbot_api_rooms.py.json: 0 errors, 1 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/g/task_g.1_create_prompt_effectiveness_telemetry_module_chatbot_observability_prompt_telemetry.py.json: 0 errors, 1 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/g/task_g.2_wire_prompt_telemetry_into_observability_trace_emission_in_chatbot_observability_traces.py_and_chatbot_core_turn.py.json: 0 errors, 3 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/g/task_g.3_create_prompt_compression_module_for_small_context_models_chatbot_core_prompt_compressor.py.json: 0 errors, 1 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/g/task_g.4_update_docs_architecture.md_with_prompt_system_documentation.json: 0 errors, 1 warnings
+- /home/mike/dev/mike/chatbot/python/chatbot/.abracapocus/plans/ACTIVE/CHAT_PROMPT_SYSTEM/g/task_g.5_update_docs_operations.md_with_prompt_configuration_and_operational_procedures.json: 0 errors, 2 warnings
+
+## Summary
+- Total errors: 0
+- Total warnings: 151
+- Linted files: 43

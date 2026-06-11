@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "task_id": "e.1",
+  "phase": "E",
+  "phase_id": "e",
+  "title": "Create dynamic token budget calculator module chatbot/core/token_budget.py",
+  "description": "Implement a token budget calculator in chatbot/core/token_budget.py that dynamically allocates context window space across persona, memory, history, and scene based on the target model window size and content relevance.\n\nBefore editing, inspect:\n- chatbot/config.py to see where model context limits and configurations are defined.",
+  "acceptance_criteria": [
+    "chatbot/core/token_budget.py exists and imports cleanly",
+    "python -m py_compile chatbot/core/token_budget.py passes",
+    "The module exposes a calculator that computes budgets for persona, memory, history, and scene"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/core/token_budget.py"
+  ],
+  "forbidden_changes": [
+    "modify chatbot/core/prompt_layers.py",
+    "modify chatbot/core/steps.py"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

@@ -153,6 +153,7 @@ async def synthesize(
     adapter = TTSAdapter(
         provider_id=settings.tts_provider,
         model_id=settings.tts_model,
+        params={"voice": settings.tts_voice},
         api_key=settings.tts_api_key or settings.openrouter_api_key,
         base_url=settings.tts_base_url,
         cadence_mapper=CadenceMapper(),

@@ -497,6 +497,7 @@ class Message(Base):
     companion_id: Mapped[str | None] = mapped_column(sa.String(36), sa.ForeignKey("companions.companion_id"), index=True, nullable=True)
     role: Mapped[str] = mapped_column(sa.String, nullable=False)
     content: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    turn_id: Mapped[str | None] = mapped_column(sa.String(64), nullable=True, index=True)
     embedding: Mapped[list[float] | None] = mapped_column(_embedding_vector_type(), nullable=True)
     token_count: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

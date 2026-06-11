@@ -1,0 +1,60 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "compile_timescale",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/memory/timescale.py"
+        ]
+      },
+      {
+        "name": "compile_confidence",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/memory/confidence.py"
+        ]
+      },
+      {
+        "name": "compile_retrieval",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/memory/retrieval.py"
+        ]
+      },
+      {
+        "name": "compile_prompt_layers",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/core/prompt_layers.py"
+        ]
+      },
+      {
+        "name": "compile_narrative_gravity",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/memory/narrative_gravity.py"
+        ]
+      },
+      {
+        "name": "compile_session_delta",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/memory/session_delta.py"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "task_id": "b.3",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Create intent classifier module chatbot/core/intent_classifier.py",
+  "description": "Create the intent classifier module `chatbot/core/intent_classifier.py`.\n\nThis module must categorize incoming user messages into predefined categories/intents before prompt assembly. This classification should be usable during prompt rendering to adapt the prompt template or mood/scene layers based on the intent.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- chatbot/core/ for model interaction pattern\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/core/intent_classifier.py exists and is a valid Python module",
+    "python -m py_compile chatbot/core/intent_classifier.py passes",
+    "Intent classifier correctly categorizes messages into predefined intent types",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "antigravity_cli",
+  "model": "Gemini 3.5 Flash (Medium)",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/core/intent_classifier.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/core/intent_classifier.py",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "use lightweight rule-based or regex matches for basic intents",
+      "add intent structures"
+    ],
+    "forbidden": [
+      "block execution on external API calls",
+      "modify database schema or add migrations"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

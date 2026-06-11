@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "task_id": "d.2",
+  "phase": "d",
+  "phase_id": "d",
+  "title": "Create Alembic migration for linguistic fingerprint and adaptive verbosity fields",
+  "description": "Generate and edit an Alembic migration script containing the schema changes for the new nullable columns on Companion and User models.\n\nBefore editing, inspect:\n- migrations/versions/ directory for existing migration structures",
+  "acceptance_criteria": [
+    "A new migration script is generated in migrations/versions/ containing the upgrade and downgrade scripts for the new fields"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "migrations/versions/0012_add_linguistic_fingerprint.py"
+  ],
+  "forbidden_changes": [
+    "modify existing migration files",
+    "modify chatbot/db/models.py"
+  ],
+  "dependencies": [
+    "d.1"
+  ],
+  "task_timeout_seconds": 900
+}

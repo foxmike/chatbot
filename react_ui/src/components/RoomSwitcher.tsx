@@ -77,7 +77,6 @@ export function RoomSwitcher({
   const [companions, setCompanions] = useState<Companion[]>([]);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newRoomType, setNewRoomType] = useState<RoomType>("one_on_one_chat");
   const [newDisplayName, setNewDisplayName] = useState("");
   const [newCompanionId, setNewCompanionId] = useState("");
   const [isCreating, setIsCreating] = useState(false);
@@ -140,7 +139,7 @@ export function RoomSwitcher({
     try {
       const room = await createRoom({
         user_id: userId,
-        room_type: newRoomType,
+        room_type: "one_on_one_chat",
         display_name: newDisplayName.trim(),
         companion_id: newCompanionId.trim() || undefined,
       });
@@ -154,7 +153,6 @@ export function RoomSwitcher({
         onRoomChange(room.room_id, room.room_type, room);
       }
       setShowCreateModal(false);
-      setNewRoomType("one_on_one_chat");
       setNewDisplayName("");
       setNewCompanionId(
         companion?.companion_id ??
@@ -423,24 +421,6 @@ export function RoomSwitcher({
                   {companions.map((companion) => (
                     <option key={companion.companion_id} value={companion.companion_id}>
                       {companion.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="flex flex-col gap-2 text-sm font-medium text-gray-200">
-                Room Type
-                <select
-                  value={newRoomType}
-                  disabled={isCreating}
-                  className="rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 disabled:cursor-not-allowed disabled:opacity-60"
-                  onChange={(e: ChangeEvent<HTMLSelectElement>) =>
-                    setNewRoomType(e.target.value as RoomType)
-                  }
-                >
-                  {ROOM_TYPE_OPTIONS.map((rt) => (
-                    <option key={rt} value={rt}>
-                      {ROOM_TYPE_LABELS[rt]}
                     </option>
                   ))}
                 </select>

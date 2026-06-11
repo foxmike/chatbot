@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "task_id": "a.7",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Wire structured_logger event emission into pipeline for admin Logs tab",
+  "description": "Emit log events through structured_logger to satisfy requirements for populating the admin Logs tab.\n\nBefore editing, inspect:\n- chatbot/observability/logs.py",
+  "acceptance_criteria": [
+    "chatbot/observability/logs.py emits structured log events",
+    "python -m py_compile chatbot/observability/logs.py passes"
+  ],
+  "selected_backend": "antigravity_cli",
+  "model": "Gemini 3.1 Pro (High)",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/observability/logs.py"
+  ],
+  "forbidden_changes": [
+    "modify unrelated files",
+    "change structured logger interface"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

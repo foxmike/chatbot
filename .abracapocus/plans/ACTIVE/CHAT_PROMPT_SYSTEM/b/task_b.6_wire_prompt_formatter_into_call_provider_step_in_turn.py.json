@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "task_id": "b.6",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Wire prompt_formatter into call_provider step in turn.py",
+  "description": "Wire the prompt_formatter into the call_provider step in `chatbot/core/turn.py`.\n\nUpdate `chatbot/core/turn.py`'s `call_provider` step to run prompt formatting through the per-model prompt formatter before invoking the LLM provider. This ensures formatting matches the target model family interface.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- chatbot/core/turn.py to understand how providers are called and how prompt payloads are structured\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/core/turn.py compiles cleanly",
+    "python -m py_compile chatbot/core/turn.py passes",
+    "The call_provider step uses the per-model prompt formatter to shape inputs",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/core/turn.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/core/turn.py",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "modify provider payload composition",
+      "add formatter integration in call_provider step"
+    ],
+    "forbidden": [
+      "bypass system prompt ordering",
+      "introduce provider-specific hardcoded overrides in turn.py directly (use formatter instead)"
+    ]
+  },
+  "dependencies": [
+    "b.2",
+    "b.5"
+  ],
+  "task_timeout_seconds": 900
+}

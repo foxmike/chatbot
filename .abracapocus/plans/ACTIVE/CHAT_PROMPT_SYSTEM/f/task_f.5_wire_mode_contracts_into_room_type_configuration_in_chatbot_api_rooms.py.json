@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "task_id": "f.5",
+  "phase": "F",
+  "phase_id": "f",
+  "title": "Wire mode contracts into room type configuration in chatbot/api/rooms.py",
+  "description": "Wire mode contracts into room type configuration in chatbot/api/rooms.py. Mode contracts define behavior limits and configurations based on room settings.\n\nBefore editing, inspect:\n- `chatbot/api/rooms.py`\n- `chatbot/core/mode_contracts.py`",
+  "acceptance_criteria": [
+    "chatbot/api/rooms.py compiles cleanly",
+    "python -m py_compile chatbot/api/rooms.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/rooms.py"
+  ],
+  "forbidden_changes": [
+    "modify files outside allowed_write_paths"
+  ],
+  "dependencies": [
+    "f.1"
+  ],
+  "task_timeout_seconds": 900
+}

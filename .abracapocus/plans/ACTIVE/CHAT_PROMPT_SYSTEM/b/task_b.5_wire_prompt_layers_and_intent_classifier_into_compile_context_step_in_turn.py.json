@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "task_id": "b.5",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Wire prompt_layers and intent_classifier into compile_context step in turn.py",
+  "description": "Wire prompt_layers and intent_classifier into the compile_context step in `chatbot/core/turn.py` and `chatbot/core/steps.py`.\n\nUpdate the step execution wiring. During `compile_context`, run the user message through the intent classifier first, then assemble the layered system prompt using the prompt layers ordering module in the correct priority sequence. Maintain existing step execution order and state interfaces.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- chatbot/core/turn.py and chatbot/core/steps.py to understand how steps compose and how compile_context behaves\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/core/turn.py and chatbot/core/steps.py compile cleanly",
+    "python -m py_compile chatbot/core/turn.py passes",
+    "python -m py_compile chatbot/core/steps.py passes",
+    "The compile_context step invokes intent classification and layers assembly",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "claude_code_cli",
+  "model": "sonnet",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/core/turn.py",
+    "chatbot/core/steps.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/core/turn.py and chatbot/core/steps.py",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "modify step flow parameters inside turn execution",
+      "add unit test setup for turn compile_context step"
+    ],
+    "forbidden": [
+      "change database model schemas",
+      "bypass safety steps in turn execution"
+    ]
+  },
+  "dependencies": [
+    "b.1",
+    "b.3"
+  ],
+  "task_timeout_seconds": 900
+}

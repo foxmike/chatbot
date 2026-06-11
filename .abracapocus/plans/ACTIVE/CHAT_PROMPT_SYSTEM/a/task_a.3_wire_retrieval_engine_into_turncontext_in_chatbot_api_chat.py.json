@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "task_id": "a.3",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Wire retrieval_engine into TurnContext in chatbot/api/chat.py",
+  "description": "Retrieve context and wire retrieval_engine into TurnContext in chatbot/api/chat.py and chatbot/core/turn.py. Ensure that it does not break existing flows if no embeddings exist yet.\n\nBefore editing, inspect:\n- chatbot/api/chat.py\n- chatbot/core/turn.py",
+  "acceptance_criteria": [
+    "chatbot/api/chat.py wires retrieval_engine into TurnContext",
+    "chatbot/core/turn.py is updated to support retrieval_engine inside TurnContext",
+    "python -m py_compile chatbot/api/chat.py passes",
+    "python -m py_compile chatbot/core/turn.py passes"
+  ],
+  "selected_backend": "antigravity_cli",
+  "model": "Gemini 3.5 Flash (Medium)",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/api/chat.py",
+    "chatbot/core/turn.py"
+  ],
+  "forbidden_changes": [
+    "modify unrelated files",
+    "break backward compatibility when embeddings are missing"
+  ],
+  "dependencies": [
+    "a.2"
+  ],
+  "task_timeout_seconds": 900
+}

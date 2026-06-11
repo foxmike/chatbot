@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "task_id": "e.3",
+  "phase": "E",
+  "phase_id": "e",
+  "title": "Add relationship-stage-aware prompt framing to chatbot/soul/relationship.py",
+  "description": "Implement relationship-stage-aware prompting in chatbot/soul/relationship.py. It must adapt the prompt framing based on the relationship depth, transitioning between stages such as acquaintance, established bond, and intimate.\n\nBefore editing, inspect:\n- chatbot/soul/relationship.py to understand existing RelationshipConfig behavior.",
+  "acceptance_criteria": [
+    "chatbot/soul/relationship.py compiles and imports cleanly",
+    "python -m py_compile chatbot/soul/relationship.py passes",
+    "Prompt framing output changes dynamically based on relationship stage",
+    "All existing RelationshipConfig behaviors and properties remain intact"
+  ],
+  "selected_backend": "antigravity_cli",
+  "model": "Gemini 3.1 Pro (High)",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/soul/relationship.py"
+  ],
+  "forbidden_changes": [
+    "modify unrelated modules outside of chatbot/soul/"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "task_id": "b.2",
+  "phase": "B",
+  "phase_id": "b",
+  "title": "Create per-model prompt formatter module chatbot/core/prompt_formatter.py",
+  "description": "Create the per-model prompt formatter module `chatbot/core/prompt_formatter.py`.\n\nThis module must select the appropriate formatting strategy based on the model family (e.g., Anthropic Claude system instructions vs OpenAI system messages vs Gemini system instruction blocks). It must handle unknown model families by gracefully falling back to a standard format/default behavior.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n- chatbot/core/ for model and prompt format styles\n\nDo not infer APIs, constructor signatures, function names, module locations, or service topology from the task description alone. Inspect the referenced documents and existing implementation files first, then implement against the actual repository.\n\nSTRICT FILE SCOPE: Create or modify ONLY the files listed in this task's allowed_write_paths. Do NOT modify any other file under any circumstance. Do NOT update documentation, READMEs, operations guides, or any code outside the listed paths. If you believe other files need updating, ignore that impulse and finish the task with only the listed files modified. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/core/prompt_formatter.py exists and is a valid Python module",
+    "python -m py_compile chatbot/core/prompt_formatter.py passes",
+    "Prompt formatting supports Anthropic/OpenAI/Gemini formatting paradigms",
+    "Formatting gracefully falls back to default layout for unknown models",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/core/prompt_formatter.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/core/prompt_formatter.py",
+    "add new third-party dependencies",
+    "change the Abracapocus runtime, orchestrator, or backends"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "define formatter registry or enum mappings",
+      "add fallback formats"
+    ],
+    "forbidden": [
+      "hardcode api keys or secrets",
+      "introduce dependencies on external API clients"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 600
+}

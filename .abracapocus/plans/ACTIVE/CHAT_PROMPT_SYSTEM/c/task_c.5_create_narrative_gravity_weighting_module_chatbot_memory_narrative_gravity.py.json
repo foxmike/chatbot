@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "task_id": "c.5",
+  "phase": "C",
+  "phase_id": "c",
+  "title": "Create narrative gravity weighting module chatbot/memory/narrative_gravity.py",
+  "description": "Create narrative gravity weighting module chatbot/memory/narrative_gravity.py. Weight emotionally salient or key narrative events higher to ensure they persist in retrieved context, using metadata parsing and salience checks.\n\nBefore editing, inspect:\n- AGENTS.md\n- docs/plans_tasks.md\n\nSTRICT FILE SCOPE: Create or modify ONLY chatbot/memory/narrative_gravity.py. Do NOT modify any other file under any circumstance. Out-of-scope edits will cause the task to be rejected.",
+  "acceptance_criteria": [
+    "chatbot/memory/narrative_gravity.py exists",
+    "python -m py_compile chatbot/memory/narrative_gravity.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "antigravity_cli",
+  "model": "Gemini 3.1 Pro (High)",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/memory/narrative_gravity.py"
+  ],
+  "forbidden_changes": [
+    "modify any file outside chatbot/memory/narrative_gravity.py"
+  ],
+  "allowed_symbols": [
+    "NarrativeGravityWeighter"
+  ],
+  "decision_budget": {
+    "allowed": [
+      "identify emotional keywords or metadata flags",
+      "adjust similarity score using a multiplier or offset"
+    ],
+    "forbidden": [
+      "call LLMs dynamically to perform emotion scoring"
+    ]
+  },
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "task_id": "e.6",
+  "phase": "E",
+  "phase_id": "e",
+  "title": "Add contextual short response permission logic to compile_context step in chatbot/core/steps.py",
+  "description": "Modify the compile_context step in chatbot/core/steps.py to implement contextual short response permission logic. This logic determines if the chatbot has permission to reply with a short response based on conversational context.\n\nBefore editing, inspect:\n- chatbot/core/steps.py compile_context definition.",
+  "acceptance_criteria": [
+    "chatbot/core/steps.py compiles and imports cleanly",
+    "python -m py_compile chatbot/core/steps.py passes",
+    "Contextual short response permission logic is executed during the compile_context step"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/core/steps.py"
+  ],
+  "forbidden_changes": [
+    "modify chatbot/core/token_budget.py",
+    "modify chatbot/core/attention_anchor.py"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

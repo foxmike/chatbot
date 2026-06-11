@@ -56,6 +56,7 @@ class TraceRecord:
     cost_usd_micros: int = 0
     retrieve_latency_ms: float = 0
     prompt: str = ""
+    raw_response: str = ""
     routing_decision: dict[str, Any] = field(default_factory=dict)
     retrieval_snippets: list[str] = field(default_factory=list)
     steps: list[TraceStep] = field(default_factory=list)

@@ -1,0 +1,8 @@
+Traces —  per-request LLM call log: which model, session, latency, token count, cost.
+          Expand a row to see the full prompt, routing decision, retrieval snippets, and pipeline step timings.
+Metrics — aggregate performance stats: total requests/tokens/cost, plus per-model
+          latency percentiles (p50/p95/p99) so you can compare model speed.
+Logs —    structured events from the memory system: memory writes, contradictions detected, failed retrievals.
+          Empty because the structured_logger isn't emitting events yet in your current pipeline wiring.
+Usage —   session-level rollup: how many sessions, turns, tokens, and cost broken down by model.
+          Similar to metrics but session-oriented rather than request-oriented.

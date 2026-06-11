@@ -1,0 +1,60 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "compile_models",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/db/models.py"
+        ]
+      },
+      {
+        "name": "compile_linguistic_fingerprint",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/soul/linguistic_fingerprint.py"
+        ]
+      },
+      {
+        "name": "compile_anti_repetition",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/soul/anti_repetition.py"
+        ]
+      },
+      {
+        "name": "compile_prompt_layers",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/core/prompt_layers.py"
+        ]
+      },
+      {
+        "name": "compile_pacing",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/soul/pacing.py"
+        ]
+      },
+      {
+        "name": "compile_persona_prompt",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/soul/persona_prompt.py"
+        ]
+      }
+    ]
+  }
+}

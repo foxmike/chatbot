@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "task_id": "a.1",
+  "phase": "A",
+  "phase_id": "a",
+  "title": "Add embedding provider and model config to chatbot/config.py",
+  "description": "Configure the embedding provider and model settings inside chatbot/config.py.\n\nBefore editing, inspect:\n- chatbot/config.py",
+  "acceptance_criteria": [
+    "chatbot/config.py contains embedding provider config keys",
+    "python -m py_compile chatbot/config.py passes"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/config.py"
+  ],
+  "forbidden_changes": [
+    "modify unrelated files",
+    "change other services in docker-compose.yml"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

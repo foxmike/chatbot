@@ -10,6 +10,7 @@ export interface Message {
   role: "user" | "assistant";
   content: string;
   timestamp?: string;
+  turn_id?: string;
 }
 
 export interface ChatRequest {
@@ -20,6 +21,7 @@ export interface ChatRequest {
 export interface ChatResponse {
   session_id: string;
   response: string;
+  turn_id?: string;
   step_results?: Array<{
     step_name: string;
     status: string;

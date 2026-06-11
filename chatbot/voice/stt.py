@@ -12,13 +12,6 @@ import httpx
 from chatbot.voice.base import STTProvider, VoiceTranscriptionRequest, VoiceTranscriptionResult
 
 
-_VALID_STT_IDENTIFIERS = frozenset(
-    {
-        ("deepgram", "nova-2"),
-        ("deepgram", "deepgram/nova-2"),
-    }
-)
-
 _SUPPORTED_AUDIO_FORMATS = frozenset(
     {
         "aac",
@@ -48,9 +41,6 @@ class STTAdapter(STTProvider):
         base_url: str = "https://openrouter.ai/api/v1",
         timeout_seconds: float = 120.0,
     ) -> None:
-        if not self.validate_identifier(provider_id, model_id):
-            raise ValueError(f"unsupported STT provider/model pair: {provider_id}/{model_id}")
-
         self.provider_id = provider_id
         self.model_id = model_id
         self.api_key = api_key or os.getenv("STT_API_KEY", "") or os.getenv("OPENROUTER_API_KEY", "")
@@ -70,10 +60,6 @@ class STTAdapter(STTProvider):
         payload = self._build_api_payload(request, audio_format)
         response = await self._call_provider(payload)
         return self._to_transcription_result(response, request.language)
-
-    @classmethod
-    def validate_identifier(cls, provider_id: str, model_id: str) -> bool:
-        return (provider_id, model_id) in _VALID_STT_IDENTIFIERS
 
     def _build_api_payload(
         self,
@@ -97,7 +83,72 @@ class STTAdapter(STTProvider):
         provider = payload.get("provider", "")
 
         if provider == "deepgram":
+            return await self._call_deepgram_stt(payload)
+
+        if provider == "openrouter":
             return await self._call_openai_compatible_stt(payload)
+
+    async def _call_deepgram_stt(self, payload: Mapping[str, Any]) -> Mapping[str, Any]:
+        model = payload.get("model", self.model_id)
+        audio_data = payload.get("audio", b"")
+        audio_format = payload.get("audio_format", "wav")
+        language = payload.get("language")
+
+        if not self.api_key:
+            raise ValueError("STT_API_KEY or api_key parameter is required for Deepgram STT")
+
+        headers: dict[str, str] = {
+            "Authorization": f"Token {self.api_key}",
+            "Content-Type": _audio_mime(audio_format),
+        }
+
+        params: dict[str, str] = {"model": model}
+        if language:
+            params["language"] = language
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/listen",
+                    headers=headers,
+                    params=params,
+                    content=audio_data,
+                    timeout=self.timeout_seconds,
+                )
+        except httpx.TimeoutException as exc:
+            raise TimeoutError("Deepgram STT request timed out") from exc
+        except httpx.HTTPError as exc:
+            raise RuntimeError(f"Deepgram STT request failed: {exc}") from exc
+
+        if response.status_code >= 400:
+            _raise_stt_http_error(response)
+
+        try:
+            body: Any = response.json()
+        except ValueError:
+            return {"text": "", "confidence": 0.0}
+
+        if not isinstance(body, Mapping):
+            return {"text": "", "confidence": 0.0}
+
+        results = body.get("results", {})
+        if not isinstance(results, Mapping):
+            return {"text": "", "confidence": 0.0}
+
+        channels = results.get("channels", [])
+        if not channels or not isinstance(channels[0], Mapping):
+            return {"text": "", "confidence": 0.0}
+
+        alternatives = channels[0].get("alternatives", [])
+        if not alternatives or not isinstance(alternatives[0], Mapping):
+            return {"text": "", "confidence": 0.0}
+
+        alt = alternatives[0]
+        return {
+            "text": alt.get("transcript", ""),
+            "confidence": alt.get("confidence", 1.0),
+            "language": language,
+        }
 
         raise ValueError(f"unsupported STT provider: {provider}")
 

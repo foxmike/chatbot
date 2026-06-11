@@ -37,6 +37,7 @@ class SessionInfo(BaseModel):
 
 
 class SessionMessageInfo(BaseModel):
+    turn_id: str | None = None
     message_id: str
     session_id: str
     role: str
@@ -195,6 +196,7 @@ async def list_session_messages(
     return [
         SessionMessageInfo(
             message_id=str(message.id),
+            turn_id=getattr(message, "turn_id", None),
             session_id=str(message.session_id),
             role=message.role,
             content=message.content,

@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "task_id": "e.2",
+  "phase": "E",
+  "phase_id": "e",
+  "title": "Wire token budgeting into prompt layer assembly in chatbot/core/prompt_layers.py",
+  "description": "Modify chatbot/core/prompt_layers.py to integrate the dynamic token budget calculator and adapt the prompt layer system to respect the allocated token budget. Also ensure it supports formatting from the attention anchoring system.\n\nBefore editing, inspect:\n- chatbot/core/prompt_layers.py\n- chatbot/core/token_budget.py\n- chatbot/core/attention_anchor.py",
+  "acceptance_criteria": [
+    "chatbot/core/prompt_layers.py compiles and imports cleanly",
+    "python -m py_compile chatbot/core/prompt_layers.py passes",
+    "Prompt layer assembly enforces the computed token budget bounds"
+  ],
+  "selected_backend": "claude_code_cli",
+  "model": "sonnet",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/core/prompt_layers.py"
+  ],
+  "forbidden_changes": [
+    "modify chatbot/core/token_budget.py",
+    "modify chatbot/core/attention_anchor.py"
+  ],
+  "dependencies": [
+    "e.1",
+    "e.4"
+  ],
+  "task_timeout_seconds": 900
+}

@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "task_id": "g.5",
+  "phase": "g",
+  "phase_id": "g",
+  "title": "Update docs/OPERATIONS.md with prompt configuration and operational procedures",
+  "description": "Update docs/OPERATIONS.md with the prompt configuration and operational procedures, outlining how to configure prompt formats, compression thresholds, and observe telemetry output.\n\nBefore editing, inspect:\n- docs/OPERATIONS.md\n- chatbot/observability/prompt_telemetry.py\n- chatbot/core/prompt_compressor.py",
+  "acceptance_criteria": [
+    "docs/OPERATIONS.md contains operational guidance for prompt configurations",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "opencode_cli",
+  "model": "openrouter/google/gemma-4-31b-it",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "docs/OPERATIONS.md"
+  ],
+  "forbidden_changes": [
+    "modify files outside docs/OPERATIONS.md"
+  ],
+  "dependencies": [
+    "g.1",
+    "g.2",
+    "g.3"
+  ],
+  "task_timeout_seconds": 1200
+}

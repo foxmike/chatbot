@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "task_id": "g.2",
+  "phase": "g",
+  "phase_id": "g",
+  "title": "Wire prompt telemetry into observability trace emission in chatbot/observability/traces.py and chatbot/core/turn.py",
+  "description": "Wire prompt telemetry logging into the existing observability trace emission logic. Ensure chatbot/observability/traces.py and chatbot/core/turn.py integrate the new telemetry module.\n\nBefore editing, inspect:\n- chatbot/observability/prompt_telemetry.py\n- chatbot/observability/traces.py\n- chatbot/core/turn.py",
+  "acceptance_criteria": [
+    "chatbot/observability/traces.py compile passes",
+    "chatbot/core/turn.py compile passes",
+    "python -m py_compile chatbot/observability/traces.py chatbot/core/turn.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "codex_cli",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/observability/traces.py",
+    "chatbot/core/turn.py"
+  ],
+  "forbidden_changes": [
+    "modify files outside chatbot/observability/traces.py and chatbot/core/turn.py"
+  ],
+  "dependencies": [
+    "g.1"
+  ],
+  "task_timeout_seconds": 900
+}

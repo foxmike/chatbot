@@ -1,0 +1,60 @@
+{
+  "verification": {
+    "checks": [
+      {
+        "name": "compile_token_budget",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/core/token_budget.py"
+        ]
+      },
+      {
+        "name": "compile_prompt_layers",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/core/prompt_layers.py"
+        ]
+      },
+      {
+        "name": "compile_relationship",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/soul/relationship.py"
+        ]
+      },
+      {
+        "name": "compile_attention_anchor",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/core/attention_anchor.py"
+        ]
+      },
+      {
+        "name": "compile_callback_planner",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/memory/callback_planner.py"
+        ]
+      },
+      {
+        "name": "compile_steps",
+        "command": [
+          "python",
+          "-m",
+          "py_compile",
+          "chatbot/core/steps.py"
+        ]
+      }
+    ]
+  }
+}

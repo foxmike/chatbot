@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "task_id": "d.1",
+  "phase": "d",
+  "phase_id": "d",
+  "title": "Add linguistic_fingerprint and adaptive_verbosity columns to Companion and User models in chatbot/db/models.py",
+  "description": "Add columns for linguistic fingerprint (punctuation_habits, sentence_length_profile, emoji_style, vocabulary_density, slang_profile) to the Companion model and adaptive_verbosity to the User model. Make these columns nullable.\n\nBefore editing, inspect:\n- chatbot/db/models.py",
+  "acceptance_criteria": [
+    "Companion model has punctuation_habits, sentence_length_profile, emoji_style, vocabulary_density, and slang_profile nullable columns",
+    "User model has adaptive_verbosity nullable column",
+    "python -m py_compile chatbot/db/models.py passes"
+  ],
+  "selected_backend": "pi_cli",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/db/models.py"
+  ],
+  "forbidden_changes": [
+    "modify existing database structures",
+    "modify files outside of chatbot/db/models.py"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "task_id": "e.4",
+  "phase": "E",
+  "phase_id": "e",
+  "title": "Create attention anchoring system module chatbot/core/attention_anchor.py",
+  "description": "Create chatbot/core/attention_anchor.py to track and format active attention anchors, including unresolved questions, companion promises, and active user goals, for injection into prompt layers.\n\nBefore editing, inspect:\n- chatbot/core/steps.py to see how context is currently compiled and passed.",
+  "acceptance_criteria": [
+    "chatbot/core/attention_anchor.py exists and imports cleanly",
+    "python -m py_compile chatbot/core/attention_anchor.py passes",
+    "The system can track unresolved questions and active user goals and serialize them into context prompt format"
+  ],
+  "selected_backend": "antigravity_cli",
+  "model": "Gemini 3.5 Flash (Medium)",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/core/attention_anchor.py"
+  ],
+  "forbidden_changes": [
+    "modify chatbot/core/steps.py",
+    "modify chatbot/core/prompt_layers.py"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}

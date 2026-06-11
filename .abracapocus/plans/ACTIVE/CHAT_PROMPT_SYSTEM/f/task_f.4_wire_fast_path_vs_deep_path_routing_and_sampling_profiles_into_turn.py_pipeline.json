@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "task_id": "f.4",
+  "phase": "F",
+  "phase_id": "f",
+  "title": "Wire fast-path vs deep-path routing and sampling profiles into turn.py pipeline",
+  "description": "Integrate sampling profiles and fast-path vs deep-path routing into turn.py. Use intent classification to decide whether to run lightweight or heavy prompt assembly. Ensure backward compatibility: routing changes must preserve existing chat pipeline behavior.\n\nBefore editing, inspect:\n- `chatbot/core/turn.py`\n- `chatbot/core/mode_contracts.py`\n- `chatbot/providers/sampling.py`",
+  "acceptance_criteria": [
+    "chatbot/core/turn.py compiles cleanly",
+    "python -m py_compile chatbot/core/turn.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "claude_code_cli",
+  "model": "sonnet",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/core/turn.py",
+    "chatbot/core/prompt_layers.py"
+  ],
+  "forbidden_changes": [
+    "modify files outside allowed_write_paths",
+    "break backward compatibility in turn.py"
+  ],
+  "dependencies": [
+    "f.1",
+    "f.3"
+  ],
+  "task_timeout_seconds": 900
+}

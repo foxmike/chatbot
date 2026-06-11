@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "task_id": "f.1",
+  "phase": "F",
+  "phase_id": "f",
+  "title": "Create per-mode response contracts module chatbot/core/mode_contracts.py",
+  "description": "Implement response contracts defining tone, length, pacing, and active prompt sections for various conversation modes (bedtime, advisor, deep_talk, roleplay, brainstorming, companion).\n\nBefore editing, inspect:\n- `chatbot/config.py` (if it exists) to align with existing mode definitions.\n- `chatbot/core/prompt_layers.py` (if it exists) to see prompt layout structures.",
+  "acceptance_criteria": [
+    "chatbot/core/mode_contracts.py exists and compiles cleanly",
+    "python -m py_compile chatbot/core/mode_contracts.py passes",
+    "No file outside the task's allowed_write_paths is created or modified"
+  ],
+  "selected_backend": "antigravity_cli",
+  "model": "Gemini 3.5 Flash (Medium)",
+  "verification_profile": "focused",
+  "allowed_write_paths": [
+    "chatbot/core/mode_contracts.py"
+  ],
+  "forbidden_changes": [
+    "modify unrelated files",
+    "change existing database schemas"
+  ],
+  "dependencies": [],
+  "task_timeout_seconds": 900
+}
