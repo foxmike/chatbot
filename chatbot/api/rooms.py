@@ -15,6 +15,10 @@ from chatbot.auth.dependencies import get_current_user, CurrentUser
 from chatbot.db import async_session_factory
 from chatbot.db.models import Room as RoomRecord, Scene as SceneModel, Session as SessionRecord
 
+from chatbot.core.mode_contracts import (
+    ModeName as ContractModeName,
+    get_contract,
+)
 from chatbot.prompts.templates import get_prompt_template, render_room_prompt
 from chatbot.rooms.room import (
     Room,
@@ -170,6 +174,62 @@ class RoomSessionResponse(BaseModel):
 
 class LinkSessionRequest(BaseModel):
     session_id: str
+
+
+class RoomModeContractResponse(BaseModel):
+    room_id: str
+    room_type: RoomType
+    mode: str
+    tone: str
+    length: str
+    pacing: str
+    max_tokens_ratio: float
+    temperature_modifier: float
+    initiative_level: str
+    should_suggest_topics: bool
+    custom_directives: list[str]
+    active_prompt_sections: list[str]
+
+
+# ---------------------------------------------------------------------------
+# Room-type → mode contract mapping
+# ---------------------------------------------------------------------------
+
+ROOM_TYPE_MODE_MAP: dict[RoomType, str] = {
+    RoomType.ONE_ON_ONE_CHAT: ContractModeName.COMPANION,
+    RoomType.ROLEPLAY_SCENE: ContractModeName.ROLEPLAY,
+    RoomType.PROJECT: ContractModeName.PLANNING,
+    RoomType.EMOTIONAL_SUPPORT: ContractModeName.VENTING,
+    RoomType.MEMORY_REVIEW: ContractModeName.ADVISOR,
+}
+
+
+def get_room_mode_contract(room_type: RoomType | str) -> RoomModeContractResponse:
+    """Resolve the mode contract for a given room type."""
+    if isinstance(room_type, str):
+        try:
+            rt = RoomType(room_type)
+        except ValueError:
+            rt = RoomType.ONE_ON_ONE_CHAT  # fallback for unknown room types
+    else:
+        rt = room_type
+
+    mode_name = ROOM_TYPE_MODE_MAP.get(rt, ContractModeName.COMPANION)
+    contract = get_contract(mode_name)
+    return RoomModeContractResponse(
+        room_id="",
+        room_type=rt,
+        mode=contract.mode.value,
+        tone=contract.tone,
+        length=contract.length,
+        pacing=contract.pacing,
+        max_tokens_ratio=contract.max_tokens_ratio,
+        temperature_modifier=contract.temperature_modifier,
+        initiative_level=contract.initiative_level,
+        should_suggest_topics=contract.should_suggest_topics,
+        custom_directives=list(contract.custom_directives),
+        active_prompt_sections=[s.value for s in contract.active_prompt_sections],
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -487,6 +547,28 @@ async def unlink_session_endpoint(room_id: str) -> None:
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         )
+
+
+# ---------------------------------------------------------------------------
+# Mode contract endpoint
+# ---------------------------------------------------------------------------
+
+
+@rooms_router.get(
+    "/{room_id}/mode-contract",
+    response_model=RoomModeContractResponse,
+)
+async def get_room_mode_contract_endpoint(room_id: str) -> RoomModeContractResponse:
+    """Return the mode contract (tone, length, pacing, etc.) for a room's type."""
+    room = await get_room(room_id)
+    if room is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Room not found",
+        )
+    response = get_room_mode_contract(room.room_type)
+    response.room_id = room_id
+    return response
 
 
 # ---------------------------------------------------------------------------
