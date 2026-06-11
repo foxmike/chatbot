@@ -13,6 +13,8 @@ import httpx
 from chatbot.memory.embeddings import EmbeddingProvider
 from chatbot.memory.episodic import EpisodicTurn
 from chatbot.memory.vector_store import SearchResult, VectorStore
+from chatbot.memory.timescale import classify_memory
+from chatbot.consolidation.contradiction import ContradictionResolver
 
 if TYPE_CHECKING:
     from chatbot.config import Settings
@@ -58,6 +60,8 @@ class RetrievalResult:
     vector_score: float
     rank: int
     metadata_matches: dict[str, Any] = field(default_factory=dict)
+    timescale: str | None = None
+    timescale_confidence: float | None = None
 
     def as_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {
@@ -69,6 +73,9 @@ class RetrievalResult:
             "vector_score": self.vector_score,
             "rank": self.rank,
         }
+        if self.timescale:
+            result["timescale"] = self.timescale
+            result["timescale_confidence"] = self.timescale_confidence
         if self.turn.token_count is not None:
             result["token_count"] = self.turn.token_count
         if self.turn.created_at is not None:
@@ -168,12 +175,16 @@ async def retrieve(
     if room_context is not None and room_context.max_context_turns > 0:
         effective_limit = min(limit, room_context.max_context_turns)
 
-    query_embedding = await _embed_one(embeddings, query or "")
-    raw_results = await vector_store.search(
-        embedding=query_embedding,
-        top_k=max(candidate_k or _default_candidate_k(effective_limit), effective_limit),
-        filter=_vector_store_filter(retrieval_filter),
-    )
+    try:
+        query_embedding = await _embed_one(embeddings, query or "")
+        raw_results = await vector_store.search(
+            embedding=query_embedding,
+            top_k=max(candidate_k or _default_candidate_k(effective_limit), effective_limit),
+            filter=_vector_store_filter(retrieval_filter),
+        )
+    except Exception as e:
+        logger.warning(f"Embeddings absent or failed, graceful fallback: {e}")
+        raw_results = []
 
     candidates = [
         _Candidate.from_search_result(result, retrieval_filter)
@@ -189,18 +200,44 @@ async def retrieve(
         filtered = _apply_room_memory_policy(filtered, room_context)
 
     deduped = _deduplicate(filtered)
-    ranked = _rank_candidates(deduped, retrieval_filter)
 
-    return [
+    # Contradiction-aware recency tagging & timescale structuring
+    deduped_sorted = sorted(deduped, key=lambda c: _datetime_timestamp(c.turn.created_at) or 0.0, reverse=True)
+    resolver = ContradictionResolver(provider=None)
+    structured_candidates = []
+
+    for candidate in deduped_sorted:
+        classification = classify_memory(candidate.turn)
+        candidate = candidate.with_timescale(classification.timescale, classification.confidence)
+
+        is_superseded = False
+        for newer in structured_candidates:
+            result = await resolver.resolve(newer.turn, candidate.turn)
+            if result.has_contradiction:
+                is_superseded = True
+                candidate.metadata_matches["superseded_by"] = newer.turn.id
+                break
+
+        if not is_superseded:
+            structured_candidates.append(candidate)
+
+    ranked = _rank_candidates(structured_candidates, retrieval_filter)
+
+    results = [
         RetrievalResult(
             turn=candidate.turn,
             score=candidate.rank_score,
             vector_score=candidate.vector_score,
             rank=index + 1,
             metadata_matches=candidate.metadata_matches,
+            timescale=candidate.timescale,
+            timescale_confidence=candidate.timescale_confidence,
         )
         for index, candidate in enumerate(ranked[:effective_limit])
     ]
+
+    from chatbot.memory.confidence import filter_low_confidence
+    return filter_low_confidence(results)
 
 
 @dataclass(frozen=True, slots=True)
@@ -209,6 +246,8 @@ class _Candidate:
     vector_score: float
     metadata_matches: dict[str, Any]
     rank_score: float = 0.0
+    timescale: str | None = None
+    timescale_confidence: float | None = None
 
     @classmethod
     def from_search_result(
@@ -239,6 +278,18 @@ class _Candidate:
             vector_score=self.vector_score,
             metadata_matches=dict(self.metadata_matches),
             rank_score=score,
+            timescale=self.timescale,
+            timescale_confidence=self.timescale_confidence,
+        )
+
+    def with_timescale(self, timescale: str, confidence: float) -> _Candidate:
+        return _Candidate(
+            turn=self.turn,
+            vector_score=self.vector_score,
+            metadata_matches=dict(self.metadata_matches),
+            rank_score=self.rank_score,
+            timescale=timescale,
+            timescale_confidence=confidence,
         )
 
 
