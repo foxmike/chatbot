@@ -22,6 +22,8 @@ import logging
 from collections.abc import Mapping
 from typing import Any
 
+from chatbot.observability.prompt_telemetry import prompt_telemetry_collector
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -96,6 +98,7 @@ def _extract_dialogue_label(block: str) -> str | None:
 # ---------------------------------------------------------------------------
 
 _SEGMENT_HASHES_KEY = "prompt_segment_hashes"
+_PROMPT_TELEMETRY_EVENT_ID_KEY = "prompt_telemetry_event_id"
 _INSTALLED_FLAG = "_traces_module_segment_hashing_installed"
 
 
@@ -123,20 +126,10 @@ def _install_segment_hashing() -> None:
         retrieval_snippets: list[str],
         total_latency_ms: float,
     ) -> Any:
-        # Call the original complete_trace first.
-        trace = await original_complete(
-            trace_id,
-            model_provider,
-            model_id,
-            prompt_tokens,
-            completion_tokens,
-            cost_usd_micros,
-            prompt,
-            routing_decision,
-            retrieval_snippets,
-            total_latency_ms,
-        )
-        # Compute and attach hashed prompt segments.
+        enriched_routing_decision = dict(routing_decision or {})
+
+        # Compute and attach hashed prompt segments before emission so persisted
+        # traces and downstream metrics see the same routing payload.
         try:
             segments = extract_prompt_segments(prompt)
             hashes = hash_segments(segments) if segments else {}
@@ -145,13 +138,64 @@ def _install_segment_hashing() -> None:
             if prompt:
                 hashes["__full__"] = hash_segment(prompt)
             if hashes:
-                trace.routing_decision[_SEGMENT_HASHES_KEY] = hashes
+                enriched_routing_decision[_SEGMENT_HASHES_KEY] = hashes
         except Exception:
             logger.debug(
                 "Prompt segment hashing failed for trace_id=%s",
                 trace_id,
                 exc_info=True,
             )
+
+        try:
+            telemetry_event = await prompt_telemetry_collector.record_generation(
+                trace_id=trace_id,
+                prompt_template=_prompt_telemetry_value(
+                    enriched_routing_decision,
+                    "prompt_template",
+                    "prompt_template_id",
+                    "template",
+                    default="unknown",
+                ),
+                model_id=_prompt_telemetry_model_id(
+                    model_id,
+                    enriched_routing_decision,
+                ),
+                mode=_prompt_telemetry_value(
+                    enriched_routing_decision,
+                    "mode",
+                    "conversation_mode",
+                    default="unknown",
+                ),
+                formatter=_prompt_telemetry_value(
+                    enriched_routing_decision,
+                    "formatter",
+                    "prompt_formatter",
+                    "llm_prompt_family",
+                    default="unknown",
+                ),
+            )
+            enriched_routing_decision[_PROMPT_TELEMETRY_EVENT_ID_KEY] = (
+                telemetry_event.event_id
+            )
+        except Exception:
+            logger.debug(
+                "Prompt telemetry recording failed for trace_id=%s",
+                trace_id,
+                exc_info=True,
+            )
+
+        trace = await original_complete(
+            trace_id,
+            model_provider,
+            model_id,
+            prompt_tokens,
+            completion_tokens,
+            cost_usd_micros,
+            prompt,
+            enriched_routing_decision,
+            retrieval_snippets,
+            total_latency_ms,
+        )
         return trace
 
     trace_collector.complete_trace = _complete_trace_with_hashes.__get__(
@@ -159,6 +203,35 @@ def _install_segment_hashing() -> None:
     )
     setattr(trace_collector, _INSTALLED_FLAG, True)
     logger.debug("Installed prompt-segment hashing on trace_collector")
+
+
+def _prompt_telemetry_value(
+    routing_decision: Mapping[str, Any],
+    *keys: str,
+    default: str,
+) -> str:
+    for key in keys:
+        value = routing_decision.get(key)
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            return text
+    return default
+
+
+def _prompt_telemetry_model_id(
+    model_id: str | None,
+    routing_decision: Mapping[str, Any],
+) -> str:
+    if model_id:
+        return str(model_id)
+    return _prompt_telemetry_value(
+        routing_decision,
+        "model",
+        "model_id",
+        default="unknown",
+    )
 
 
 # ---------------------------------------------------------------------------

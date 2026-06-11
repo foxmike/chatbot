@@ -76,6 +76,11 @@ except ImportError:
     trace_collector = None  # type: ignore[assignment]
 
 try:
+    import chatbot.observability.traces as _observability_traces  # noqa: F401
+except ImportError:
+    _observability_traces = None  # type: ignore[assignment]
+
+try:
     from chatbot.observability.metrics import metrics_collector
 except ImportError:
     metrics_collector = None  # type: ignore[assignment]
@@ -1867,7 +1872,62 @@ def _trace_routing_decision(
     decision.setdefault("provider", model_provider)
     decision.setdefault("model", model_id)
     decision.setdefault("task_class", _trace_task_class(ctx))
+    decision.setdefault("prompt_template", _trace_prompt_template(ctx))
+    decision.setdefault("mode", _trace_prompt_mode(ctx))
+    decision.setdefault("formatter", _trace_prompt_formatter(ctx))
     return _json_safe(decision)
+
+
+def _trace_prompt_template(ctx: TurnContext) -> str:
+    value = _first_metadata_value(
+        ctx,
+        "prompt_template",
+        "prompt_template_id",
+        "llm_prompt_template",
+        "system_prompt_template",
+        "persona_prompt_template",
+    )
+    if value is not None:
+        text = str(value).strip()
+        if text:
+            return text
+
+    persona = ctx.persona if isinstance(ctx.persona, Mapping) else {}
+    for key in ("template", "style", "prompt_template"):
+        value = persona.get(key)
+        if value is not None:
+            text = str(value).strip()
+            if text:
+                return f"persona:{text}"
+
+    room_type = ctx.metadata.get("room_type")
+    if room_type is not None:
+        text = str(room_type).strip()
+        if text:
+            return f"room:{text}"
+
+    return "turn_context"
+
+
+def _trace_prompt_mode(ctx: TurnContext) -> str:
+    mode = _current_conversation_mode(ctx)
+    text = _mode_value(mode)
+    return text or "normal"
+
+
+def _trace_prompt_formatter(ctx: TurnContext) -> str:
+    value = _first_metadata_value(
+        ctx,
+        "llm_prompt_formatter",
+        "llm_prompt_family",
+        "prompt_formatter",
+        "formatter",
+    )
+    if value is not None:
+        text = str(value).strip()
+        if text:
+            return text
+    return "unformatted"
 
 
 def _trace_total_latency_ms(ctx: TurnContext) -> float:
@@ -3234,6 +3294,7 @@ def _formatted_provider_inputs(
     history: list[dict[str, Any]],
 ) -> tuple[str, list[dict[str, Any]]]:
     if format_prompt_for_model is None:
+        ctx.metadata["llm_prompt_formatter"] = "unformatted"
         return ctx.user_message, history
 
     model = config.model or _trace_model_id(ctx)
@@ -3247,11 +3308,14 @@ def _formatted_provider_inputs(
         )
     except Exception:
         logger.warning("Prompt formatting failed; using unformatted inputs", exc_info=True)
+        ctx.metadata["llm_prompt_formatter"] = "unformatted"
         return ctx.user_message, history
 
     family = getattr(formatted, "family", None)
     if family is not None:
-        ctx.metadata["llm_prompt_family"] = getattr(family, "value", str(family))
+        family_value = getattr(family, "value", str(family))
+        ctx.metadata["llm_prompt_family"] = family_value
+        ctx.metadata["llm_prompt_formatter"] = family_value
 
     payload = getattr(formatted, "payload", None)
     if not isinstance(payload, Mapping):
