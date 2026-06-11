@@ -71,6 +71,28 @@ MEMORY_REALISM_DIRECTIVES: dict[MemoryTimescale, str] = {
     ),
 }
 
+_ASSISTANTISM_PATTERNS: tuple[str, ...] = (
+    "overly formal or corporate phrasing",
+    "preambles like 'Certainly!', 'Of course!', 'I'd be happy to', 'Great question!'",
+    "closing formulas like 'Let me know if you need anything else'",
+    "faux-empathy like 'I understand how frustrating that must be'",
+    "hedging boilerplate like 'As an AI', 'It's important to note that'",
+    "unsolicited disclaimers or safety warnings in casual conversation",
+    "bullet-point summaries and numbered lists when the user is chatting naturally",
+    "over-explaining simple concepts the user clearly already understands",
+)
+
+ASSISTANTISM_SCRUB_DIRECTIVE: str = (
+    "You are a companion, not an assistant. Speak like a person, not a product.\n"
+    "Avoid 'assistantisms' — the verbal tics of AI chatbots. Specifically:\n"
+    + "\n".join(f"- Do not use {pattern}." for pattern in _ASSISTANTISM_PATTERNS)
+    + "\n\n"
+    "Instead: use natural, conversational language. Be direct. Be warm but not saccharine. "
+    "Let your personality show through word choice, rhythm, and tone — not through "
+    "performed helpfulness. If you don't know something, just say so. If you disagree, "
+    "say so respectfully. The goal is authentic human-like interaction, not customer-service polish."
+)
+
 
 PROMPT_LAYER_TITLES: dict[PromptLayerName, str] = {
     PromptLayerName.SAFETY_FLOOR: "Safety Floor",
@@ -185,6 +207,24 @@ def compose_memory_realism_directives(
     return "\n".join(parts)
 
 
+def compose_assistantism_scrub_directive(
+    *,
+    header: str = "",
+) -> str:
+    """Return the assistantism scrubbing directive.
+
+    This directive instructs the model to avoid 'assistantisms' — verbal tics
+    common in AI chatbot responses — and instead use natural, human-like
+    conversational language.
+
+    When ``header`` is provided, it is prepended as a label (e.g.
+    ``"Voice guidelines:"``).
+    """
+    if header:
+        return f"{header}\n{ASSISTANTISM_SCRUB_DIRECTIVE}"
+    return ASSISTANTISM_SCRUB_DIRECTIVE
+
+
 def build_prompt_layers(
     *,
     safety_floor: Any = None,
@@ -197,6 +237,7 @@ def build_prompt_layers(
     session_goals: Any = None,
     memory_timescales: Iterable[MemoryTimescale] | None = None,
     inject_memory_realism: bool = True,
+    inject_assistantism_scrub: bool = True,
 ) -> list[PromptLayer]:
     """Build prompt layers from named blocks in canonical priority order.
 
@@ -204,6 +245,10 @@ def build_prompt_layers(
     content is present, imperfection-handling directives segmented by
     timescale are appended to the memory layer.  Pass a subset of
     ``memory_timescales`` to restrict which timescale directives are emitted.
+
+    When ``inject_assistantism_scrub`` is ``True`` (the default), the
+    assistantism scrubbing directive is appended to the companion identity
+    layer to suppress AI chatbot verbal tics.
     """
     memory_layer = make_prompt_layer(PromptLayerName.MEMORY, memory)
     if (
@@ -218,11 +263,25 @@ def build_prompt_layers(
             content=f"{memory_layer.content}\n\n{directives}",
         )
 
+    identity_layer = make_prompt_layer(PromptLayerName.COMPANION_IDENTITY, companion_identity)
+    if inject_assistantism_scrub:
+        scrub = compose_assistantism_scrub_directive()
+        if identity_layer is not None:
+            identity_layer = PromptLayer(
+                name=PromptLayerName.COMPANION_IDENTITY,
+                content=f"{identity_layer.content}\n\n{scrub}",
+            )
+        else:
+            identity_layer = PromptLayer(
+                name=PromptLayerName.COMPANION_IDENTITY,
+                content=scrub,
+            )
+
     return sorted_prompt_layers(
         (
             make_prompt_layer(PromptLayerName.SAFETY_FLOOR, safety_floor),
             make_prompt_layer(PromptLayerName.PLATFORM_BEHAVIOR, platform_behavior),
-            make_prompt_layer(PromptLayerName.COMPANION_IDENTITY, companion_identity),
+            identity_layer,
             make_prompt_layer(PromptLayerName.RELATIONSHIP_STAGE, relationship_stage),
             make_prompt_layer(PromptLayerName.ROOM_SCENE, room_scene),
             make_prompt_layer(PromptLayerName.MOOD_STATE, mood_state),
@@ -342,6 +401,7 @@ def _coerce_layer_content(content: Any) -> str:
 
 
 __all__ = [
+    "ASSISTANTISM_SCRUB_DIRECTIVE",
     "MEMORY_REALISM_DIRECTIVES",
     "PROMPT_LAYER_ORDER",
     "PROMPT_LAYER_TITLES",
@@ -349,6 +409,7 @@ __all__ = [
     "PromptLayerName",
     "build_prompt_layers",
     "compile_system_prompt",
+    "compose_assistantism_scrub_directive",
     "compose_memory_realism_directives",
     "compose_prompt_layers",
     "make_prompt_layer",
