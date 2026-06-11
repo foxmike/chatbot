@@ -121,12 +121,21 @@ Located in `chatbot/soul/`:
 - **Handling**: Dependencies like `get_current_user` inject `CurrentUser`.
 - **Isolation**: Route handlers explicitly check `user_id` to prevent unauthorized access.
 
-## 16. Observability, Routing, Streaming, and Performance
+## 16. Observability and Prompt Telemetry
 - **Logging/Metrics/Tracing**: `observability/` package defines structured logging, metrics collection, and tracing (`observability_traces` table).
-- **Routing**: `ProviderRouter` exists for LLM routing.
-- **Streaming**: Defined in `streaming.py` with its own API router.
+- **Prompt Telemetry**: Implemented in `chatbot/observability/prompt_telemetry.py`. It logs the exact combinations of prompt templates, models, modes, and formatters used for each generation, linked via `trace_id` to allow effectiveness analysis.
 
-## 17. Known Gaps / Incomplete Areas
+## 17. Prompt System and Compression
+The system ensures prompts fit within model context windows via a multi-layered approach in `chatbot/core/prompt_compressor.py`:
+- **Token Budgeting**: Uses `TokenBudgetCalculator` to allocate token limits across persona, memories, history, and scene prompts based on the model's context window.
+- **Compression Strategies**:
+    - **Persona**: LLM-based summarization (via a prompt optimization sub-agent) with a fallback to heuristic extractive pruning that prioritizes safety and core identity keywords.
+    - **History**: LLM-based dialogue summarization of older turns, preserving the most recent turns verbatim, with a recency-pruning fallback.
+    - **Memories**: Relevance-score based filtering to keep the most pertinent retrieved memories within budget.
+    - **Scene**: Heuristic truncation of scene descriptions/attention anchors.
+- **Integration**: Integrated into the chat pipeline via `PromptCompressionStep`, which executes before the provider call to prevent context overflow.
+
+## 18. Known Gaps / Incomplete Areas
 - The background worker service is entirely absent from `docker-compose.yml`, breaking all deferred memory extraction and consolidation.
 - The `retrieval_engine` is not passed to the `TurnContext` in `api/chat.py`, silently bypassing vector memory retrieval in the chat pipeline.
 - No embedding provider (e.g. OpenAI/Cohere) is configured in `bootstrap.py` or `config.py` to power `pgvector_store.py`.
@@ -149,7 +158,8 @@ Located in `chatbot/soul/`:
 | auth | `chatbot/auth/dependencies.py` | `chatbot/auth/security.py`, `chatbot/api/auth.py` |
 | voice | `chatbot/voice/` | `chatbot/api/voice.py` |
 | visual identity | `chatbot/visual/` | `chatbot/db/models.py` |
-| observability | `chatbot/observability/` | `chatbot/db/models.py` |
+| observability | `chatbot/observability/` | `chatbot/db/models.py`, `chatbot/observability/prompt_telemetry.py` |
+| prompt compression | `chatbot/core/prompt_compressor.py` | `chatbot/core/token_budget.py`, `chatbot/core/turn.py` |
 | streaming | `chatbot/api/streaming.py` | `chatbot/core/turn.py` |
 | migrations | `migrations/versions/` | `alembic.ini`, `chatbot/db/models.py` |
 
