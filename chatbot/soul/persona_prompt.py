@@ -8,8 +8,10 @@ from typing import Any, Mapping, Optional
 
 from chatbot.soul.character import CharacterProfile
 from chatbot.soul.evolution import IdentityState
+from chatbot.soul.linguistic_fingerprint import format_linguistic_fingerprint
 from chatbot.soul.modes import ConversationMode, ModeSelector
 from chatbot.soul.mood import MoodEngine, MoodState
+from chatbot.soul.pacing import calculate_momentum, get_pacing_directive
 from chatbot.soul.relationship import RelationshipConfig
 
 
@@ -110,8 +112,48 @@ class PersonaPromptAssembler:
         relationship_config: Optional[RelationshipConfig] = None,
         character_profile: Optional[CharacterProfile] = None,
         identity_state: Optional[IdentityState] = None,
+        punctuation_habits: Optional[dict[str, Any]] = None,
+        sentence_length_profile: Optional[dict[str, Any]] = None,
+        emoji_style: Optional[dict[str, Any]] = None,
+        vocabulary_density: Optional[float] = None,
+        slang_profile: Optional[dict[str, Any]] = None,
+        scene_type: Optional[str] = None,
+        momentum: Optional[str] = None,
+        user_response_time_seconds: Optional[float] = None,
+        user_message_length: Optional[int] = None,
     ) -> str:
         persona_data = _persona_mapping(persona)
+
+        # Resolve Linguistic Fingerprint variables
+        ph = punctuation_habits or persona_data.get("punctuation_habits")
+        sl = sentence_length_profile or persona_data.get("sentence_length_profile")
+        es = emoji_style or persona_data.get("emoji_style")
+        vd = vocabulary_density if vocabulary_density is not None else persona_data.get("vocabulary_density")
+        sp = slang_profile or persona_data.get("slang_profile")
+
+        fingerprint_text = format_linguistic_fingerprint(
+            punctuation_habits=ph,
+            sentence_length_profile=sl,
+            emoji_style=es,
+            vocabulary_density=vd,
+            slang_profile=sp,
+        )
+
+        # Resolve Pacing variables
+        resolved_scene = scene_type or persona_data.get("scene_type")
+        if not resolved_scene and mode is not None:
+            mode_str = mode.value if hasattr(mode, "value") else str(mode)
+            resolved_scene = mode_str.lower()
+        resolved_scene = resolved_scene or "casual"
+
+        resolved_momentum = momentum or persona_data.get("momentum")
+        if not resolved_momentum:
+            res_time = user_response_time_seconds if user_response_time_seconds is not None else persona_data.get("user_response_time_seconds")
+            msg_len = user_message_length if user_message_length is not None else persona_data.get("user_message_length")
+            resolved_momentum = calculate_momentum(res_time, msg_len)
+
+        pacing_directive = get_pacing_directive(resolved_scene, resolved_momentum)
+
         if not persona_data:
             return self._with_prompt_modifiers(
                 str(self._config["fallback_prompt"]),
@@ -121,6 +163,8 @@ class PersonaPromptAssembler:
                 relationship_config,
                 character_profile,
                 identity_state,
+                fingerprint_text=fingerprint_text,
+                pacing_directive=pacing_directive,
             )
 
         style_name = _first_text(
@@ -143,13 +187,20 @@ class PersonaPromptAssembler:
             relationship_config=relationship_config,
             character_profile=character_profile,
             identity_state=identity_state,
+            fingerprint_text=fingerprint_text,
         )
         if not sections:
-            if not identity_sections:
-                return str(self._config["fallback_prompt"])
             separator = str(style.get("section_separator", "\n"))
-            return separator.join(
-                [str(self._config["fallback_prompt"]), *identity_sections]
+            return self._with_prompt_modifiers(
+                str(self._config["fallback_prompt"]),
+                separator,
+                mood,
+                mode,
+                relationship_config,
+                character_profile,
+                identity_state,
+                fingerprint_text=fingerprint_text,
+                pacing_directive=pacing_directive,
             )
 
         heading = _format_template(
@@ -167,6 +218,7 @@ class PersonaPromptAssembler:
             style=style,
             mood=mood,
             mode=mode,
+            pacing_directive=pacing_directive,
         )
         if modifier_section:
             parts.append(modifier_section)
@@ -182,6 +234,8 @@ class PersonaPromptAssembler:
         relationship_config: Optional[RelationshipConfig],
         character_profile: Optional[CharacterProfile],
         identity_state: Optional[IdentityState],
+        fingerprint_text: str | None = None,
+        pacing_directive: str | None = None,
     ) -> str:
         style = _default_modifier_style(self._config)
         parts = [prompt]
@@ -191,12 +245,14 @@ class PersonaPromptAssembler:
                 relationship_config=relationship_config,
                 character_profile=character_profile,
                 identity_state=identity_state,
+                fingerprint_text=fingerprint_text,
             )
         )
         modifier_section = _render_prompt_modifiers(
             style=style,
             mood=mood,
             mode=mode,
+            pacing_directive=pacing_directive,
         )
         if not modifier_section:
             return separator.join(parts)
@@ -244,6 +300,15 @@ def assemble_persona_prompt(
     relationship_config: Optional[RelationshipConfig] = None,
     character_profile: Optional[CharacterProfile] = None,
     identity_state: Optional[IdentityState] = None,
+    punctuation_habits: Optional[dict[str, Any]] = None,
+    sentence_length_profile: Optional[dict[str, Any]] = None,
+    emoji_style: Optional[dict[str, Any]] = None,
+    vocabulary_density: Optional[float] = None,
+    slang_profile: Optional[dict[str, Any]] = None,
+    scene_type: Optional[str] = None,
+    momentum: Optional[str] = None,
+    user_response_time_seconds: Optional[float] = None,
+    user_message_length: Optional[int] = None,
 ) -> str:
     if isinstance(mood, str):
         return _render_legacy_personality_prompt(persona, mood, mode)
@@ -251,11 +316,20 @@ def assemble_persona_prompt(
     assembler = PersonaPromptAssembler()
     return assembler.assemble(
         persona,
-        mood,
-        mode,
-        relationship_config,
-        character_profile,
-        identity_state,
+        mood=mood,
+        mode=mode,
+        relationship_config=relationship_config,
+        character_profile=character_profile,
+        identity_state=identity_state,
+        punctuation_habits=punctuation_habits,
+        sentence_length_profile=sentence_length_profile,
+        emoji_style=emoji_style,
+        vocabulary_density=vocabulary_density,
+        slang_profile=slang_profile,
+        scene_type=scene_type,
+        momentum=momentum,
+        user_response_time_seconds=user_response_time_seconds,
+        user_message_length=user_message_length,
     )
 
 
@@ -408,6 +482,7 @@ def _render_prompt_modifiers(
     style: Mapping[str, Any],
     mood: MoodState | None,
     mode: ConversationMode | None,
+    pacing_directive: str | None = None,
 ) -> str:
     hints: list[str] = []
 
@@ -422,6 +497,9 @@ def _render_prompt_modifiers(
         )
         if parameter_hints:
             hints.append(parameter_hints)
+
+    if pacing_directive:
+        hints.append(_clean_text(pacing_directive))
 
     if not hints:
         return ""
@@ -444,6 +522,7 @@ def _render_identity_sections(
     relationship_config: Optional[RelationshipConfig],
     character_profile: Optional[CharacterProfile],
     identity_state: Optional[IdentityState],
+    fingerprint_text: str | None = None,
 ) -> list[str]:
     sections: list[str] = []
 
@@ -472,6 +551,19 @@ def _render_identity_sections(
             tier_fragments,
         ):
             sections.append(_render_labeled_section(style, label, fragment))
+
+    if fingerprint_text:
+        prefix = "Linguistic Directives:\n"
+        content = fingerprint_text
+        if content.startswith(prefix):
+            content = content[len(prefix):]
+        sections.append(
+            _render_labeled_section(
+                style,
+                "LINGUISTIC FINGERPRINT",
+                content,
+            )
+        )
 
     return [section for section in sections if section]
 
