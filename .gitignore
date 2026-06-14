@@ -32,3 +32,4 @@ logs/
 state/runs/
 __pycache__/
 uv.lock
+.abracapocus/plans/**/.materialize_debug/
