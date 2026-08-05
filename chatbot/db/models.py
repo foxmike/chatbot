@@ -115,7 +115,9 @@ class Companion(Base):
         nullable=False,
     )
     name: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    gender: Mapped[str | None] = mapped_column(sa.String(10), nullable=True)
     persona: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    avatar_header: Mapped[str | None] = mapped_column(sa.String(255), nullable=True)
     description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(sa.String(512), nullable=True)
     backstory: Mapped[str | None] = mapped_column(sa.Text, nullable=True)

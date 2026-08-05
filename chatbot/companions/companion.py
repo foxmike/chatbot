@@ -23,7 +23,9 @@ from chatbot.visual.generation import GenerationOptions, create_image_generation
 
 class CompanionCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=128)
+    gender: str | None = None
     persona: str | None = None
+    avatar_header: str | None = Field(default=None, max_length=255)
     description: str | None = None
     avatar_url: str | None = None
     backstory: str | None = None
@@ -37,6 +39,16 @@ class CompanionCreateRequest(BaseModel):
     slang_profile: dict[str, object] | None = None
     adaptive_verbosity: float | None = Field(default=None, ge=0.0, le=1.0)
     favorite_topics: list[str] | None = None
+
+    @field_validator("gender")
+    @classmethod
+    def validate_gender(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        cleaned = v.strip().lower()
+        if cleaned not in {"male", "female"}:
+            raise ValueError("gender must be male or female")
+        return cleaned
 
     @field_validator("avatar_url")
     @classmethod
@@ -56,7 +68,9 @@ class CompanionResponse(BaseModel):
     companion_id: str
     user_id: str
     name: str
+    gender: str | None
     persona: str | None
+    avatar_header: str | None
     description: str | None
     avatar_url: str | None
     backstory: str | None
@@ -88,7 +102,9 @@ COMPANION_MODEL_DEFINITIONS: dict[str, dict[str, dict]] = {
             "nullable": False,
         },
         "name": {"type": "String(128)", "nullable": False},
+        "gender": {"type": "String(10)", "nullable": True},
         "persona": {"type": "Text", "nullable": True},
+        "avatar_header": {"type": "String(255)", "nullable": True},
         "description": {"type": "Text", "nullable": True},
         "avatar_url": {"type": "String(512)", "nullable": True},
         "backstory": {"type": "Text", "nullable": True},
@@ -188,7 +204,9 @@ def _row_to_companion(row: object) -> CompanionResponse:
         companion_id=companion_id,
         user_id=str(m["user_id"]),
         name=name,
+        gender=m.get("gender"),
         persona=persona,
+        avatar_header=m.get("avatar_header"),
         description=description,
         avatar_url=avatar_url,
         backstory=m.get("backstory"),
@@ -221,33 +239,31 @@ class CompanionManager:
 
     async def create(self, user_id: str, data: CompanionCreateRequest) -> CompanionResponse:
         companion_id = str(uuid4())
-        avatar_url = data.avatar_url or await self._generate_avatar_url(
-            user_id=user_id,
-            companion_id=companion_id,
-            data=data,
-        )
+        avatar_url = data.avatar_url or None
         # exec_driver_sql sends raw SQL to asyncpg with native $N positional params,
         # avoiding SQLAlchemy text()'s :name parser which misreads ::jsonb as a
         # second named parameter (:jsonb).
         conn = await self._session.connection()
         result = await conn.exec_driver_sql(
             """INSERT INTO companions (
-                   companion_id, user_id, name, persona, description, avatar_url,
+                   companion_id, user_id, name, gender, persona, avatar_header, description, avatar_url,
                    backstory, personality_sliders, humor_style, communication_style,
                    punctuation_habits, sentence_length_profile, emoji_style,
                    vocabulary_density, slang_profile, favorite_topics, created_at
                )
                VALUES (
-                   $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10,
-                   $11::jsonb, $12::jsonb, $13::jsonb, $14, $15::jsonb,
-                   $16::jsonb, now()
+                   $1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12,
+                   $13::jsonb, $14::jsonb, $15::jsonb, $16, $17::jsonb,
+                   $18::jsonb, now()
                )
                RETURNING *""",
             (
                 companion_id,
                 user_id,
                 data.name,
+                data.gender,
                 data.persona,
+                data.avatar_header,
                 data.description,
                 avatar_url,
                 data.backstory,
@@ -328,22 +344,25 @@ class CompanionManager:
         conn = await self._session.connection()
         await conn.exec_driver_sql(
             """UPDATE companions
-               SET name = $1, persona = $2, description = $3, avatar_url = $4,
-                   backstory = $5,
-                   personality_sliders = $6::jsonb,
-                   humor_style = $7,
-                   communication_style = $8,
-                   punctuation_habits = $9::jsonb,
-                   sentence_length_profile = $10::jsonb,
-                   emoji_style = $11::jsonb,
-                   vocabulary_density = $12,
-                   slang_profile = $13::jsonb,
-                   favorite_topics = $14::jsonb,
+               SET name = $1, gender = $2, persona = $3, avatar_header = $4,
+                   description = $5, avatar_url = $6,
+                   backstory = $7,
+                   personality_sliders = $8::jsonb,
+                   humor_style = $9,
+                   communication_style = $10,
+                   punctuation_habits = $11::jsonb,
+                   sentence_length_profile = $12::jsonb,
+                   emoji_style = $13::jsonb,
+                   vocabulary_density = $14,
+                   slang_profile = $15::jsonb,
+                   favorite_topics = $16::jsonb,
                    updated_at = now()
-               WHERE companion_id = $15""",
+               WHERE companion_id = $17""",
             (
                 data.name,
+                data.gender,
                 data.persona,
+                data.avatar_header,
                 data.description,
                 data.avatar_url,
                 data.backstory,

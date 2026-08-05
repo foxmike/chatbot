@@ -27,7 +27,9 @@ export interface Companion {
   companion_id: string;
   user_id: string;
   name: string;
+  gender: "male" | "female" | null;
   persona: string | null;
+  avatar_header: string | null;
   description: string | null;
   avatar_url: string | null;
   backstory: string | null;
@@ -45,7 +47,9 @@ export interface Companion {
 
 export interface CompanionCreate {
   name: string;
+  gender?: "male" | "female" | null;
   persona: string | null;
+  avatar_header?: string | null;
   description: string | null;
   avatar_url: string | null;
   backstory?: string | null;
@@ -59,6 +63,39 @@ export interface CompanionCreate {
   slang_profile?: Record<string, unknown> | null;
   adaptive_verbosity?: number | null;
   favorite_topics?: string[] | null;
+}
+
+export type GenerateCompanionFieldName =
+  | "name"
+  | "backstory"
+  | "persona"
+  | "personality"
+  | "favorite_topics";
+
+export interface GenerateCompanionFieldContext {
+  gender: "male" | "female";
+  name?: string | null;
+  backstory?: string | null;
+  persona?: string | null;
+  personality?: Record<string, unknown> | null;
+}
+
+export interface GeneratedCompanionPersonality {
+  humor_style: string;
+  communication_style: string;
+  sliders: Record<string, number>;
+}
+
+export interface GenerateCompanionFieldRequest {
+  field: GenerateCompanionFieldName;
+  context: GenerateCompanionFieldContext;
+  model_override?: string | null;
+  provider_override?: string | null;
+}
+
+export interface GenerateCompanionFieldResponse {
+  field: GenerateCompanionFieldName;
+  content: string | GeneratedCompanionPersonality;
 }
 
 export interface GeneratedCompanionImage {
@@ -1556,6 +1593,15 @@ export async function createCompanion(
   });
 }
 
+export function generateCompanionField(
+  data: GenerateCompanionFieldRequest,
+): Promise<GenerateCompanionFieldResponse> {
+  return requestJson<GenerateCompanionFieldResponse>("/companions/generate-field", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
 export async function listCompanions(): Promise<Companion[]> {
   const result = await requestJson<{ companions: Companion[] }>("/companions", {
     method: "GET",
@@ -1607,6 +1653,7 @@ export function generateVisualImage(
 export interface UploadVisualImageRequest {
   image_base64: string;
   companion_id?: string;
+  prompt_used?: string;
 }
 
 export interface UploadVisualImageResponse {
@@ -1621,6 +1668,19 @@ export function uploadVisualImage(
     method: "POST",
     body: JSON.stringify(data),
   });
+}
+
+export function updateVisualImageDescription(
+  imageId: string,
+  promptUsed: string,
+): Promise<GeneratedCompanionImage> {
+  return requestJson<GeneratedCompanionImage>(
+    `/visual/images/${imageId}/description`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ prompt_used: promptUsed }),
+    },
+  );
 }
 
 export async function deleteVisualImage(imageId: string): Promise<void> {

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import time
 import uuid as _uuid
 from typing import Any
 
@@ -22,6 +23,7 @@ from chatbot.visual.appearance import (
     OutfitManager,
 )
 from chatbot.visual.base import (
+    ImageGenerationResult,
     ImageGenerationProvider,
     ImageUnderstandingProvider,
     VISUAL_PROVIDER_REGISTRY,
@@ -31,7 +33,6 @@ from chatbot.visual.base import (
 from chatbot.visual.generation import (
     GenerationError,
     GenerationOptions,
-    ImageGenerationService,
 )
 from chatbot.visual.understanding import (
     ImageUnderstandingService,
@@ -54,11 +55,16 @@ DEFAULT_HEIGHT = 512
 class UploadRequest(BaseModel):
     image_base64: str
     companion_id: str | None = None
+    prompt_used: str | None = None
 
 
 class UploadResponse(BaseModel):
     image_id: str
     image_url: str
+
+
+class UpdateImageDescriptionRequest(BaseModel):
+    prompt_used: str = ""
 
 
 class GenerateRequest(BaseModel):
@@ -283,19 +289,6 @@ async def generate_image(
                 current_user.user_id,
             )
             companion_id = request.companion_id
-            appearance_manager = await _load_appearance_manager_for_companion(
-                session,
-                request.companion_id,
-            )
-        else:
-            appearance_manager = await _load_appearance_manager_for_user(
-                session, current_user.user_id
-            )
-
-        service = ImageGenerationService(
-            appearance_manager=appearance_manager,
-            provider=provider,
-        )
 
         options = GenerationOptions(
             width=request.width,
@@ -305,14 +298,14 @@ async def generate_image(
         )
 
         try:
-            persisted = await service.generate_and_persist_with_reference(
-                scene_description=request.prompt,
+            result, image_id = await _generate_raw_image_and_persist(
+                provider=provider,
+                prompt=request.prompt,
                 options=options,
-                user_id=str(current_user.user_id),
+                user_id=current_user.user_id,
                 companion_id=companion_id,
-                db_session=session,
+                session=session,
             )
-            result = persisted.result
         except GenerationError as exc:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
@@ -320,8 +313,8 @@ async def generate_image(
             )
 
     return GenerateResponse(
-        image_id=persisted.image_id,
-        image_url=_api_image_url(persisted.image_id) if persisted.image_id else None,
+        image_id=image_id,
+        image_url=_api_image_url(image_id) if image_id else None,
         image_base64=base64.b64encode(result.image_data).decode("ascii"),
         mime_type=result.mime_type,
         seed_used=result.seed_used,
@@ -331,6 +324,52 @@ async def generate_image(
         height=result.height,
         generation_time_ms=result.generation_time_ms,
     )
+
+
+async def _generate_raw_image_and_persist(
+    *,
+    provider: ImageGenerationProvider,
+    prompt: str,
+    options: GenerationOptions,
+    user_id: str,
+    companion_id: str | None,
+    session: AsyncSession,
+) -> tuple[ImageGenerationResult, str]:
+    """Generate from the exact user prompt and persist it as an image memory."""
+    start_ms = time.monotonic() * 1000
+    try:
+        result = await provider.generate(
+            prompt=prompt,
+            negative_prompt=options.negative_prompt,
+            width=options.width,
+            height=options.height,
+            seed=options.seed,
+            appearance_profile=None,
+        )
+    except Exception as exc:
+        raise GenerationError(str(exc)) from exc
+    end_ms = time.monotonic() * 1000
+
+    image_id = str(_uuid.uuid4())
+    record = ImageMemory(
+        image_id=image_id,
+        source_type="generated",
+        user_id=_user_uuid(user_id),
+        companion_id=companion_id,
+        image_data=result.image_data,
+        image_url=_api_image_url(image_id),
+        mime_type=result.mime_type,
+        prompt_used=result.prompt_used,
+        seed_used=result.seed_used,
+        model_used=result.model_used,
+        width=result.width,
+        height=result.height,
+        generation_time_ms=end_ms - start_ms,
+    )
+    session.add(record)
+    await session.commit()
+
+    return result, image_id
 
 
 @visual_router.post("/upload", response_model=UploadResponse)
@@ -384,6 +423,8 @@ async def upload_image(
             image_data=image_bytes,
             image_url=image_url,
             mime_type=mime_type,
+            prompt_used=request.prompt_used or "",
+            description=request.prompt_used or "",
         )
         session.add(record)
         await session.commit()
@@ -402,7 +443,7 @@ async def list_companion_images(
     companion_id: str,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> CompanionImageListResponse:
-    """Return generated images associated with a companion."""
+    """Return gallery images associated with a companion."""
     async with async_session_factory() as session:
         await _load_companion_for_user(session, companion_id, current_user.user_id)
         stmt = (
@@ -410,7 +451,7 @@ async def list_companion_images(
             .where(
                 ImageMemory.companion_id == companion_id,
                 ImageMemory.user_id == _user_uuid(current_user.user_id),
-                ImageMemory.source_type == "generated",
+                ImageMemory.source_type.in_(("generated", "uploaded")),
             )
             .order_by(ImageMemory.created_at.desc())
         )
@@ -423,7 +464,7 @@ async def list_companion_images(
                 image_id=image.image_id,
                 image_url=_api_image_url(image.image_id),
                 mime_type=image.mime_type,
-                prompt_used=image.prompt_used,
+                prompt_used=image.prompt_used or image.description,
                 model_used=image.model_used,
                 width=image.width,
                 height=image.height,
@@ -431,6 +472,45 @@ async def list_companion_images(
             )
             for image in images
         ]
+    )
+
+
+@visual_router.patch("/images/{image_id}/description", response_model=CompanionImageResponse)
+async def update_image_description(
+    image_id: str,
+    request: UpdateImageDescriptionRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> CompanionImageResponse:
+    """Update user-authored prompt/description text for an existing image."""
+    async with async_session_factory() as session:
+        result = await session.execute(
+            select(ImageMemory).where(
+                ImageMemory.image_id == image_id,
+                ImageMemory.user_id == _user_uuid(current_user.user_id),
+            )
+        )
+        image = result.scalar_one_or_none()
+        if image is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Image not found or not owned by user",
+            )
+
+        prompt_used = request.prompt_used
+        image.prompt_used = prompt_used
+        image.description = prompt_used
+        await session.commit()
+        await session.refresh(image)
+
+    return CompanionImageResponse(
+        image_id=image.image_id,
+        image_url=_api_image_url(image.image_id),
+        mime_type=image.mime_type,
+        prompt_used=image.prompt_used or image.description,
+        model_used=image.model_used,
+        width=image.width,
+        height=image.height,
+        created_at=image.created_at.isoformat(),
     )
 
 
