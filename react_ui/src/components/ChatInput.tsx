@@ -1,12 +1,21 @@
 import { useRef, useState } from "react";
-import type { Session } from "../types";
+import ModelPicker from "./ModelPicker";
 
 interface ChatInputProps {
-  onSend: (message: string) => void;
+  onSend: (message: string, provider: string, model: string) => void;
   disabled: boolean;
+  modelProvider: string;
+  modelName: string;
+  onModelChange: (provider: string, model: string) => void;
 }
 
-export function ChatInput({ onSend, disabled }: ChatInputProps) {
+export function ChatInput({
+  onSend,
+  disabled,
+  modelProvider,
+  modelName,
+  onModelChange,
+}: ChatInputProps) {
   const [message, setMessage] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -28,7 +37,7 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
       return;
     }
 
-    onSend(trimmedMessage);
+    onSend(trimmedMessage, modelProvider, modelName);
     setMessage("");
     textareaRef.current?.focus();
 
@@ -43,6 +52,7 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
 
   return (
     <div className="border-t border-gray-700 bg-gray-800 p-4">
+      <ModelPicker onChange={onModelChange} />
       <div className="flex items-end gap-3">
         <textarea
           ref={textareaRef}

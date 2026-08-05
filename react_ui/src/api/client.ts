@@ -604,10 +604,17 @@ export function sendMessage(
   message: string,
   sessionId: string,
   roomId?: string,
+  providerOverride?: string,
+  modelOverride?: string,
 ): Promise<ChatResponse> {
+  const body: Record<string, string> = { message, session_id: sessionId };
+  if (roomId) body.room_id = roomId;
+  if (providerOverride) body.provider_override = providerOverride;
+  if (modelOverride) body.model_override = modelOverride;
+
   return requestJson<ChatResponse>("/api/chat/", {
     method: "POST",
-    body: JSON.stringify({ message, session_id: sessionId, room_id: roomId }),
+    body: JSON.stringify(body),
   });
 }
 
@@ -617,6 +624,8 @@ export async function streamChat(
   callbacks: StreamCallbacks,
   signal?: AbortSignal,
   roomId?: string,
+  providerOverride?: string,
+  modelOverride?: string,
 ): Promise<void> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -627,10 +636,15 @@ export async function streamChat(
 
   let response: Response;
   try {
+    const body: Record<string, string> = { session_id: sessionId, message };
+    if (roomId) body.room_id = roomId;
+    if (providerOverride) body.provider_override = providerOverride;
+    if (modelOverride) body.model_override = modelOverride;
+
     response = await fetch(streamingBackendUrl(), {
       method: "POST",
       headers,
-      body: JSON.stringify({ session_id: sessionId, message, room_id: roomId }),
+      body: JSON.stringify(body),
       signal,
     });
   } catch (err: unknown) {

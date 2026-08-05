@@ -15,7 +15,12 @@ interface MessageListProps {
    * Set to null after the stream completes to allow future requests
    * with the same session/message pair.
    */
-  streamRequest?: { sessionId: string; message: string } | null;
+  streamRequest?: {
+    sessionId: string;
+    message: string;
+    provider: string;
+    model: string;
+  } | null;
   /** Called when a streamed assistant message is fully received. */
   onStreamComplete?: (message: Message) => void;
   /** Called when a streaming request encounters an error. */
@@ -63,7 +68,7 @@ export function MessageList({
   useEffect(() => {
     if (!streamRequest) return;
 
-    const { sessionId, message } = streamRequest;
+    const { sessionId, message, provider, model } = streamRequest;
 
     // Abort any in-flight stream from a previous request.
     abortRef.current?.abort();
@@ -107,7 +112,15 @@ export function MessageList({
       },
     };
 
-    streamChat(sessionId, message, callbacks, controller.signal);
+    streamChat(
+      sessionId,
+      message,
+      callbacks,
+      controller.signal,
+      undefined,
+      provider,
+      model,
+    );
 
     return () => {
       controller.abort();

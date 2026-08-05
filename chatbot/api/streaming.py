@@ -44,6 +44,8 @@ class StreamRequest(BaseModel):
     message: str
     stream_tokens: bool = True
     room_id: str | None = None
+    model_override: str | None = None
+    provider_override: str | None = None
 
     model_config = {"str_strip_whitespace": True, "str_min_length": 1}
 
@@ -129,6 +131,12 @@ async def _stream_turn(
     typing_active = False
     try:
         metadata = _stream_metadata(http_request)
+        if request.model_override:
+            metadata["model"] = request.model_override
+            metadata["default_model"] = request.model_override
+        if request.provider_override:
+            metadata["provider_name"] = request.provider_override
+            metadata["default_provider"] = request.provider_override
         metadata["session_id"] = request.session_id
         metadata["session_record"] = session_snapshot
         metadata["db_session"] = stream_db

@@ -267,14 +267,25 @@ export default function App() {
   );
   const [callModeActive, setCallModeActive] = useState(false);
   const [useStreamingChat, setUseStreamingChat] = useState(false);
+  const [activeProvider, setActiveProvider] = useState("openrouter");
+  const [activeModel, setActiveModel] = useState("google/gemma-4-31b-it");
   const [debugMode, setDebugMode] = useState(false);
   const [inspectedTurnId, setInspectedTurnId] = useState<string | null>(null);
   const [streamRequest, setStreamRequest] = useState<{
     sessionId: string;
     message: string;
+    provider: string;
+    model: string;
   } | null>(null);
 
-  const queueRef = useRef<Array<{ text: string; sessionId: string; roomId: string | null; streaming: boolean }>>([]);
+  const queueRef = useRef<Array<{
+    text: string;
+    sessionId: string;
+    roomId: string | null;
+    streaming: boolean;
+    provider: string;
+    model: string;
+  }>>([]);
   const processingRef = useRef(false);
   const streamSettleRef = useRef<{ sessionId: string; resolve: () => void; reject: (err: Error) => void } | null>(null);
   const activeRoomIdRef = useRef<string | null>(null);
@@ -419,7 +430,7 @@ export default function App() {
 
     while (queueRef.current.length > 0) {
       const item = queueRef.current.shift()!;
-      const { text, sessionId, roomId, streaming } = item;
+      const { text, sessionId, roomId, streaming, provider, model } = item;
 
       setIsLoading(true);
       try {
@@ -427,14 +438,20 @@ export default function App() {
           try {
             await new Promise<void>((resolve, reject) => {
               streamSettleRef.current = { sessionId, resolve, reject };
-              setStreamRequest({ sessionId, message: text });
+              setStreamRequest({ sessionId, message: text, provider, model });
             });
           } catch {
             console.error("Streaming failed for queued message, skipping");
           }
         } else {
           try {
-            const response = await sendMessage(text, sessionId, roomId ?? undefined);
+            const response = await sendMessage(
+              text,
+              sessionId,
+              roomId ?? undefined,
+              provider,
+              model,
+            );
             setMessagesBySession((currentMessages) => {
               const currentList = currentMessages[sessionId] ?? [];
               const updatedList = [...currentList];
@@ -475,7 +492,7 @@ export default function App() {
     processingRef.current = false;
   };
 
-  const handleSend = (message: string) => {
+  const handleSend = (message: string, provider: string, model: string) => {
     const trimmedMessage = message.trim();
     const sessionId = activeSessionId;
 
@@ -497,6 +514,8 @@ export default function App() {
       sessionId,
       roomId: activeRoomId,
       streaming: useStreamingChat,
+      provider,
+      model,
     });
 
     processQueue();
@@ -704,6 +723,12 @@ export default function App() {
           <ChatInput
             onSend={handleSend}
             disabled={!activeSessionId}
+            modelProvider={activeProvider}
+            modelName={activeModel}
+            onModelChange={(provider, model) => {
+              setActiveProvider(provider);
+              setActiveModel(model);
+            }}
           />
         </div>
         {debugMode && (
@@ -801,7 +826,11 @@ export default function App() {
         ),
         voice: (
           <div className="flex h-full flex-col items-center justify-center gap-6 p-4">
-            <VoiceControls onTranscription={handleSend} />
+            <VoiceControls
+              onTranscription={(message) =>
+                handleSend(message, activeProvider, activeModel)
+              }
+            />
             <button
               type="button"
               className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-900"

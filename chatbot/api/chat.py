@@ -62,6 +62,8 @@ class ChatRequest(BaseModel):
     message: str
     companion_id: str | None = None
     room_id: str | None = None
+    model_override: str | None = None
+    provider_override: str | None = None
 
 
 class ChatResponse(BaseModel):
@@ -158,6 +160,14 @@ async def chat(
     if retrieval_engine is not None and not callable(getattr(retrieval_engine, "retrieve", None)):
         retrieval_engine = None
 
+    metadata = _build_metadata(request, body.session_id, session, history, persona)
+    if body.provider_override:
+        metadata["provider_name"] = body.provider_override
+        metadata["default_provider"] = body.provider_override
+    if body.model_override:
+        metadata["model"] = body.model_override
+        metadata["default_model"] = body.model_override
+
     ctx = TurnContext(
         session_id=body.session_id,
         user_message=body.message,
@@ -168,7 +178,7 @@ async def chat(
         provider_response=None,
         extracted_memories=[],
         final_response=None,
-        metadata=_build_metadata(request, body.session_id, session, history, persona),
+        metadata=metadata,
         retrieval_engine=retrieval_engine,
     )
     ctx.metadata["db"] = db
