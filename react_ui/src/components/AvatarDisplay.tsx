@@ -13,7 +13,7 @@ export function AvatarDisplay({
   isAvatarActive = false,
 }: AvatarDisplayProps) {
   return (
-    <div className="flex items-center justify-between border-b border-gray-700 bg-gray-800/60 px-4 py-3">
+    <div className="flex items-center justify-between border-b border-gray-700 bg-gray-800/60 py-3 pl-4 pr-24">
       <div className="flex items-center gap-3 min-w-0">
         {companion.avatar_url ? (
           <img

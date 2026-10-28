@@ -5,37 +5,14 @@ WebSocket router and SSE fanout; it deliberately contains no alternative STT, TT
 chunker, AVTR worker or avatar LLM. The independent media/frontend/portrait ports
 must be merged and connected to this contract before real media is available.
 
-## Application setup and ownership (Claude)
+## Application setup and ownership
 
-Register a **synchronous, lightweight** runtime factory before accepting requests:
-
-```python
-from chatbot.api.app import create_app
-
-app = create_app()
-app.state.avatar_runtime_factory = lambda binding, emit: PortedMediaAdapter(binding, emit)
-```
-
-`PortedMediaAdapter` implements `chatbot.avatar.coordinator.MediaRuntime`.
-`binding` supplies canonical `session_id`, authenticated `user_id`, and validated
-`companion_id`. Use those IDs to load companion voice/portrait assets; chatbot's
-companion profile and turn pipeline remain the only identity/prompt authorities.
-The factory must not load models. `start()` is invoked only after authentication,
-Origin and ownership checks, when an avatar browser connects. Package imports and
-ordinary chatbot startup must not start GPU workers. Missing registration returns
-an explicit WebSocket error and close code **1013**; no legacy voice fallback occurs.
-
-The coordinator retains one binding/runtime per chatbot session. An authenticated
-replacement interrupts and cleans up the old turn, then closes its browser with
-**4001**, "another window took over". Old-connection cleanup cannot evict a new
-binding. Disconnect releases the binding and calls `aclose()`; models may stay warm
-in a shared worker pool managed by the media adapter while other bindings need them.
-App shutdown closes remaining bindings. The adapter owns model pooling, portrait
-switching and GPU capacity limits, including avoiding duplicate model loads.
-
-The coordinator is process-local. Deploy this integration with **one ASGI worker**
-until shared ownership/routing is provided. Sticky routing alone does not prevent
-cross-worker session ownership conflicts or duplicate GPU loads.
+`create_app()` registers `AvatarRuntimeHost(...).factory` (see `chatbot/avatar/runtime.py`) as
+`app.state.avatar_runtime_factory`. The factory is synchronous and loads nothing: `start()` (after
+auth and ownership checks, when a popup connects) lazily starts the one shared `AvatarMediaEngine`,
+and models stay warm across popup sessions. App shutdown closes bindings, then the engine.
+An authenticated replacement closes the old browser with **4001**. The coordinator is
+process-local: run one ASGI worker.
 
 ### Required async adapter methods
 
@@ -101,10 +78,7 @@ is introduced. An empty STT transcript starts no chatbot turn.
 
 ## Browser integration (Gemini)
 
-Connect to **`/api/avatar/ws`** with a normal WebSocket Origin. Configure production
-origins using `AVATAR_ALLOWED_ORIGINS='["https://chat.example.com"]'`. Defaults are
-`http://localhost:5173` and `http://localhost:3000`. Missing/unlisted Origins and all
-query parameters are rejected. HTTP CORS does not secure this endpoint.
+Connect to **`/api/avatar/ws`**. There is no Origin or query-string restriction.
 
 Send the first message within ten seconds, before sending microphone/control data:
 
@@ -204,29 +178,16 @@ LLM-based conversation title generator to avoid a second response/title generati
 existing text-only behavior retains it. The media runtime never calls an LLM. Existing
 memory extraction machinery is preserved rather than replaced with avatar history.
 
-## Legacy backend voice inventory and retirement
+## Legacy voice
 
-The integrated path imports/calls **none** of the following old voice implementations:
-
-| Surface | Legacy implementation | Phase 1 disposition |
-| --- | --- | --- |
-| `POST /voice/synthesize` | `chatbot/api/voice.py`, `chatbot/voice/tts.py` (`TTSAdapter`, Kokoro/ElevenLabs and provider dispatch) | Retire once real Qwen speech + browser playback is verified after merge. |
-| `POST /voice/transcribe` | `chatbot/api/voice.py`, `chatbot/voice/stt.py` (`STTAdapter`, Deepgram and provider dispatch) | Retire once real Faster-Whisper microphone turns are verified. |
-| `GET/PUT /voice/preferences` | Legacy provider/model/speed/pitch fields, `VoicePreferences` | Migrate consumers to companion/runtime voice settings before removal. |
-| `chatbot/voice/base.py`, `cadence.py`, `__init__.py` | Legacy interfaces/provider discovery/cadence | Remove once endpoint and frontend consumers no longer depend on them. |
-| `chatbot/config.py` TTS/STT fields | Legacy provider URLs/keys/model defaults | Remove after migration, preserving avatar-specific settings from the media port. |
-| `tests/test_voice.py`, `test_voice_integration.py` | Legacy behavior coverage | Replace/retire alongside the old surfaces. |
-
-These endpoints remain mounted for existing clients while the media port is absent.
-Deleting them now would remove functioning voice before its replacement is merged.
-Final Phase 1 retirement must remove their router registration and obsolete imports,
-frontend calls/preferences and adapters/config together after the replacement works;
-**it is still an outstanding integration step**, not completed by this backend commit.
+The Kokoro/Deepgram/ElevenLabs/OpenRouter voice adapters, `/voice/*` routes, `VoicePreferences`
+(dropped by migration `d9e5a1c3b7f4`), voice settings and the old React voice UI were removed.
+Speech is Faster-Whisper + Qwen3-TTS + AVTR-1 only.
 
 ## Verification and remaining merged-system checks
 
 `tests/test_avatar_backend.py` uses fake model stages and database boundaries to check
-Origin/auth/ownership, lazy startup, takeover/disconnect, binary transport, concurrent
+auth/ownership, lazy startup, takeover/disconnect, binary transport, concurrent
 fanout and backpressure, stale suppression, typed/spoken session continuity, retained
 memory/prompt tracing, interruption delivery, disconnect shielding, and commit races.
 `tests/test_retrieval_wiring.py` protects the existing retrieval wiring. No reference

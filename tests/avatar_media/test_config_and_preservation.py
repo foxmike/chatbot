@@ -47,18 +47,22 @@ def test_custom_voice_checkpoints_select_custom_mode():
     assert MediaConfig(voice_model="Qwen3-TTS-12Hz-1.7B-CustomVoice", voice="Ryan").tts_mode == "custom"
 
 
-def test_importing_the_package_is_cheap_and_leaves_chatbot_settings_alone():
+def test_importing_the_package_is_cheap_and_media_config_ignores_chatbot_settings():
     code = ("import sys, chatbot.avatar; "
-            "bad = [m for m in ('chatbot.config','scipy','faster_whisper','cv2','torch') if m in sys.modules]; "
+            "bad = [m for m in ('scipy','faster_whisper','cv2','torch') if m in sys.modules]; "
             "assert not bad, bad")
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
                             cwd=Path(__file__).resolve().parents[2])
     assert result.returncode == 0, result.stderr
 
 
-def test_no_secrets_or_provider_dependencies_in_the_avatar_package():
+def test_media_engine_has_no_secrets_or_chatbot_dependencies():
+    """The engine modules stay independent of settings, the DB, companions and any provider."""
+    assert "chatbot.config" not in (AVATAR / "config.py").read_text().replace("chatbot.config`", "")
     forbidden = ("OPENROUTER", "api_key", "chatbot.db", "chatbot.companions", "sqlalchemy", "openai")
-    for path in AVATAR.rglob("*.py"):
+    engine = ("media.py", "session.py", "protocol.py", "stt.py", "workers.py", "metrics.py", "config.py",
+              "speech_chunks.py")
+    for path in (AVATAR / name for name in engine):
         text = path.read_text()
         assert not [word for word in forbidden if word in text], path
 

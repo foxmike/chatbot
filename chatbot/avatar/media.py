@@ -562,11 +562,12 @@ class AvatarMediaEngine:
         turn = self._turns.get(turn_id)
         return turn if turn is not None and turn.alive else None
 
-    async def feed_text(self, turn_id: str, text: str) -> bool:
+    async def feed_text(self, turn_id: str, text: str, backpressure: bool = True) -> bool:
         """Append incremental response text. Returns False when the turn is no longer live.
 
-        Reasoning tags (<think> etc.) are filtered out. Awaits (backpressure) while more than
-        MAX_PENDING_CHARS of unspoken text is already waiting for synthesis.
+        Reasoning tags (<think> etc.) are filtered out. With `backpressure`, awaits while more
+        than MAX_PENDING_CHARS of unspoken text is already waiting for synthesis; a caller that
+        bounds its own queue (the coordinator) passes False so the LLM is never throttled.
         """
         turn = self._live_turn(turn_id)
         if turn is None or turn.input_closed:
@@ -577,7 +578,7 @@ class AvatarMediaEngine:
         turn.response_text += visible
         turn.chunker.feed(visible, time.monotonic())
         turn.text_changed.set()
-        while len(turn.chunker.pending) > MAX_PENDING_CHARS and turn.alive:
+        while backpressure and len(turn.chunker.pending) > MAX_PENDING_CHARS and turn.alive:
             await asyncio.sleep(0.05)   # bounded: TTS drains text as it frees up
         return turn.alive
 
@@ -726,7 +727,7 @@ class AvatarMediaEngine:
                           text_ready=chunk.ready_at, text_emit=chunk.at, chars=len(chunk.text),
                           reason=chunk.reason)
                 await self._diagnostic("chunk_planned", turn_id=turn.turn_id, number=number + 1,
-                                       chars=len(chunk.text), reason=chunk.reason, budget=budget,
+                                       text=chunk.text, chars=len(chunk.text), reason=chunk.reason, budget=budget,
                                        queued_audio=lead, synthesis_rate=planner.rate,
                                        audio_per_char=planner.audio_per_char, pending=len(chunker.pending))
                 return chunk

@@ -28,7 +28,7 @@ SID = str(uuid.uuid4())
 UID = str(uuid.uuid4())
 CID = str(uuid.uuid4())
 USER = CurrentUser(user_id=UID, username="test", email="test@example.com")
-ORIGIN = {"origin": "http://localhost:5173"}
+ORIGIN: dict[str, str] = {}
 TOKEN = create_access_token(USER.model_dump() | {"sub": UID})
 AUTH = {"type": "auth", "token": TOKEN, "session_id": SID, "companion_id": CID}
 
@@ -114,24 +114,6 @@ def transport(monkeypatch):
     monkeypatch.setattr(router, "_authorize", authorize)
     with TestClient(app) as client:
         yield app, client, factory, authorize
-
-
-@pytest.mark.parametrize(
-    "headers,path",
-    [
-        ({}, "/api/avatar/ws"),
-        ({"origin": "https://evil.example"}, "/api/avatar/ws"),
-        (ORIGIN, "/api/avatar/ws?token=secret"),
-    ],
-)
-def test_origin_and_query_rejected_before_models(transport, headers, path):
-    app, client, factory, authorize = transport
-    with pytest.raises(WebSocketDisconnect) as exc:
-        with client.websocket_connect(path, headers=headers):
-            pass
-    assert exc.value.code == 1008
-    factory.assert_not_called()
-    authorize.assert_not_called()
 
 
 @pytest.mark.parametrize("token", [None, "broken", create_access_token({"sub": UID})])

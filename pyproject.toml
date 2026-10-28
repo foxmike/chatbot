@@ -24,6 +24,10 @@ dependencies = [
     "passlib[bcrypt]",
     "bcrypt<4.1",
     "pydantic[email]",
+    "pillow",
+    "numpy>=2,<3",
+    "scipy>=1.15,<2",
+    "faster-whisper>=1.2,<2",
 ]
 
 [dependency-groups]

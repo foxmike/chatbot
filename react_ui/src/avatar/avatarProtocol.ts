@@ -139,7 +139,7 @@ export interface AvatarReadyMessage {
 }
 
 export interface AvatarTranscriptionMessage {
-  type: "transcription";
+  type: "transcription" | "transcript";
   text: string;
   is_final?: boolean;
 }
@@ -157,7 +157,7 @@ export interface AvatarTurnDeltaMessage {
 }
 
 export interface AvatarTurnEndMessage {
-  type: "turn_end" | "turn_complete";
+  type: "turn_end" | "turn_complete" | "response";
   text?: string;
   turn_id?: string;
 }

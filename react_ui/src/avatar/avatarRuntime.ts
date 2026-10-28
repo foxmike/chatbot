@@ -120,20 +120,36 @@ export class AvatarRuntime {
     roomId?: string | null;
     token?: string | null;
   }): void {
+    const changed =
+      (params.sessionId !== undefined && params.sessionId !== this.sessionId) ||
+      (params.companionId !== undefined && params.companionId !== this.companionId);
+
     if (params.sessionId !== undefined) this.sessionId = params.sessionId;
     if (params.companionId !== undefined) this.companionId = params.companionId;
     if (params.roomId !== undefined) this.roomId = params.roomId;
     if (params.token !== undefined) this.token = params.token;
 
-    // If connected, notify backend of session switch
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.sendJson({
-        type: "switch_session",
-        session_id: this.sessionId,
-        companion_id: this.companionId,
-        room_id: this.roomId,
-      });
+    // The backend binds one connection to one session and companion: a different
+    // selection means authenticating again, not a control message.
+    if (changed && this.isRunning && !this.displaced && this.ws) {
+      this.reconnectWithContext();
     }
+  }
+
+  private reconnectWithContext(): void {
+    const old = this.ws;
+    this.ws = null;
+    if (old) {
+      old.onclose = null;
+      old.onerror = null;
+      old.onmessage = null;
+      old.onopen = null;
+      try {
+        old.close(1000);
+      } catch {}
+    }
+    this.clearSpeech();
+    this.connect();
   }
 
   public start(): void {
@@ -291,6 +307,15 @@ export class AvatarRuntime {
     }, 1500);
   }
 
+  private spokenTurnActive = false;
+  private spokenText = "";
+
+  private finishSpokenTurn(text: string | undefined, turnId?: string): void {
+    this.spokenTurnActive = false;
+    this.spokenText = "";
+    this.callbacks.onTurnEnd?.(text, turnId);
+  }
+
   private handleServerMessage(msg: AvatarServerMessage): void {
     switch (msg.type) {
       case "status":
@@ -303,6 +328,15 @@ export class AvatarRuntime {
         break;
       case "interrupt":
         this.clearSpeech();
+        // An interrupted spoken turn gets no final `response`; show what had streamed.
+        if (this.spokenTurnActive) this.finishSpokenTurn(this.spokenText);
+        break;
+      case "transcript":
+        // The backend runs the chat turn itself; `transcript` is the user's recognized words.
+        this.spokenTurnActive = true;
+        this.spokenText = "";
+        this.callbacks.onTranscription?.(msg.text, true);
+        this.callbacks.onTurnStart?.(msg.text, undefined);
         break;
       case "transcription":
         this.callbacks.onTranscription?.(msg.text, Boolean(msg.is_final));
@@ -313,7 +347,12 @@ export class AvatarRuntime {
       case "turn_delta":
       case "text_delta":
       case "token":
+        if (this.spokenTurnActive) this.spokenText += msg.text;
         this.callbacks.onTurnDelta?.(msg.text, msg.turn_id);
+        break;
+      case "response":
+        // Final SSE payload of a spoken turn (carries the full text and the chatbot turn id).
+        this.finishSpokenTurn(msg.text, msg.turn_id);
         break;
       case "turn_end":
       case "turn_complete":

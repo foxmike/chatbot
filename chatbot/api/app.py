@@ -22,9 +22,9 @@ from chatbot.api.streaming import streaming_router
 from chatbot.api.continuity import narrative_router, rituals_router, timeline_router
 from chatbot.api.companions import companion_router
 from chatbot.api.visual import visual_router
-from chatbot.api.voice import voice_router
 from chatbot.avatar.coordinator import get_coordinator
 from chatbot.avatar.router import avatar_router
+from chatbot.avatar.runtime import AvatarRuntimeHost
 from chatbot.config import get_settings
 from chatbot.db import async_session_factory
 from chatbot.perf.background import BackgroundTask
@@ -67,6 +67,9 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         await get_coordinator(app).close()
+        host = getattr(app.state, "avatar_runtime_host", None)
+        if host is not None:
+            await host.aclose()
         if scheduler_task is not None:
             await _stop_scheduler(scheduler_task, app.state.scheduler)
         if hasattr(app.state, "_scheduler_db_session"):
@@ -149,8 +152,9 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(companion_router)
     app.include_router(visual_router)
-    app.include_router(voice_router)
     app.include_router(avatar_router)
+    app.state.avatar_runtime_host = AvatarRuntimeHost()
+    app.state.avatar_runtime_factory = app.state.avatar_runtime_host.factory
     app.include_router(timeline_router)
     app.include_router(narrative_router)
     app.include_router(rituals_router)

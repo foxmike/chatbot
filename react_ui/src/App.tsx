@@ -27,8 +27,6 @@ import CompanionInfoPanel from "./components/CompanionInfoPanel";
 import CompanionSelector from "./components/CompanionSelector";
 import { RoomSwitcher } from "./components/RoomSwitcher";
 import ScenePanel from "./components/ScenePanel";
-import { VoiceControls } from "./components/VoiceControls";
-import { CallMode } from "./components/CallMode";
 import type { ApiError, CreateSessionResponse, Message, Session } from "./types";
 import type { RoomData, RoomType } from "./api/client";
 import { AdminDashboard } from "./components/AdminDashboard";
@@ -268,7 +266,6 @@ export default function App() {
   const [selectedCompanion, setSelectedCompanion] = useState<Companion | null>(
     null,
   );
-  const [callModeActive, setCallModeActive] = useState(false);
   const [useStreamingChat, setUseStreamingChat] = useState(false);
   const [isAvatarActive, setIsAvatarActive] = useState(false);
   const prevStreamingPrefRef = useRef<boolean>(false);
@@ -757,7 +754,6 @@ export default function App() {
     setError(null);
     setIsLoading(false);
     setStreamRequest(null);
-    setCallModeActive(false);
   };
 
   if (!user) {
@@ -847,12 +843,6 @@ export default function App() {
 
   return (
     <>
-      {callModeActive && activeSessionId ? (
-        <CallMode
-          sessionId={activeSessionId}
-          onEnd={() => setCallModeActive(false)}
-        />
-      ) : null}
       <AppShell
         user={user}
         activePanel={activePanel}

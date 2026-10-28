@@ -142,7 +142,12 @@ export function AvatarPopup({
       {
         token,
         sessionId,
-        companionId: companion?.companion_id,
+        // The companion fetch has not resolved on first mount; the id is already in the URL.
+        companionId:
+          companion?.companion_id ??
+          initialCompanionId ??
+          new URLSearchParams(window.location.search).get("companion_id") ??
+          undefined,
         roomId,
       }
     );

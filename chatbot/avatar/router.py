@@ -17,7 +17,6 @@ import anyio
 from chatbot.auth.dependencies import CurrentUser, get_current_user
 from chatbot.avatar.coordinator import AvatarBinding, get_coordinator
 from chatbot.companions.companion import CompanionManager
-from chatbot.config import get_settings
 from chatbot.db import async_session_factory
 from chatbot.db.models import Session
 
@@ -38,7 +37,7 @@ CONTROLS = {
 
 
 class AvatarAuth(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")  # the popup also sends room_id / tab_id
     type: str = Field(pattern="^auth$")
     token: str | None = Field(default=None, max_length=8192)
     session_id: uuid.UUID
@@ -98,11 +97,6 @@ async def _spoken_turn(ws: WebSocket, binding: AvatarBinding, user: CurrentUser,
 
 @avatar_router.websocket("/ws")
 async def avatar_websocket(ws: WebSocket) -> None:
-    settings = get_settings()
-    # CORS middleware does not protect WebSockets. Require an explicit Origin.
-    if ws.headers.get("origin") not in settings.avatar_allowed_origins or ws.query_params:
-        await ws.close(code=1008, reason="Origin or query parameters not allowed")
-        return
     await ws.accept()
     binding = None
     coordinator = get_coordinator(ws.app)

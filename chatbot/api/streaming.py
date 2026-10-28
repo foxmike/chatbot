@@ -288,8 +288,9 @@ async def _stream_turn(
                         except TimeoutError:
                             avatar_turn.interrupted = True
                             raise asyncio.CancelledError
+                        # wait_playback returned: every declared segment finished playing, so the
+                        # full response (markup intact, same as a typed turn) was heard.
                         ctx.metadata["generated_response"] = ctx.provider_response
-                        ctx.provider_response = avatar_turn.heard_text
 
                 yield _sse_data(
                     {

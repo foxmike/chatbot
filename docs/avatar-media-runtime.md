@@ -1,6 +1,6 @@
 # Avatar media runtime (`chatbot/avatar/`)
 
-Branch `avatar/sonnet-runtime`. This is a port of my_avatar's real-time voice/avatar pipeline
+This is a port of my_avatar's real-time voice/avatar pipeline
 (`~/dev/mike/my_avatar/python/my_avatar`, commits `c2a1906`, `da976ad`) with its LLM client and
 conversation history removed. It owns **media only**: microphone → transcript, and response text →
 synchronized audio + video. It makes no LLM request and has no knowledge of chatbot's database,
@@ -20,7 +20,7 @@ companions, or any provider.
 | `metrics.py` | Per-chunk timeline / turn summary / silence-cause attribution (ported from `app.py`). |
 | `worker_scripts/tts_worker.py` | Qwen3-TTS child. **Byte-identical to my_avatar.** Runs in the Qwen venv. |
 | `worker_scripts/avatar_worker.py` | AVTR-1 child (my_avatar's + `portrait` command, portrait cache, EOF shutdown). Runs in the AVTR pixi env. |
-| `requirements-avatar.txt` | New chatbot-side dependencies (optional). |
+| `runtime.py` | `AvatarRuntimeHost` + `MediaAdapter`: connects the engine to Codex's coordinator/router (`app.state.avatar_runtime_factory`). |
 
 ## Public interface
 
@@ -160,13 +160,10 @@ makes no network calls).
 
 ## Dependencies
 
-New chatbot-side (optional, imported lazily; `chatbot/avatar/requirements-avatar.txt`):
-`faster-whisper>=1.2,<2`, `scipy>=1.15,<2`, `numpy>=2,<3` (already present). Python 3.12 resolution was
-checked with `uv pip compile --python-version 3.12` (faster-whisper 1.2.1, ctranslate2 4.8.4,
-onnxruntime 1.31.1, scipy 1.18.1). **The shared chatbot venv was not modified**, and `pyproject.toml`
-was deliberately left alone to avoid merge conflicts; on merge, add these as an `avatar` optional extra.
-`start()` raises a clear error if scipy/faster-whisper are missing instead of failing mid-conversation.
-Qwen and AVTR keep their own environments; nothing was reinstalled.
+`faster-whisper`, `scipy`, `numpy` and `pillow` are regular dependencies in `pyproject.toml`
+(Python 3.12; faster-whisper 1.2.1, ctranslate2 4.8.4, scipy 1.18.1 verified). They are imported lazily:
+`start()` raises a clear error if scipy or faster-whisper is missing. Qwen and AVTR keep their own
+environments; nothing was reinstalled.
 
 ## Character portraits: findings
 
@@ -202,21 +199,18 @@ lifecycle/restart/stop); real stub child processes for `Worker` (start, restart,
 SIGTERM/SIGKILL escalation, frame drop); session/connection lifecycle including a real Starlette
 WebSocket; AVTR worker helpers against fake `cv2`/`avtr1_renderer`; byte-identity of the proven modules.
 
-## Performance risks and remaining work
+## Measured on real hardware (RTX 4090, one GPU consumer)
 
-* **Unverified on hardware.** Baselines (Qwen RTF ≈ 0.86–0.90 alongside AVTR, ~25 fps AVTR, near-gapless
-  audio, A/V drift ≈ ±35 ms) belong to the unchanged algorithms and workers, but this port has not been run
-  against real Qwen/AVTR/Chrome. First integration run should use my_avatar's `bench_pipeline.py`
-  methodology against the merged server, one GPU consumer at a time.
-* **Event-loop contention:** the engine runs in chatbot's loop next to chat/streaming. The 25 fps frame pump
-  (base64 decode + `send_bytes`), PCM resample and Whisper are off-loop or cheap, but a busy loop delays the
-  `0.05 s` planner tick and frame delivery. Watch `Frame delivery interruption` logs and the `avtr_fps` diagnostic.
-* **Sink back-pressure:** an `on_event` that awaits slow work stalls the AVTR frame pump. Keep it to queue puts.
-* **Shared GPU:** Qwen + AVTR + whatever else chatbot loads (e.g. embeddings) compete; the RTF baseline assumes only these two.
-* **Portrait switch cost** (above) and AVTR ONNX sessions bound to the worker's CUDA stream (loader runs on the
-  worker main thread, same as rendering, so this is satisfied today).
-* **Coordinator integration still to do (Codex / router owner):** instantiate one engine in the app lifespan,
-  call `engine.stop()` on shutdown; feed `TranscriptReady` into the chat turn and pipe the provider's token
-  stream into `feed_text`; stop that stream on `Interrupted`; persist `TurnEnded.spoken_text`; call `set_portrait`
-  with Pi's cached path on character select; mount the WebSocket as shown above; serve the browser page
-  (Gemini). `AVATAR_*` env vars and the optional extra need adding to deployment config.
+Through the full backend (real LLM, Qwen, AVTR): Qwen RTF 0.85-0.92 while AVTR renders, AVTR 25.0 fps
+(render compute 8-10 ms per 200 ms step), zero inter-segment gaps over multi-segment answers, STT 311 ms
+for a 2 s utterance, barge-in clears AVTR's speech queue in 5-32 ms. Cold start (Whisper + Qwen + AVTR +
+first portrait) about 7 s with warm disk caches; reconnecting a popup to the warm engine about 0.2 s.
+A first-time portrait load took 540-680 ms. Qwen occasionally runs away on a chunk (about 1 in 10 here);
+the length guard regenerates it once, which stalls that chunk for several seconds (RTF 2.7 for that chunk).
+
+## Remaining risks
+
+* The engine shares chatbot's event loop; a slow `on_event`/websocket consumer stalls the frame pump.
+* Qwen + AVTR assume the GPU is otherwise idle; other GPU users will lower the RTF.
+* A barge-in on a *typed* turn cancels that turn's generation task (coordinator design), which ends its
+  SSE stream early; the delivered prefix and an interruption marker are persisted.
