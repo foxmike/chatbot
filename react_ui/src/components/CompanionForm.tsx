@@ -831,7 +831,7 @@ export function CompanionForm({
           <div className="flex flex-col gap-1">
             <h4 className="text-sm font-semibold text-gray-100">Avatar Gallery</h4>
             <p className="text-xs text-gray-400">
-              Generate companion images and choose one as the avatar.
+              Generate companion images and choose one as the avatar. For best results with the animated avatar, use a 16:9 aspect ratio with a recommended resolution of 1280 × 720 pixels when generating or uploading images.
             </p>
           </div>
           <div className="flex flex-col gap-2">
