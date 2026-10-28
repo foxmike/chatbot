@@ -26,6 +26,7 @@ class MediaRuntime(Protocol):
     async def feed_text(self, turn_id: str, text: str) -> None: ...
     async def end_turn(self, turn_id: str) -> None: ...
     async def cancel_turn(self, turn_id: str) -> None: ...
+    async def skip_turn_speech(self, turn_id: str) -> None: ...
     async def aclose(self) -> None: ...
 
 
@@ -45,6 +46,7 @@ class AvatarTurn:
     acknowledged: set[str] = field(default_factory=set)
     drained: bool = False
     interrupted: bool = False
+    speech_skipped: bool = False  # user skipped speech; the LLM turn itself carries on
     speech_failed: bool = False
     persisted: bool = False
     persistence_error: bool = False
@@ -90,7 +92,8 @@ class AvatarBinding:
             async with self.send_lock:
                 # A frame can become stale while waiting behind another send.
                 if self.closed or (
-                    turn and (self.turn is not turn or turn.interrupted or turn.speech_failed)
+                    turn and (self.turn is not turn or turn.interrupted or turn.speech_failed
+                              or turn.speech_skipped)
                 ):
                     return
                 if isinstance(payload, bytes):
@@ -182,11 +185,13 @@ class AvatarCoordinator:
                 turn.finished.set()
                 raise
             turn.worker = asyncio.create_task(self._consume(binding, turn))
+            if turn.speech_skipped:  # skipped while the runtime was still starting the turn
+                await self._skip_runtime_speech(binding, turn)
             return turn
 
     def publish(self, binding: AvatarBinding, turn: AvatarTurn, text: str) -> None:
         turn.generated_chars += len(text)
-        if turn.interrupted or turn.speech_failed or binding.turn is not turn:
+        if turn.interrupted or turn.speech_failed or turn.speech_skipped or binding.turn is not turn:
             return
         if turn.queued_chars + len(text) > 32768:
             self._speech_failure(binding, turn)
@@ -198,7 +203,7 @@ class AvatarCoordinator:
             self._speech_failure(binding, turn)
 
     def end(self, binding: AvatarBinding, turn: AvatarTurn) -> None:
-        if turn.interrupted or turn.speech_failed:
+        if turn.interrupted or turn.speech_failed or turn.speech_skipped:
             return
         try:
             turn.queue.put_nowait(None)
@@ -244,6 +249,8 @@ class AvatarCoordinator:
         async with asyncio.timeout(180):
             while True:
                 turn.playback_changed.clear()
+                if turn.speech_skipped and not turn.interrupted:
+                    return  # nothing will be played; the text was generated and displayed in full
                 if turn.interrupted or turn.speech_failed:
                     raise asyncio.CancelledError
                 if turn.drained and len(turn.acknowledged) == len(turn.segments):
@@ -280,7 +287,41 @@ class AvatarCoordinator:
             async with asyncio.timeout(10):
                 await turn.finished.wait()
 
+    async def skip_speech(self, binding: AvatarBinding) -> None:
+        """Stop speaking the current response; text generation and persistence carry on.
+
+        Unlike `interrupt`, this neither cancels the chat generation nor marks the turn
+        interrupted. The flag lives on the turn, so the next turn speaks normally. The browser
+        always gets a `speech_skipped` acknowledgement (even with nothing to skip), ordered after
+        any media already sent, so it can drop everything before it and nothing after.
+        """
+        turn = binding.turn
+        if turn is not None and not turn.interrupted and not turn.speech_skipped:
+            turn.speech_skipped = True  # invalidate speech output BEFORE any await
+            turn.playback_changed.set()
+            while not turn.queue.empty():
+                turn.queue.get_nowait()
+            turn.queued_chars = 0
+            if turn.worker and turn.worker is not asyncio.current_task():
+                turn.worker.cancel()
+                await asyncio.gather(turn.worker, return_exceptions=True)
+            with suppress(Exception):
+                await binding.send({"type": "speech_skipped", "turn_id": turn.turn_id})
+            await self._skip_runtime_speech(binding, turn)
+            return
+        with suppress(Exception):
+            await binding.send({"type": "speech_skipped", "turn_id": None})
+
+    async def _skip_runtime_speech(self, binding: AvatarBinding, turn: AvatarTurn) -> None:
+        if binding.runtime:
+            with suppress(Exception):
+                async with asyncio.timeout(2):
+                    await binding.runtime.skip_turn_speech(turn.turn_id)
+
     async def control(self, binding: AvatarBinding, message: dict[str, Any]) -> None:
+        if message.get("type") == "skip_speech":
+            await self.skip_speech(binding)
+            return
         if message.get("type") in {"interrupt", "barge_in"}:
             await self.interrupt(binding)
             return
@@ -313,7 +354,8 @@ class AvatarCoordinator:
         turn = binding.turn
         turn_id = event.get("turn_id")
         if turn_id is not None:
-            if not turn or turn.turn_id != turn_id or turn.interrupted or turn.speech_failed:
+            if (not turn or turn.turn_id != turn_id or turn.interrupted or turn.speech_failed
+                    or turn.speech_skipped):
                 return
         elif kind not in {"idle", "status", "config"}:
             raise ValueError("Speech events require a turn_id")

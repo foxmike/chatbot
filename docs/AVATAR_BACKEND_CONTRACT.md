@@ -134,6 +134,18 @@ Both directions use the selected chatbot provider/model, companion, persistent
 history, memory retrieval, context assembly and prompt trace metadata. Companion
 changes invalidate an existing avatar binding; reconnect with the new selection.
 
+## Live text and Skip Speech
+
+Text never waits for speech: spoken-turn `token` events are rendered in the main chat as they
+arrive (the final `response` still follows playback, and only commits the message). The popup's
+**Skip Speech** button sends `{"type":"skip_speech"}`. The coordinator marks the *turn*
+`speech_skipped` (not `interrupted`), clears its text queue, sends `{"type":"speech_skipped"}`
+(always acknowledged; the browser drops everything before it) and calls
+`MediaRuntime.skip_turn_speech`, which clears playback, queued/in-flight synthesis and AVTR's
+speaking state without restarting Qwen/AVTR. The chat generation continues and its full text is
+persisted; the next turn speaks normally. A typed turn's speech also survives the browser closing
+its SSE connection after the full response was saved.
+
 ## Interruption, persistence and inspection
 
 A new turn interrupts its predecessor and waits for predecessor persistence before

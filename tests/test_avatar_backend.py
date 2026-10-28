@@ -54,6 +54,7 @@ class FakeRuntime:
         self.tokens = []
         self.controls = []
         self.cancelled = []
+        self.skipped = []
         self.started = False
         self.closed = False
         self.turn_id = None
@@ -84,6 +85,9 @@ class FakeRuntime:
 
     async def cancel_turn(self, turn_id):
         self.cancelled.append(turn_id)
+
+    async def skip_turn_speech(self, turn_id):
+        self.skipped.append(turn_id)
 
     async def microphone(self, pcm):
         self.pcm = pcm
@@ -665,3 +669,231 @@ async def test_takeover_refuses_to_overtake_unsettled_persistence(monkeypatch):
     factory.assert_not_called()
     monkeypatch.setattr(hub, "interrupt", interrupt)
     await hub.detach(original)
+
+
+# ---------------------------------------------------------------- live text and Skip Speech
+
+
+async def _run_spoken(app, frames):
+    async for frame in streaming._stream_turn(**stream_args(app, spoken=True)):
+        frames.append(frame)
+
+
+def _types(frames):
+    return [json.loads(f[6:]).get("type") for f in frames if f.startswith("data: {")]
+
+
+async def test_spoken_text_is_delivered_before_speech_finishes(pipeline):
+    """Tokens reach the browser while synthesis/playback is still pending; only `response` waits."""
+    app = FastAPI()
+    app.state.retrieval_engine = pipeline.engine
+    hub, binding = await bound()
+    app.state.avatar_coordinator = hub
+    frames = []
+    task = asyncio.create_task(_run_spoken(app, frames))
+    for _ in range(200):
+        if _types(frames).count("token") == 2:
+            break
+        await asyncio.sleep(0.005)
+    assert _types(frames).count("token") == 2       # all text out ...
+    assert "response" not in _types(frames)         # ... while nothing has been played
+    assert not task.done()
+    for segment_id in list(binding.turn.segments):  # the browser finishes playing
+        await hub.control(binding, {"type": "playback_end", "id": segment_id})
+    await asyncio.wait_for(task, 2)
+    assert _types(frames)[-2:] == ["typing", "response"] or "response" in _types(frames)
+    assert pipeline.provider.calls == 1
+    await hub.detach(binding)
+
+
+async def test_typed_text_does_not_wait_for_speech(pipeline):
+    app = FastAPI()
+    app.state.retrieval_engine = pipeline.engine
+    hub, binding = await bound()
+    app.state.avatar_coordinator = hub
+    binding.runtime.block = asyncio.Event()          # TTS/AVTR side is completely stalled
+    frames = [frame async for frame in streaming._stream_turn(**stream_args(app))]
+    assert _types(frames).count("token") == 2 and "response" in _types(frames)
+    assert pipeline.saves[0]["assistant_message"] == "First. Second."
+    binding.runtime.block.set()
+    await hub.detach(binding)
+
+
+async def test_skip_speech_stops_speech_only_and_keeps_the_full_response(pipeline):
+    app = FastAPI()
+    app.state.retrieval_engine = pipeline.engine
+    hub, binding = await bound()
+    app.state.avatar_coordinator = hub
+    pipeline.provider.pause = asyncio.Event()
+    frames = []
+    task = asyncio.create_task(_run_spoken(app, frames))
+    await pipeline.provider.first.wait()
+    while not binding.turn.segments:
+        await asyncio.sleep(0)
+    turn = binding.turn
+    await hub.control(binding, {"type": "skip_speech"})
+    assert turn.speech_skipped and not turn.interrupted
+    assert binding.runtime.skipped == [turn.turn_id] and not binding.runtime.cancelled
+    assert {"type": "speech_skipped", "turn_id": turn.turn_id} in binding.websocket.sent
+    pipeline.provider.pause.set()                    # the LLM carries on after the skip
+    await asyncio.wait_for(task, 2)                  # no cancellation, no wait for playback
+    assert _types(frames).count("token") == 2 and "response" in _types(frames)
+    assert binding.runtime.tokens == ["First. "]     # nothing more was handed to speech
+    assert pipeline.provider.calls == 1
+    assert pipeline.saves[0]["assistant_message"] == "First. Second."
+    assert not pipeline.saves[0].get("interrupted")
+    assert not turn.interrupted
+    await hub.detach(binding)
+
+
+async def test_skip_applies_to_typed_turns_and_text_still_streams(pipeline):
+    app = FastAPI()
+    app.state.retrieval_engine = pipeline.engine
+    hub, binding = await bound()
+    app.state.avatar_coordinator = hub
+    pipeline.provider.pause = asyncio.Event()
+    frames = []
+
+    async def run():
+        async for frame in streaming._stream_turn(**stream_args(app)):
+            frames.append(frame)
+    task = asyncio.create_task(run())
+    await pipeline.provider.first.wait()
+    while not binding.turn.segments:
+        await asyncio.sleep(0)
+    await hub.control(binding, {"type": "skip_speech"})
+    pipeline.provider.pause.set()
+    await asyncio.wait_for(task, 2)
+    assert _types(frames).count("token") == 2 and binding.runtime.tokens == ["First. "]
+    assert pipeline.saves[0]["assistant_message"] == "First. Second."
+    await hub.detach(binding)
+
+
+async def test_skip_before_any_speech_exists_prevents_speech_from_starting():
+    hub, binding = await bound()
+    turn = await hub.begin(binding, source="typed")
+    await hub.control(binding, {"type": "skip_speech"})
+    for token in ("Never ", "spoken."):
+        hub.publish(binding, turn, token)
+        await asyncio.sleep(0)
+    hub.end(binding, turn)
+    assert binding.runtime.tokens == [] and turn.generated_chars == len("Never spoken.")
+    await hub.emit(binding, {"type": "media", "turn_id": turn.turn_id, "data": b"late"})
+    await hub.emit(binding, {"type": "segment", "turn_id": turn.turn_id, "id": "x", "text": "late"})
+    assert b"late" not in binding.websocket.sent and not turn.segments
+    turn.finished.set()
+    await hub.detach(binding)
+
+
+async def test_skip_is_scoped_to_its_turn_and_the_next_turn_speaks():
+    hub, binding = await bound()
+    first = await hub.begin(binding, source="typed")
+    await hub.control(binding, {"type": "skip_speech"})
+    first.finished.set()
+    second = await hub.begin(binding, source="typed")
+    assert second is not first and not second.speech_skipped and not second.interrupted
+    hub.publish(binding, second, "Spoken now.")
+    hub.end(binding, second)
+    await second.worker
+    assert binding.runtime.tokens == ["Spoken now."]
+    second.finished.set()
+    await hub.detach(binding)
+
+
+async def test_skip_with_nothing_to_skip_still_acknowledges_the_browser():
+    hub, binding = await bound()
+    await hub.control(binding, {"type": "skip_speech"})
+    assert {"type": "speech_skipped", "turn_id": None} in binding.websocket.sent
+    turn = await hub.begin(binding, source="typed")
+    await hub.control(binding, {"type": "skip_speech"})
+    await hub.control(binding, {"type": "skip_speech"})   # double click: idempotent
+    assert binding.runtime.skipped == [turn.turn_id]
+    turn.finished.set()
+    await hub.detach(binding)
+
+
+async def test_barge_in_still_cancels_the_turn_after_a_skip(pipeline):
+    app = FastAPI()
+    app.state.retrieval_engine = pipeline.engine
+    hub, binding = await bound()
+    app.state.avatar_coordinator = hub
+    pipeline.provider.pause = asyncio.Event()
+    task = asyncio.create_task(_run_spoken(app, []))
+    await pipeline.provider.first.wait()
+    while not binding.turn.segments:
+        await asyncio.sleep(0)
+    turn = binding.turn
+    await hub.control(binding, {"type": "skip_speech"})
+    await hub.control(binding, {"type": "barge_in"})
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert turn.interrupted and pipeline.saves[0]["interrupted"]
+    await hub.detach(binding)
+
+
+async def test_transcript_is_sent_before_the_turn_setup_runs(pipeline, monkeypatch):
+    """The user's words reach the browser before history/memory loading and the LLM."""
+    hub, binding = await bound()
+    order = []
+    real = binding.send
+
+    async def spy(payload, **kw):
+        if isinstance(payload, dict) and payload.get("type") == "transcript":
+            order.append("transcript")
+        await real(payload, **kw)
+    binding.send = spy
+    original = streaming.stream_chat
+
+    async def traced(**kw):
+        order.append("setup")
+        return await original(**kw)
+    monkeypatch.setattr(streaming, "stream_chat", traced)
+    app = FastAPI()
+    app.state.retrieval_engine = pipeline.engine
+    app.state.avatar_coordinator = hub
+    ws = SimpleNamespace(scope={"type": "websocket", "app": app, "headers": [], "state": {}})
+    task = asyncio.create_task(router._spoken_turn(ws, binding, USER, "question"))
+    for _ in range(200):
+        if binding.turn and binding.turn.segments:
+            break
+        await asyncio.sleep(0.005)
+    assert order[:2] == ["transcript", "setup"]
+    for segment_id in list(binding.turn.segments):
+        await hub.control(binding, {"type": "playback_end", "id": segment_id})
+    await asyncio.wait_for(task, 2)
+    await hub.detach(binding)
+
+
+async def test_typed_speech_survives_the_browser_closing_sse_after_the_full_response(pipeline):
+    """The text UI aborts its fetch as soon as `response` arrives; the avatar keeps speaking."""
+    app = FastAPI()
+    app.state.retrieval_engine = pipeline.engine
+    hub, binding = await bound()
+    app.state.avatar_coordinator = hub
+    stream = streaming._stream_turn(**stream_args(app))
+    async for frame in stream:
+        if '"type": "response"' in frame:
+            break
+    await stream.aclose()                       # client abort (GeneratorExit / cancellation)
+    turn = binding.turn
+    assert not turn.interrupted and not turn.speech_failed
+    assert not binding.runtime.cancelled        # speech was not stopped
+    assert len(pipeline.saves) == 1 and not pipeline.saves[0].get("interrupted")
+    assert pipeline.saves[0]["assistant_message"] == "First. Second."
+    assert turn.finished.is_set()
+    await hub.detach(binding)
+
+
+async def test_closing_sse_before_the_response_is_saved_still_interrupts(pipeline):
+    app = FastAPI()
+    app.state.retrieval_engine = pipeline.engine
+    hub, binding = await bound()
+    app.state.avatar_coordinator = hub
+    pipeline.provider.pause = asyncio.Event()
+    stream = streaming._stream_turn(**stream_args(app))
+    async for frame in stream:
+        if '"type": "token"' in frame:
+            break
+    await stream.aclose()
+    assert binding.turn.interrupted and binding.runtime.cancelled
+    await hub.detach(binding)

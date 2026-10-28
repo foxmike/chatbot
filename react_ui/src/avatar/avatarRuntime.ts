@@ -331,6 +331,12 @@ export class AvatarRuntime {
         // An interrupted spoken turn gets no final `response`; show what had streamed.
         if (this.spokenTurnActive) this.finishSpokenTurn(this.spokenText);
         break;
+      case "speech_skipped":
+        // Everything the server sent before this is stale and nothing follows: drop what is
+        // still scheduled, then accept audio again. The text stream is not touched.
+        this.endSkipGuard();
+        this.clearSpeech();
+        break;
       case "transcript":
         // The backend runs the chat turn itself; `transcript` is the user's recognized words.
         this.spokenTurnActive = true;
@@ -367,6 +373,7 @@ export class AvatarRuntime {
   private handleBinaryPacket(data: ArrayBuffer): void {
     const packet = parseBinaryPacket(data);
     if (!packet) return;
+    if (this.skipGuard && packet.id) return; // stale output of a response whose speech was skipped
 
     if (packet.type === "video") {
       const { id, pts, jpeg, isIdle } = packet;
@@ -466,6 +473,23 @@ export class AvatarRuntime {
   }
 
   // --- Speech Interruption & Queue Clearing ---
+
+  private skipGuard: ReturnType<typeof setTimeout> | null = null;
+
+  /** Stop speaking now (audio, buffered frames, queued speech) but keep the text turn running. */
+  public skipSpeech(): void {
+    // Until the server acknowledges, late audio/video of the skipped response must not play.
+    // The timeout only matters if the acknowledgement is lost.
+    if (this.skipGuard) clearTimeout(this.skipGuard);
+    this.skipGuard = setTimeout(() => this.endSkipGuard(), 2000);
+    this.clearSpeech();
+    this.sendJson({ type: "skip_speech" });
+  }
+
+  private endSkipGuard(): void {
+    if (this.skipGuard) clearTimeout(this.skipGuard);
+    this.skipGuard = null;
+  }
 
   public clearSpeech(): void {
     this.playbackGeneration++;

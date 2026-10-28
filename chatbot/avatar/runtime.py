@@ -103,6 +103,11 @@ class MediaAdapter:
         if engine_turn is not None:
             await self.engine.cancel(engine_turn)
 
+    async def skip_turn_speech(self, turn_id: str) -> None:
+        engine_turn = self._coordinator_turns.get(turn_id)
+        if engine_turn is not None:
+            await self.engine.skip_speech(engine_turn)
+
     async def aclose(self) -> None:
         # Detach first so late engine output cannot reach a closed binding, but leave the
         # models loaded for the next window.

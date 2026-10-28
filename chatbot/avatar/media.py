@@ -99,6 +99,7 @@ class _Turn:
     segment_ids: set = field(default_factory=set)
     tasks: list = field(default_factory=list)
     runner: asyncio.Task | None = None
+    skipped: bool = False         # speech was skipped; the caller's text generation is unaffected
     done: asyncio.Future = field(default_factory=lambda: asyncio.get_running_loop().create_future())
 
 
@@ -616,13 +617,32 @@ class AvatarMediaEngine:
                 await asyncio.wait({turn.runner}, timeout=2)
         await self._status("Listening to you…" if self.endpointer.speaking else "Listening")
 
-    async def _interrupt(self, reason: str, notify: bool = True) -> None:
+    async def skip_speech(self, turn_id: str | None = None) -> None:
+        """Stop speaking this turn, nothing else.
+
+        Playback, queued/in-flight synthesis and AVTR's speaking animation are dropped and the
+        turn's output is invalidated, but this is not an interruption: no `Interrupted` event, a
+        pending transcription is left alone, and Qwen/AVTR keep running. Text fed afterwards is
+        ignored. The next turn speaks normally.
+        """
+        turn = self.turn
+        if turn is None or (turn_id is not None and turn.turn_id != turn_id):
+            return
+        turn.skipped = True
+        await self._interrupt("skip", notify=False, skipping=True)
+        if turn.runner is not None:
+            with contextlib.suppress(Exception):
+                await asyncio.wait({turn.runner}, timeout=2)
+        await self._status("Listening to you…" if self.endpointer.speaking else "Listening")
+
+    async def _interrupt(self, reason: str, notify: bool = True, skipping: bool = False) -> None:
         turn = self.turn
         in_flight = self.busy
         self.interrupt_requested_at = time.monotonic()
         log("MIC", f"Interruption ({reason}); stopping playback and queued speech")
         self._invalid_through = self._seq
-        self._utterance_info = None
+        if not skipping:
+            self._utterance_info = None
         if notify:
             await self._emit(UiMessage({"type": "interrupt"}))
         with contextlib.suppress(WorkerError, ConnectionError, OSError):
@@ -635,9 +655,10 @@ class AvatarMediaEngine:
         self.tts_pending.clear()
         self.audio_pending.clear()
         self.avatar_audio_received.clear()
-        if self._stt_task and not self._stt_task.done():
-            self._stt_task.cancel()
-        self._stt_task = None
+        if not skipping:
+            if self._stt_task and not self._stt_task.done():
+                self._stt_task.cancel()
+            self._stt_task = None
         if turn is not None:
             turn.alive = False
             self.turn = None
@@ -664,9 +685,10 @@ class AvatarMediaEngine:
             await asyncio.gather(*turn.tasks)
             log("ASSISTANT", turn.response_text.strip())
         except asyncio.CancelledError:
-            status = "cancelled"
-            turn.metrics["interrupted"] = True
-            log("TURN", f"Turn {turn.seq} cancelled")
+            status = "skipped" if turn.skipped else "cancelled"
+            if not turn.skipped:
+                turn.metrics["interrupted"] = True
+            log("TURN", f"Turn {turn.seq} {status}")
             raise
         except Exception as exc:
             status, error = "failed", str(exc)

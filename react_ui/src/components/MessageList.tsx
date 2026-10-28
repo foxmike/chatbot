@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { streamChat } from "../api/client";
 import type { StreamCallbacks } from "../api/client";
 import ChatMessage from "./ChatMessage";
+import LiveAssistantBubble from "./LiveAssistantBubble";
 import type { Message } from "../types";
 import type { Companion, User } from "../api/client";
 
@@ -80,6 +81,10 @@ export function MessageList({
     setIsStreaming(false);
     setIsTyping(false);
 
+    // Once the full response has arrived the request is finished; aborting it then would only
+    // cut the server's post-response work (and, with the avatar active, its speech) short.
+    let delivered = false;
+
     const callbacks: StreamCallbacks = {
       onTyping(status) {
         setIsTyping(status === "started");
@@ -90,6 +95,7 @@ export function MessageList({
         setStreamingMessage((prev) => (prev ?? "") + token);
       },
       onResponse(text) {
+        delivered = true;
         setIsStreaming(false);
         setStreamingMessage(null);
         setIsTyping(false);
@@ -123,7 +129,7 @@ export function MessageList({
     );
 
     return () => {
-      controller.abort();
+      if (!delivered) controller.abort();
     };
   }, [streamRequest]);
 
@@ -184,6 +190,9 @@ export function MessageList({
           user={user}
         />
       ) : null}
+
+      {/* Spoken-turn reply streaming in from the avatar connection */}
+      <LiveAssistantBubble companion={companion} user={user} />
 
       {/* Streaming typing indicator (three animated dots) */}
       {showStreamTypingIndicator ? (

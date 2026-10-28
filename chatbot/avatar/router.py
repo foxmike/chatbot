@@ -33,6 +33,7 @@ CONTROLS = {
     "interruption_ack",
     "interrupt",
     "barge_in",
+    "skip_speech",
 }
 
 
@@ -69,6 +70,8 @@ async def _spoken_turn(ws: WebSocket, binding: AvatarBinding, user: CurrentUser,
     request.state.avatar_binding = binding
     response = None
     try:
+        # Show the user's words before the turn's setup (history, memory) runs.
+        await binding.send({"type": "transcript", "text": text, "session_id": binding.session_id})
         async with async_session_factory() as db:
             response = await stream_chat(
                 http_request=request,
@@ -76,7 +79,6 @@ async def _spoken_turn(ws: WebSocket, binding: AvatarBinding, user: CurrentUser,
                 current_user=user,
                 db=db,
             )
-        await binding.send({"type": "transcript", "text": text, "session_id": binding.session_id})
         async for frame in response.body_iterator:
             if isinstance(frame, bytes):
                 frame = frame.decode()

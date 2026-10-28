@@ -104,10 +104,11 @@ class Interrupted:
 
 @dataclass(frozen=True)
 class TurnEnded:
-    """A response finished (`completed`), was cancelled (`cancelled`) or failed (`failed`)."""
+    """A response finished (`completed`), was cancelled (`cancelled`), had its speech skipped
+    (`skipped`) or failed (`failed`)."""
 
     turn_id: str
-    status: Literal["completed", "cancelled", "failed"]
+    status: Literal["completed", "cancelled", "skipped", "failed"]
     spoken_text: str  # visible text received from the LLM (reasoning tags removed)
     error: str | None = None
 

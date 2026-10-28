@@ -186,6 +186,13 @@ export function AvatarPopup({
     }
   };
 
+  // Speech exists from the moment a response starts ("Responding…") until playback has ended.
+  const canSkipSpeech = !isDisplaced && statusText.startsWith("Responding");
+
+  const handleSkipSpeech = () => {
+    runtimeRef.current?.skipSpeech();
+  };
+
   const handleReconnect = () => {
     setIsDisplaced(false);
     if (runtimeRef.current) {
@@ -290,6 +297,17 @@ export function AvatarPopup({
             }`}
           />
           {micEnabled ? "Disable microphone" : "Enable microphone"}
+        </button>
+
+        <button
+          type="button"
+          id="skip-speech"
+          onClick={handleSkipSpeech}
+          disabled={!canSkipSpeech}
+          title="Stop speaking this response; the text keeps streaming"
+          className="flex items-center gap-2 rounded-lg border border-amber-500/50 bg-amber-950/40 px-4 py-2 text-sm font-medium text-amber-200 transition hover:bg-amber-900/50 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Skip Speech
         </button>
 
         <span

@@ -468,3 +468,96 @@ async def test_missing_dependency_is_reported_at_start_not_mid_conversation(monk
                                resampler=default_resampler)
     with pytest.raises(MediaError, match="scipy"):
         await engine.start()
+
+
+# ---------------------------------------------------------------- Skip Speech
+
+
+async def test_skip_during_playback_stops_speech_only_and_the_next_turn_speaks():
+    h = await Harness(auto_playback=False).ready()
+    turn = await h.engine.begin_response()
+    await h.engine.feed_text(turn, "Let me tell you a long story about the sea, and the sky. ")
+    await wait_for(lambda: h.frames("audio"))
+    starts = (h.avatar.starts, h.tts.starts)
+    before = len(h.events)
+    await h.engine.skip_speech(turn)
+    ended = await asyncio.wait_for(h.engine.wait_turn(turn), 3)
+    new = h.events[before:]
+    assert ended.status == "skipped"
+    assert not [e for e in new if isinstance(e, Interrupted)]            # not an interruption
+    assert {"type": "interrupt"} in h.avatar.sent                        # AVTR returns to idle
+    assert (h.avatar.starts, h.tts.starts, h.avatar.stops, h.tts.stops) == (*starts, 0, 0)
+    assert h.engine.turn is None and h.engine.listening
+    assert not h.engine.playback_pending and not h.engine.audio_pending and not h.engine.tts_pending
+    assert await h.engine.feed_text(turn, "more text after the skip") is False
+    # A late frame of the skipped response is stale; idle frames still flow.
+    shown = len(h.frames("video"))
+    h.avatar.reply({"type": "frame", "kind": "speech", "id": f"{turn}:1", "first": False, "pts": 1.0,
+                    "generated_at": 1.0, "jpeg": base64.b64encode(b"late").decode()})
+    await asyncio.sleep(0.05)
+    assert len(h.frames("video")) == shown
+    # The next turn is not poisoned by the skip.
+    h.auto_playback = True
+    turn2, ended2 = await speak(h, "Here is the next answer.")
+    assert ended2.status == "completed" and turn2 != turn
+    assert any(unpack_frame(e.data)[1].startswith(f"{turn2}:") for e in h.frames("audio"))
+
+
+async def test_skip_before_the_first_pcm_prevents_speech_from_starting():
+    h = await Harness(auto_playback=False).ready()
+    h.tts.hold = asyncio.Event()                  # Qwen is busy: no PCM exists yet
+    turn = await h.engine.begin_response()
+    await h.engine.feed_text(turn, "Hello there, my friend. ")
+    await wait_for(lambda: h.engine.tts_pending)
+    await h.engine.skip_speech(turn)
+    assert (await h.engine.wait_turn(turn)).status == "skipped"
+    h.tts.hold.set()                              # the in-flight inference finishes later
+    await asyncio.gather(*h.tts.replies)
+    await asyncio.sleep(0.05)
+    assert not [m for m in h.avatar.sent if m["type"] == "speak"] and not h.frames("audio")
+
+
+async def test_skip_with_queued_synthesis_drops_every_queued_chunk():
+    h = await Harness(auto_playback=False).ready()
+    turn = await h.engine.begin_response()
+    await h.engine.feed_text(turn, TEXT, backpressure=False)    # many chunks' worth of text
+    await h.engine.end_response(turn)
+    await wait_for(lambda: len([m for m in h.tts.sent if m["type"] == "speak"]) >= 2)
+    await wait_for(lambda: h.engine.playback_pending)
+    sent_to_tts = len([m for m in h.tts.sent if m["type"] == "speak"])
+    await h.engine.skip_speech(turn)
+    await asyncio.wait_for(h.engine.wait_turn(turn), 3)
+    await asyncio.sleep(0.2)
+    assert len([m for m in h.tts.sent if m["type"] == "speak"]) == sent_to_tts   # nothing further synthesized
+    assert not h.engine.playback_pending and h.engine.turn is None
+
+
+async def test_skip_leaves_a_pending_transcription_alone():
+    h = await Harness().ready()
+    turn = await h.engine.begin_response()
+    pending = asyncio.create_task(asyncio.sleep(30))      # the user's next utterance is being transcribed
+    h.engine._stt_task = pending
+    await h.engine.skip_speech(turn)
+    assert not pending.cancelled() and not pending.done() and h.engine._stt_task is pending
+    pending.cancel()
+
+
+async def test_skip_without_an_active_turn_is_a_no_op():
+    h = await Harness().ready()
+    await h.engine.skip_speech()
+    await h.engine.skip_speech("999")
+    assert h.engine.listening and h.engine.turn is None
+
+
+async def test_barge_in_after_a_skipped_turn_still_works_on_the_next_one():
+    h = await Harness(auto_playback=False).ready()
+    first = await h.engine.begin_response()
+    await h.engine.skip_speech(first)
+    second = await h.engine.begin_response()
+    await h.engine.feed_text(second, "A second answer that will be interrupted, midway. ")
+    await wait_for(lambda: h.engine.tts_pending or h.frames("audio"))
+    h.engine.listening = False
+    for packet in voiced(8):
+        await h.engine.feed_microphone(packet)
+    assert (await asyncio.wait_for(h.engine.wait_turn(second), 3)).status == "cancelled"
+    assert [e.reason for e in h.of(Interrupted)] == ["barge-in"]

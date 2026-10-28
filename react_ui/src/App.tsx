@@ -15,6 +15,7 @@ import AvatarDisplay from "./components/AvatarDisplay";
 import { AvatarControlPanel } from "./components/AvatarControlPanel";
 import { AvatarWindowManager } from "./avatar/avatarWindowManager";
 import { getAvatarSyncBridge } from "./avatar/avatarSync";
+import { liveAssistantText } from "./avatar/liveText";
 import ChatInput from "./components/ChatInput";
 import ChatMessage from "./components/ChatMessage";
 import MessageList from "./components/MessageList";
@@ -322,7 +323,10 @@ export default function App() {
           setUseStreamingChat(prevStreamingPrefRef.current);
         }
         setIsAvatarActive(false);
+        liveAssistantText.reset(null);
       } else if (event.type === "AVATAR_SPOKEN_TURN_START") {
+        // The user's words appear at once; the reply then streams into the live bubble.
+        liveAssistantText.reset("");
         if (activeSessionId && event.userText) {
           const userMsg = createMessage("user", event.userText);
           setMessagesBySession((prev) => ({
@@ -330,9 +334,14 @@ export default function App() {
             [activeSessionId]: [...(prev[activeSessionId] ?? []), userMsg],
           }));
         }
+      } else if (event.type === "AVATAR_SPOKEN_TURN_DELTA") {
+        // Rendered immediately as generated: never gated on speech, playback or the final response.
+        liveAssistantText.append(event.textDelta);
       } else if (event.type === "AVATAR_SPOKEN_TURN_END") {
-        if (activeSessionId && event.assistantText) {
-          const assistantMsg = createMessage("assistant", event.assistantText);
+        const finalText = event.assistantText || liveAssistantText.get() || "";
+        liveAssistantText.reset(null);
+        if (activeSessionId && finalText) {
+          const assistantMsg = createMessage("assistant", finalText);
           setMessagesBySession((prev) => ({
             ...prev,
             [activeSessionId]: [...(prev[activeSessionId] ?? []), assistantMsg],
@@ -352,6 +361,11 @@ export default function App() {
       unsubscribe();
     };
   }, [activeSessionId, selectedCompanion, activeRoomId, useStreamingChat]);
+
+  // A spoken reply still streaming belongs to the session it started in.
+  useEffect(() => {
+    liveAssistantText.reset(null);
+  }, [activeSessionId]);
 
   // Synchronize session / companion changes to avatar popup window if open
   useEffect(() => {

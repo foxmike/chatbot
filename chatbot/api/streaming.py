@@ -399,6 +399,21 @@ async def _stream_turn(
         # Starlette cancels its streaming task on disconnect. Shield database
         # cleanup from that AnyIO scope; task.cancel() alone does not save a turn.
         with anyio.CancelScope(shield=True):
+            if avatar_turn is not None and persisted and avatar_turn.source == "typed":
+                # The browser closed the SSE connection after the full text was saved (the
+                # text UI is done as soon as `response` arrives). That is not an interruption:
+                # the speech keeps playing. Only the post-response bookkeeping is left.
+                if ctx is not None:
+                    try:
+                        await _run_post_stream_db_write(
+                            ctx,
+                            "identity update",
+                            lambda post_ctx: UpdateIdentityStep().run(post_ctx),
+                        )
+                        await _complete_turn_trace(ctx, trace_id)
+                    except Exception:
+                        logger.warning("Post-response work after disconnect failed", exc_info=True)
+                raise
             if avatar_turn is not None:
                 avatar_turn.interrupted = True
                 await coordinator.stop_speech(avatar, avatar_turn)

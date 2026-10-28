@@ -98,6 +98,11 @@ export interface AvatarSwitchSessionMessage {
   room_id?: string | null;
 }
 
+/** Stop speaking the current response; the text keeps streaming. Not an interruption. */
+export interface AvatarSkipSpeechMessage {
+  type: "skip_speech";
+}
+
 export interface AvatarTextInputMessage {
   type: "text_input";
   text: string;
@@ -114,6 +119,7 @@ export type AvatarClientMessage =
   | AvatarVideoDisplayedMessage
   | AvatarBufferStatsMessage
   | AvatarSwitchSessionMessage
+  | AvatarSkipSpeechMessage
   | AvatarTextInputMessage;
 
 // --- Server -> Client JSON Messages ---
@@ -131,6 +137,12 @@ export interface AvatarConfigMessage {
 
 export interface AvatarInterruptMessage {
   type: "interrupt";
+}
+
+/** Server acknowledgement of `skip_speech`: everything before it is stale, nothing follows. */
+export interface AvatarSpeechSkippedMessage {
+  type: "speech_skipped";
+  turn_id?: string | null;
 }
 
 export interface AvatarReadyMessage {
@@ -172,6 +184,7 @@ export type AvatarServerMessage =
   | AvatarConfigMessage
   | AvatarInterruptMessage
   | AvatarReadyMessage
+  | AvatarSpeechSkippedMessage
   | AvatarTranscriptionMessage
   | AvatarTurnStartMessage
   | AvatarTurnDeltaMessage
