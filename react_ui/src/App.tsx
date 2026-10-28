@@ -12,6 +12,9 @@ import {
   sendMessage,
 } from "./api/client";
 import AvatarDisplay from "./components/AvatarDisplay";
+import { AvatarControlPanel } from "./components/AvatarControlPanel";
+import { AvatarWindowManager } from "./avatar/avatarWindowManager";
+import { getAvatarSyncBridge } from "./avatar/avatarSync";
 import ChatInput from "./components/ChatInput";
 import ChatMessage from "./components/ChatMessage";
 import MessageList from "./components/MessageList";
@@ -24,8 +27,6 @@ import CompanionInfoPanel from "./components/CompanionInfoPanel";
 import CompanionSelector from "./components/CompanionSelector";
 import { RoomSwitcher } from "./components/RoomSwitcher";
 import ScenePanel from "./components/ScenePanel";
-import { VoiceControls } from "./components/VoiceControls";
-import { CallMode } from "./components/CallMode";
 import type { ApiError, CreateSessionResponse, Message, Session } from "./types";
 import type { RoomData, RoomType } from "./api/client";
 import { AdminDashboard } from "./components/AdminDashboard";
@@ -265,8 +266,11 @@ export default function App() {
   const [selectedCompanion, setSelectedCompanion] = useState<Companion | null>(
     null,
   );
-  const [callModeActive, setCallModeActive] = useState(false);
   const [useStreamingChat, setUseStreamingChat] = useState(false);
+  const [isAvatarActive, setIsAvatarActive] = useState(false);
+  const prevStreamingPrefRef = useRef<boolean>(false);
+  const isAvatarActiveRef = useRef<boolean>(false);
+  isAvatarActiveRef.current = isAvatarActive;
   const [activeProvider, setActiveProvider] = useState("openrouter");
   const [activeModel, setActiveModel] = useState("google/gemma-4-31b-it");
   const [debugMode, setDebugMode] = useState(false);
@@ -298,6 +302,81 @@ export default function App() {
   useEffect(() => {
     activeRoomIdRef.current = activeRoomId;
   }, [activeRoomId]);
+
+  // Handle cross-window avatar events via AvatarSyncBridge
+  useEffect(() => {
+    const bridge = getAvatarSyncBridge();
+    const unsubscribe = bridge.subscribe((event) => {
+      if (event.type === "AVATAR_CONNECTED") {
+        if (!isAvatarActiveRef.current) {
+          prevStreamingPrefRef.current = useStreamingChat;
+          setUseStreamingChat(true);
+        }
+        setIsAvatarActive(true);
+      } else if (
+        event.type === "AVATAR_DISCONNECTED" ||
+        event.type === "AVATAR_CLOSED" ||
+        event.type === "AVATAR_DISPLACED"
+      ) {
+        if (isAvatarActiveRef.current) {
+          setUseStreamingChat(prevStreamingPrefRef.current);
+        }
+        setIsAvatarActive(false);
+      } else if (event.type === "AVATAR_SPOKEN_TURN_START") {
+        if (activeSessionId && event.userText) {
+          const userMsg = createMessage("user", event.userText);
+          setMessagesBySession((prev) => ({
+            ...prev,
+            [activeSessionId]: [...(prev[activeSessionId] ?? []), userMsg],
+          }));
+        }
+      } else if (event.type === "AVATAR_SPOKEN_TURN_END") {
+        if (activeSessionId && event.assistantText) {
+          const assistantMsg = createMessage("assistant", event.assistantText);
+          setMessagesBySession((prev) => ({
+            ...prev,
+            [activeSessionId]: [...(prev[activeSessionId] ?? []), assistantMsg],
+          }));
+        }
+      } else if (event.type === "REQUEST_SYNC") {
+        bridge.publish({
+          type: "SYNC_RESPONSE",
+          companion: selectedCompanion,
+          sessionId: activeSessionId,
+          roomId: activeRoomId,
+        });
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [activeSessionId, selectedCompanion, activeRoomId, useStreamingChat]);
+
+  // Synchronize session / companion changes to avatar popup window if open
+  useEffect(() => {
+    if (selectedCompanion && activeSessionId && isAvatarActive) {
+      AvatarWindowManager.getInstance().syncSession(
+        selectedCompanion,
+        activeSessionId,
+        activeRoomId
+      );
+    }
+  }, [selectedCompanion, activeSessionId, activeRoomId, isAvatarActive]);
+
+  const handleOpenAvatar = () => {
+    AvatarWindowManager.getInstance().openAvatarWindow({
+      companion: selectedCompanion,
+      sessionId: activeSessionId,
+      roomId: activeRoomId,
+      onClose: () => {
+        if (isAvatarActiveRef.current) {
+          setUseStreamingChat(prevStreamingPrefRef.current);
+        }
+        setIsAvatarActive(false);
+      },
+    });
+  };
 
   const upsertSession = (session: Session) => {
     setSessions((currentSessions) => {
@@ -509,6 +588,14 @@ export default function App() {
       ],
     }));
 
+    if (isAvatarActiveRef.current) {
+      getAvatarSyncBridge().publish({
+        type: "TYPED_MESSAGE_STREAMING_START",
+        userText: trimmedMessage,
+        sessionId,
+      });
+    }
+
     queueRef.current.push({
       text: trimmedMessage,
       sessionId,
@@ -548,6 +635,15 @@ export default function App() {
         [pending.sessionId]: updatedList,
       };
     });
+
+    if (isAvatarActiveRef.current) {
+      getAvatarSyncBridge().publish({
+        type: "TYPED_MESSAGE_STREAMING_END",
+        fullText: message.content,
+        sessionId: pending.sessionId,
+      });
+    }
+
     setStreamRequest(null);
     pending.resolve();
   };
@@ -658,7 +754,6 @@ export default function App() {
     setError(null);
     setIsLoading(false);
     setStreamRequest(null);
-    setCallModeActive(false);
   };
 
   if (!user) {
@@ -676,7 +771,11 @@ export default function App() {
 
   const chatPanel = (
     <div className="flex h-full min-h-0 flex-col relative">
-      <AvatarDisplay companion={selectedCompanion} />
+      <AvatarDisplay
+        companion={selectedCompanion}
+        onOpenAvatar={handleOpenAvatar}
+        isAvatarActive={isAvatarActive}
+      />
       <button 
         type="button"
         className={`absolute top-4 right-4 z-10 px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${debugMode ? "bg-indigo-600 border-indigo-500 text-white" : "bg-gray-800 border-gray-700 text-gray-400 hover:text-gray-200"}`}
@@ -712,12 +811,14 @@ export default function App() {
             <label className="flex items-center gap-3 text-sm font-medium text-gray-200">
               <input
                 type="checkbox"
-                className="h-4 w-4 rounded border-gray-600 bg-gray-900 text-indigo-600 focus:ring-2 focus:ring-indigo-500"
+                className="h-4 w-4 rounded border-gray-600 bg-gray-900 text-indigo-600 focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
                 checked={useStreamingChat}
-                disabled={isLoading}
+                disabled={isLoading || isAvatarActive}
                 onChange={(event) => setUseStreamingChat(event.target.checked)}
               />
-              <span>Stream responses</span>
+              <span>
+                Stream responses {isAvatarActive ? "(locked while avatar is active)" : ""}
+              </span>
             </label>
           </div>
           <ChatInput
@@ -742,12 +843,6 @@ export default function App() {
 
   return (
     <>
-      {callModeActive && activeSessionId ? (
-        <CallMode
-          sessionId={activeSessionId}
-          onEnd={() => setCallModeActive(false)}
-        />
-      ) : null}
       <AppShell
         user={user}
         activePanel={activePanel}
@@ -825,21 +920,12 @@ export default function App() {
           />
         ),
         voice: (
-          <div className="flex h-full flex-col items-center justify-center gap-6 p-4">
-            <VoiceControls
-              onTranscription={(message) =>
-                handleSend(message, activeProvider, activeModel)
-              }
-            />
-            <button
-              type="button"
-              className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-900"
-              onClick={() => setCallModeActive(true)}
-              disabled={!activeSessionId}
-            >
-              Enter Call Mode
-            </button>
-          </div>
+          <AvatarControlPanel
+            companion={selectedCompanion}
+            sessionId={activeSessionId}
+            isAvatarActive={isAvatarActive}
+            onOpenAvatar={handleOpenAvatar}
+          />
         ),
         admin: <AdminDashboard />,
         }}

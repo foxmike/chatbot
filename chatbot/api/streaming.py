@@ -12,6 +12,7 @@ from time import perf_counter
 from typing import Any
 import uuid
 
+import anyio
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy import select, update
@@ -19,8 +20,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import StreamingResponse
 
 from chatbot.api.chat import _prepare_memory_workflow
+from chatbot.avatar.coordinator import get_coordinator
 from chatbot.auth.dependencies import CurrentUser, get_current_user
-from chatbot.core import TurnContext, TurnStep
+from chatbot.core import StepResult, TurnContext, TurnStep
 from chatbot.core.turn import (
     UpdateIdentityStep,
     _generate_message_embeddings,
@@ -29,9 +31,12 @@ from chatbot.core.turn import (
     _render_trace_prompt,
     _select_provider,
     _store_llm_trace_metadata,
+    _start_turn_trace,
+    _record_turn_trace_step,
+    _complete_turn_trace,
     build_default_pipeline,
 )
-from chatbot.db import async_session_factory, streaming_session_factory, get_db
+from chatbot.db import streaming_session_factory, get_db
 from chatbot.companions.companion import CompanionManager
 from chatbot.db.models import IdentityStateModel, Message, Session
 from chatbot.providers.base import ProviderConfig, ProviderRegistry
@@ -52,6 +57,20 @@ class StreamRequest(BaseModel):
 
 streaming_router = APIRouter(prefix="/chat")
 _STREAM_METHOD_NAMES = ("stream", "stream_complete", "complete_stream", "stream_tokens")
+
+
+class ChatStreamingResponse(StreamingResponse):
+    async def stream_response(self, send: Any) -> None:
+        try:
+            await super().stream_response(send)
+        finally:
+            # Cancellation can happen in ASGI send(), while the generator is
+            # suspended at yield. Explicitly close it so its persistence cleanup
+            # runs now rather than at async-generator garbage collection.
+            with anyio.CancelScope(shield=True):
+                close = getattr(self.body_iterator, "aclose", None)
+                if close is not None:
+                    await close()
 
 
 @streaming_router.post("/stream")
@@ -95,7 +114,7 @@ async def stream_chat(
     )
     session_snapshot = _session_snapshot(db_session)
 
-    return StreamingResponse(
+    return ChatStreamingResponse(
         _stream_turn(
             request,
             http_request=http_request,
@@ -129,7 +148,35 @@ async def _stream_turn(
 ) -> AsyncIterator[str]:
     stream_db = streaming_session_factory()
     typing_active = False
+    avatar = None
+    avatar_turn = None
+    coordinator = None
+    ctx = None
+    trace_id = None
+    persisted = False
     try:
+        if http_request is not None:
+            coordinator = get_coordinator(http_request.app)
+            avatar = coordinator.get(str(session_id), current_user.user_id)
+            source = getattr(http_request.state, "avatar_source", "typed")
+            if source == "spoken" and (
+                avatar is None
+                or avatar is not getattr(http_request.state, "avatar_binding", avatar)
+                or avatar.companion_id != session_companion_id
+                or character_profile is None
+            ):
+                raise HTTPException(409, "Avatar session or companion changed")
+            if avatar and avatar.companion_id != session_companion_id:
+                await coordinator.detach(avatar)
+                avatar = None
+            if avatar is not None:
+                avatar_turn = await coordinator.begin(avatar, source=source)
+                # The previous turn's interrupted persistence must finish BEFORE
+                # loading context for its successor, including typed -> spoken.
+                history = await _load_db_session_history(
+                    stream_db, session_id, room_id=session_room_id,
+                )
+                identity_state = await _load_stream_session_identity(stream_db, session_id)
         metadata = _stream_metadata(http_request)
         if request.model_override:
             metadata["model"] = request.model_override
@@ -137,6 +184,7 @@ async def _stream_turn(
         if request.provider_override:
             metadata["provider_name"] = request.provider_override
             metadata["default_provider"] = request.provider_override
+        metadata["turn_id"] = avatar_turn.turn_id if avatar_turn else str(uuid.uuid4())
         metadata["session_id"] = request.session_id
         metadata["session_record"] = session_snapshot
         metadata["db_session"] = stream_db
@@ -173,6 +221,8 @@ async def _stream_turn(
             await _prepare_memory_workflow(http_request, ctx, stream_db, session_id)
 
         pipeline = build_default_pipeline()
+        ctx.metadata.setdefault("full_conversation_history", list(ctx.history))
+        trace_id = await _start_turn_trace(ctx)
 
         yield _sse_data({"type": "typing", "status": "started"})
         typing_active = True
@@ -192,12 +242,18 @@ async def _stream_turn(
                 token_emitted = False
                 if request.stream_tokens:
                     async for token in _stream_provider_tokens(ctx):
+                        if avatar_turn and avatar_turn.interrupted:
+                            raise asyncio.CancelledError
                         stream_attempted = True
                         token_emitted = True
                         if token.startswith("Provider stream error:"):
                             yield _sse_data({"type": "error", "error": token})
                         else:
+                            if avatar_turn:
+                                coordinator.publish(avatar, avatar_turn, token)
                             yield _sse_data({"type": "token", "text": token})
+                            if avatar_turn:
+                                avatar_turn.text_delivered += token
                     stream_attempted = stream_attempted or bool(
                         ctx.metadata.pop("_stream_provider_attempted", False)
                     )
@@ -205,12 +261,36 @@ async def _stream_turn(
                 if not stream_attempted:
                     ctx = await step.run(ctx)
                     for token in _provider_text_chunks(ctx):
+                        if avatar_turn:
+                            coordinator.publish(avatar, avatar_turn, token)
                         yield _sse_data({"type": "token", "text": token})
+                        if avatar_turn:
+                            avatar_turn.text_delivered += token
                 elif not token_emitted:
                     for token in _provider_text_chunks(ctx):
+                        if avatar_turn:
+                            coordinator.publish(avatar, avatar_turn, token)
                         yield _sse_data({"type": "token", "text": token})
+                        if avatar_turn:
+                            avatar_turn.text_delivered += token
 
                 duration_ms = (perf_counter() - started_at) * 1000
+                ctx.metadata.setdefault("step_results", []).append(
+                    StepResult(step_name=step_name, duration_ms=duration_ms, success=True)
+                )
+                await _record_turn_trace_step(ctx, trace_id, step_name, duration_ms, success=True)
+                if avatar_turn:
+                    coordinator.end(avatar, avatar_turn)
+                    if avatar_turn.source == "spoken":
+                        # Do not extract memories or persist unplayed generated text.
+                        try:
+                            await coordinator.wait_playback(avatar_turn)
+                        except TimeoutError:
+                            avatar_turn.interrupted = True
+                            raise asyncio.CancelledError
+                        # wait_playback returned: every declared segment finished playing, so the
+                        # full response (markup intact, same as a typed turn) was heard.
+                        ctx.metadata["generated_response"] = ctx.provider_response
 
                 yield _sse_data(
                     {
@@ -228,6 +308,10 @@ async def _stream_turn(
             started_at = perf_counter()
             ctx = await step.run(ctx)
             duration_ms = (perf_counter() - started_at) * 1000
+            ctx.metadata.setdefault("step_results", []).append(
+                StepResult(step_name=step_name, duration_ms=duration_ms, success=True)
+            )
+            await _record_turn_trace_step(ctx, trace_id, step_name, duration_ms, success=True)
 
             yield _sse_data(
                 {
@@ -259,22 +343,41 @@ async def _stream_turn(
                 exc_info=True,
             )
 
-        await _persist_messages(
+        persist_kwargs = dict(
             session_id=session_id,
             companion_id=session_companion_id,
             current_user=current_user,
             user_message=request.message,
             assistant_message=response,
             turn_id=ctx.metadata.get("turn_id"),
+            strict=avatar_turn is not None,
         )
-
-        _maybe_schedule_title_generation(
-            http_request=http_request,
-            session_id=session_id,
-            session_title=session_title,
-            user_message=request.message,
-            assistant_message=response,
-        )
+        if avatar_turn:
+            # A commit can succeed even if its waiter is cancelled. Finish that
+            # exact transaction before deciding whether partial persistence is
+            # necessary, so an interruption cannot insert the exchange twice.
+            persistence_task = asyncio.create_task(_persist_messages(**persist_kwargs))
+            try:
+                await asyncio.shield(persistence_task)
+            except asyncio.CancelledError:
+                with anyio.CancelScope(shield=True):
+                    await asyncio.shield(persistence_task)
+                persisted = True
+                avatar_turn.persisted = True
+                raise
+        else:
+            await _persist_messages(**persist_kwargs)
+        persisted = True
+        if avatar_turn:
+            avatar_turn.persisted = True
+        else:
+            _maybe_schedule_title_generation(
+                http_request=http_request,
+                session_id=session_id,
+                session_title=session_title,
+                user_message=request.message,
+                assistant_message=response,
+            )
 
         await _run_post_stream_db_write(
             ctx,
@@ -290,12 +393,50 @@ async def _stream_turn(
             lambda post_ctx: UpdateIdentityStep().run(post_ctx),
         )
 
+        await _complete_turn_trace(ctx, trace_id)
         yield "data: [DONE]\n\n"
+    except (asyncio.CancelledError, GeneratorExit):
+        # Starlette cancels its streaming task on disconnect. Shield database
+        # cleanup from that AnyIO scope; task.cancel() alone does not save a turn.
+        with anyio.CancelScope(shield=True):
+            if avatar_turn is not None:
+                avatar_turn.interrupted = True
+                await coordinator.stop_speech(avatar, avatar_turn)
+            if avatar_turn is not None and not persisted:
+                try:
+                    await stream_db.rollback()
+                    delivered = avatar_turn.delivered_text
+                    await _persist_messages(
+                        session_id=session_id,
+                        companion_id=session_companion_id,
+                        current_user=current_user,
+                        user_message=request.message,
+                        assistant_message=delivered,
+                        turn_id=avatar_turn.turn_id,
+                        interrupted=True,
+                        strict=True,
+                    )
+                    persisted = True
+                    avatar_turn.persisted = True
+                except Exception:
+                    avatar_turn.persistence_error = True
+                    raise
+                if ctx is not None:
+                    ctx.metadata["interrupted"] = True
+                    ctx.metadata["generated_response"] = ctx.provider_response
+                    ctx.provider_response = delivered
+                    ctx.final_response = delivered
+                    await _complete_turn_trace(ctx, trace_id)
+        raise
     except HTTPException:
         if typing_active:
             yield _sse_data({"type": "typing", "status": "stopped"})
         raise
     except Exception as exc:
+        if avatar_turn is not None:
+            avatar_turn.persistence_error = not persisted
+            avatar_turn.interrupted = True
+            await coordinator.stop_speech(avatar, avatar_turn)
         import logging
 
         logging.getLogger("chatbot.streaming").error(
@@ -308,10 +449,14 @@ async def _stream_turn(
         yield _sse_data({"type": "error", "error": "An internal error occurred"})
         yield "data: [DONE]\n\n"
     finally:
-        try:
-            await stream_db.close()
-        except Exception:
-            pass
+        if avatar_turn:
+            avatar_turn.task = None
+            avatar_turn.finished.set()
+        with anyio.CancelScope(shield=True):
+            try:
+                await stream_db.close()
+            except Exception:
+                pass
 
 
 async def _stream_provider_tokens(ctx: TurnContext) -> AsyncIterator[str]:
@@ -346,6 +491,10 @@ async def _stream_provider_tokens(ctx: TurnContext) -> AsyncIterator[str]:
             if text:
                 streamed_text_parts.append(text)
                 yield text
+    except (asyncio.CancelledError, GeneratorExit):
+        ctx.provider_response = "".join(streamed_text_parts)
+        _store_llm_trace_metadata(ctx, provider=provider, config=config, result=result_for_metadata)
+        raise
     except Exception as exc:
         import logging
 
@@ -556,6 +705,8 @@ async def _persist_messages(
     user_message: str,
     assistant_message: str,
     turn_id: str | None = None,
+    interrupted: bool = False,
+    strict: bool = False,
 ) -> None:
     user_uuid = uuid.UUID(current_user.user_id)
     user_msg_ts = datetime.now(timezone.utc)
@@ -573,17 +724,31 @@ async def _persist_messages(
                 created_at=user_msg_ts,
             )
         )
-        db.add(
-            Message(
-                session_id=session_id,
-                user_id=user_uuid,
-                companion_id=companion_id,
-                role="assistant",
-                content=assistant_message,
-                turn_id=turn_id,
-                created_at=assistant_msg_ts,
+        if assistant_message:
+            db.add(
+                Message(
+                    session_id=session_id,
+                    user_id=user_uuid,
+                    companion_id=companion_id,
+                    role="assistant",
+                    content=assistant_message,
+                    turn_id=turn_id,
+                    created_at=assistant_msg_ts,
+                )
             )
-        )
+        if interrupted:
+            db.add(
+                Message(
+                    session_id=session_id,
+                    user_id=user_uuid,
+                    companion_id=companion_id,
+                    role="system",
+                    content=("[Assistant turn interrupted. Only confirmed delivered text "
+                             "is retained; a partially played speech segment may be omitted.]"),
+                    turn_id=turn_id,
+                    created_at=assistant_msg_ts + timedelta(milliseconds=1),
+                )
+            )
         await db.execute(
             update(Session)
             .where(Session.id == session_id)
@@ -605,6 +770,8 @@ async def _persist_messages(
             exc,
             exc_info=True,
         )
+        if strict:
+            raise
     finally:
         await db.close()
 

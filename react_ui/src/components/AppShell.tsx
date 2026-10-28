@@ -29,7 +29,7 @@ const panelTabs: { key: AppPanelKey; label: string }[] = [
   { key: "memory", label: "Memory" },
   { key: "timeline", label: "Timeline" },
   { key: "roleplay", label: "Roleplay" },
-  { key: "voice", label: "Voice" },
+  { key: "voice", label: "Avatar" },
   { key: "admin", label: "Admin" },
 ];
 
