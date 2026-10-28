@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     embedding_provider: str = "openrouter"
     embedding_model: str = "openai/text-embedding-3-small"
 
+    # WebSocket Origin checks are independent of HTTP CORS.
+    avatar_allowed_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+
     # TTS (Text-to-Speech) Configuration
     tts_provider: str = os.getenv("TTS_PROVIDER", "elevenlabs")
     tts_model: str = os.getenv("TTS_MODEL", "monolingual-v1")

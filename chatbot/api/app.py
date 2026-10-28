@@ -23,6 +23,8 @@ from chatbot.api.continuity import narrative_router, rituals_router, timeline_ro
 from chatbot.api.companions import companion_router
 from chatbot.api.visual import visual_router
 from chatbot.api.voice import voice_router
+from chatbot.avatar.coordinator import get_coordinator
+from chatbot.avatar.router import avatar_router
 from chatbot.config import get_settings
 from chatbot.db import async_session_factory
 from chatbot.perf.background import BackgroundTask
@@ -64,6 +66,7 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        await get_coordinator(app).close()
         if scheduler_task is not None:
             await _stop_scheduler(scheduler_task, app.state.scheduler)
         if hasattr(app.state, "_scheduler_db_session"):
@@ -147,6 +150,7 @@ def create_app() -> FastAPI:
     app.include_router(companion_router)
     app.include_router(visual_router)
     app.include_router(voice_router)
+    app.include_router(avatar_router)
     app.include_router(timeline_router)
     app.include_router(narrative_router)
     app.include_router(rituals_router)
