@@ -1,8 +1,15 @@
 import os
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import RedisDsn, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+DEFAULT_AVATAR_QWEN_MODEL = "Qwen3-TTS-12Hz-1.7B-VoiceDesign"
+DEFAULT_AVATAR_QWEN_VOICE = (
+    "A warm, natural young adult American woman with a relaxed, expressive conversational voice."
+)
 
 
 class Settings(BaseSettings):
@@ -47,6 +54,23 @@ class Settings(BaseSettings):
 
     embedding_provider: str = "openrouter"
     embedding_model: str = "openai/text-embedding-3-small"
+
+    # Avatar media settings use the same .env sources as the rest of the application.
+    avatar_qwen_path: Path = Path("/home/mike/dev/tools/qwen")
+    avatar_avtr_path: Path = Path("/home/mike/dev/tools/avtr-1")
+    avatar_qwen_model: str = DEFAULT_AVATAR_QWEN_MODEL
+    avatar_qwen_voice: str = DEFAULT_AVATAR_QWEN_VOICE
+    avatar_stt_model: str = "base.en"
+    avatar_stt_device: str = "cpu"
+    avatar_stt_compute_type: str = "int8"
+    avatar_stt_language: str = "en"
+    avatar_endpoint_silence_ms: int = 550
+    avatar_max_utterance_seconds: int = 30
+    avatar_barge_in_enabled: bool = True
+    avatar_sync_buffer_ms: int = 60
+    avatar_portrait: str | None = None
+    avatar_gpu_sampling: bool = False
+    avatar_worker_start_timeout: float = 120.0
 
     # Image Generation Configuration
     image_generation_provider: str = "openrouter"

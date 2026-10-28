@@ -14,6 +14,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from chatbot.config import get_settings
 from chatbot.avatar.config import MediaConfig
 from chatbot.avatar.coordinator import AvatarBinding, Emit
 from chatbot.avatar.media import AvatarMediaEngine
@@ -162,7 +163,7 @@ class AvatarRuntimeHost:
     def __init__(self, config: MediaConfig | None = None, portraits: PortraitService | None = None,
                  engine: AvatarMediaEngine | None = None):
         _show_avatar_logs()
-        self.engine = engine or AvatarMediaEngine(config or MediaConfig.from_env())
+        self.engine = engine or AvatarMediaEngine(config or MediaConfig.from_settings(get_settings()))
         self._portraits = portraits
         self._portrait_dir = Path(tempfile.gettempdir()) / "chatbot-avatar-portraits"
 

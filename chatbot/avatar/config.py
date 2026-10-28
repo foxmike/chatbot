@@ -1,31 +1,23 @@
-"""Avatar media configuration, isolated from chatbot's global settings.
+"""Lightweight media-worker configuration, constructed from chatbot's Settings.
 
-Every value is read from `AVATAR_*` environment variables (or constructed explicitly), so
-nothing here touches `chatbot.config` or its validation. Defaults are the known-good
-my_avatar configuration. Secrets never belong here: the media engine makes no network calls.
+Application configuration and .env loading belong to chatbot.config. This dataclass
+contains only media values and derived worker paths; it never reads the environment.
 """
 
 from __future__ import annotations
 
-import os
-from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-# Known-good voice. Do not edit without listening tests: the exact checkpoint and description
-# are what the sampling parameters in tts_worker.py were tuned against.
-DEFAULT_VOICE_MODEL = "Qwen3-TTS-12Hz-1.7B-VoiceDesign"
-DEFAULT_VOICE = (
-    "A warm, natural young adult American woman with a relaxed, expressive conversational voice."
+from chatbot.config import (
+    DEFAULT_AVATAR_QWEN_MODEL as DEFAULT_VOICE_MODEL,
+    DEFAULT_AVATAR_QWEN_VOICE as DEFAULT_VOICE,
+    Settings,
 )
 
 REPLACED_CODE = 4001  # WebSocket close code: a newer browser window took over this session
 
 _WORKER_DIR = Path(__file__).resolve().parent / "worker_scripts"
-
-
-def _flag(value: str) -> bool:
-    return value.strip().lower() in ("1", "true", "yes")
 
 
 @dataclass(frozen=True)
@@ -58,30 +50,23 @@ class MediaConfig:
         object.__setattr__(self, "max_utterance_seconds", max(5, int(self.max_utterance_seconds)))
 
     @classmethod
-    def from_env(cls, env: Mapping[str, str] | None = None) -> MediaConfig:
-        env = os.environ if env is None else env
-        defaults = cls()
-
-        def get(name: str, default):
-            value = env.get(f"AVATAR_{name}")
-            return default if value is None or value == "" else value
-
-        portrait = get("PORTRAIT", None)
+    def from_settings(cls, settings: Settings) -> MediaConfig:
         return cls(
-            avtr_path=Path(get("AVTR_PATH", defaults.avtr_path)),
-            qwen_path=Path(get("QWEN_PATH", defaults.qwen_path)),
-            voice_model=get("QWEN_MODEL", defaults.voice_model),
-            voice=get("QWEN_VOICE", defaults.voice),
-            stt_model=get("STT_MODEL", defaults.stt_model),
-            stt_device=get("STT_DEVICE", defaults.stt_device),
-            stt_compute_type=get("STT_COMPUTE_TYPE", defaults.stt_compute_type),
-            stt_language=get("STT_LANGUAGE", defaults.stt_language),
-            endpoint_silence=int(get("ENDPOINT_SILENCE_MS", 550)) / 1000,
-            max_utterance_seconds=int(get("MAX_UTTERANCE_SECONDS", 30)),
-            barge_in_enabled=_flag(str(get("BARGE_IN_ENABLED", "true"))),
-            sync_buffer_ms=int(get("SYNC_BUFFER_MS", defaults.sync_buffer_ms)),
-            portrait=Path(portrait) if portrait else None,
-            gpu_sampling=_flag(str(get("GPU_SAMPLING", "false"))),
+            avtr_path=settings.avatar_avtr_path,
+            qwen_path=settings.avatar_qwen_path,
+            voice_model=settings.avatar_qwen_model,
+            voice=settings.avatar_qwen_voice,
+            stt_model=settings.avatar_stt_model,
+            stt_device=settings.avatar_stt_device,
+            stt_compute_type=settings.avatar_stt_compute_type,
+            stt_language=settings.avatar_stt_language,
+            endpoint_silence=settings.avatar_endpoint_silence_ms / 1000,
+            max_utterance_seconds=settings.avatar_max_utterance_seconds,
+            barge_in_enabled=settings.avatar_barge_in_enabled,
+            sync_buffer_ms=settings.avatar_sync_buffer_ms,
+            portrait=Path(settings.avatar_portrait) if settings.avatar_portrait else None,
+            gpu_sampling=settings.avatar_gpu_sampling,
+            worker_start_timeout=settings.avatar_worker_start_timeout,
         )
 
     @property
