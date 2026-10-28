@@ -10,6 +10,7 @@ import threading
 import types
 from pathlib import Path
 
+from PIL import Image
 import numpy as np
 import pytest
 
@@ -19,6 +20,8 @@ SCRIPT = Path(__file__).resolve().parents[2] / "chatbot/avatar/worker_scripts/av
 class FakeCV2(types.ModuleType):
     IMREAD_UNCHANGED = -1
     COLOR_GRAY2BGR = 8
+    INTER_AREA = 3
+    INTER_CUBIC = 2
 
     def __init__(self):
         super().__init__("cv2")
@@ -30,6 +33,9 @@ class FakeCV2(types.ModuleType):
     def imwrite(self, path, image):
         self.written[str(path)] = image
         return True
+
+    def resize(self, image, size, interpolation=None):
+        return np.asarray(Image.fromarray(image).resize(size, resample=Image.Resampling.NEAREST))
 
     def cvtColor(self, image, code):
         return np.repeat(image[:, :, None], 3, axis=2)
@@ -141,3 +147,46 @@ def test_stale_microphone_buffers_never_block_an_interrupt(worker, monkeypatch):
     module.reader(commands, threading.Event(), threading.Event())
     thread.join(5)
     assert "interrupt" in consumer_kinds and consumer_kinds[-1] == "stop"
+
+
+@pytest.mark.parametrize("source_size", [(512, 512), (400, 800), (1000, 400), (1920, 1080)])
+def test_portrait_fit_preserves_circular_features_and_entire_source(worker, source_size):
+    module, cv2 = worker
+    width, height = source_size
+    image = np.full((height, width, 3), 80, np.uint8)
+    y, x = np.ogrid[:height, :width]
+    radius = min(width, height) // 5
+    image[(x - width // 2) ** 2 + (y - height // 2) ** 2 <= radius ** 2] = 255
+    cv2.files["/p/source.png"] = image
+    path = module.prepare_portrait("/p/source.png", "/tmp/d", "fitted")
+    fitted = cv2.written[path]
+    assert fitted.shape == (720, 1280, 3)
+    marker_y, marker_x = np.where(fitted[:, :, 0] > 220)
+    assert abs(np.ptp(marker_x) - np.ptp(marker_y)) <= 2
+    # The source rectangle remains centered and fully visible, with uniform scale.
+    content_y, content_x = np.where(fitted[:, :, 0] >= 70)
+    scale = min(1280 / width, 720 / height)
+    assert np.ptp(content_x) + 1 == round(width * scale)
+    assert np.ptp(content_y) + 1 == round(height * scale)
+    assert abs((content_x.min() + content_x.max()) / 2 - 639.5) <= 0.5
+    assert abs((content_y.min() + content_y.max()) / 2 - 359.5) <= 0.5
+
+
+def test_native_frame_is_not_resampled(worker):
+    module, cv2 = worker
+    source = np.random.default_rng(0).integers(0, 256, (720, 1280, 3), dtype=np.uint8)
+    cv2.files["/p/native.png"] = source
+    path = module.prepare_portrait("/p/native.png", "/tmp/d", "native")
+    np.testing.assert_array_equal(cv2.written[path], source)
+
+
+def test_rgba_padding_preserves_transparency_and_loader_dimensions(worker):
+    module, cv2 = worker
+    source = np.full((256, 256, 4), (20, 30, 40, 128), np.uint8)
+    cv2.files["/p/alpha.png"] = source
+    path = module.prepare_portrait("/p/alpha.png", "/tmp/d", "alpha", width=640, height=360)
+    frame = cv2.written[path]
+    assert frame.shape == (360, 640, 4)
+    np.testing.assert_array_equal(frame[:, :140], 0)
+    np.testing.assert_array_equal(frame[:, 500:], 0)
+    np.testing.assert_array_equal(frame[180, 320], [20, 30, 40, 128])

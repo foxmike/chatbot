@@ -698,3 +698,19 @@ async def test_expired_created_at_is_carried(world: World, db_factory):
     prepared = await service.get_portrait(user, companion_id=companion)
     assert prepared.source_created_at is not None
     assert prepared.source_created_at.date() == created.date()
+
+def test_portrait_preparation_applies_exif_orientation_before_animation():
+    image = Image.new("RGB", (128, 256), (30, 60, 90))
+    exif = Image.Exif()
+    exif[274] = 6  # Camera orientation: rotate 90 degrees clockwise for display.
+    buffer = BytesIO()
+    image.save(buffer, format="JPEG", exif=exif)
+    service = PortraitService(lambda: None)
+    prepared = service.prepare_portrait(
+        image_id="oriented", companion_id="companion", mime_type="image/jpeg",
+        image_data=buffer.getvalue(), created_at=None,
+    )
+    assert (prepared.width, prepared.height) == (256, 128)
+    with Image.open(BytesIO(prepared.png_bytes)) as normalized:
+        assert normalized.size == (256, 128)
+        assert normalized.getexif().get(274) is None

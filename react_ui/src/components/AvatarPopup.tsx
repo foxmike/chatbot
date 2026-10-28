@@ -244,7 +244,7 @@ export function AvatarPopup({
           id="face"
           src={portraitUrl}
           alt={companion?.name || "Avatar"}
-          className="max-h-[82vh] max-w-[min(94vw,1100px)] object-contain rounded-2xl bg-[#1e232d] shadow-2xl transition-all"
+          className="h-full w-full min-h-0 object-contain rounded-2xl bg-[#1e232d] shadow-2xl transition-all"
         />
 
         {/* Displacement Overlay (WebSocket close code 4001) */}

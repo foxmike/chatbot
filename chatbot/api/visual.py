@@ -43,8 +43,10 @@ from chatbot.visual.understanding import (
 visual_router = APIRouter(prefix="/visual", tags=["visual"])
 
 DEFAULT_GENERATION_MODEL = "diffusion/default"
-DEFAULT_WIDTH = 512
-DEFAULT_HEIGHT = 512
+# AVTR's configured source/output canvas is 1280x720, not its internal
+# 512x512 face crop. Existing images are fitted by the avatar worker.
+DEFAULT_WIDTH = 1280
+DEFAULT_HEIGHT = 720
 
 
 # ---------------------------------------------------------------------------

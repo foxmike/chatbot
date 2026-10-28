@@ -39,7 +39,7 @@ from datetime import datetime
 from io import BytesIO
 from typing import Any, Callable
 
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -480,6 +480,7 @@ class PortraitService:
                         f"Unsupported portrait image format: {actual_format or 'unknown'}"
                     )
                 img.load()  # force full decode; truncation surfaces here
+                img = ImageOps.exif_transpose(img)
                 width, height = img.size
                 if (
                     width < self._min_dimension

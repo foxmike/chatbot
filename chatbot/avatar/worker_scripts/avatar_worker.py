@@ -59,8 +59,13 @@ def decode(message):
     return np.frombuffer(base64.b64decode(message["audio"]), dtype="<f4")
 
 
-def prepare_portrait(source, directory, name):
+def prepare_portrait(source, directory, name, *, width=1280, height=720):
     """Re-encode `source` as a PNG named `name` in `directory`; returns its path.
+
+    Fit the whole source into the loader's output frame with one uniform scale and
+    centered padding. AvatarLoader.load otherwise stretches it to out_w/out_h before
+    detecting the face, so CSS object-contain alone cannot correct the distortion.
+    RGB padding matches the popup stage; RGBA padding stays transparent.
 
     AVTR's loader reads any cv2 format, but looks for a `<stem>.pbmask.png` beside the file.
     A private copy keeps the default pasteback mask, exactly as the original single-portrait
@@ -75,6 +80,22 @@ def prepare_portrait(source, directory, name):
         raise ValueError(f"Unsupported portrait channels: {image.shape}")
     if min(image.shape[:2]) < MIN_PORTRAIT_SIDE:
         raise ValueError(f"Portrait too small: {image.shape[1]}x{image.shape[0]}")
+    source_h, source_w = image.shape[:2]
+    if (source_w, source_h) != (width, height):
+        scale = min(width / source_w, height / source_h)
+        fitted_w = max(1, min(width, round(source_w * scale)))
+        fitted_h = max(1, min(height, round(source_h * scale)))
+        if (fitted_w, fitted_h) != (source_w, source_h):
+            image = cv2.resize(
+                image, (fitted_w, fitted_h),
+                interpolation=cv2.INTER_AREA if scale < 1 else cv2.INTER_CUBIC,
+            )
+        frame = np.zeros((height, width, image.shape[2]), dtype=image.dtype)
+        if image.shape[2] == 3:
+            frame[:] = (45, 35, 30)  # BGR: popup background #1e232d
+        left, top = (width - fitted_w) // 2, (height - fitted_h) // 2
+        frame[top:top + fitted_h, left:left + fitted_w] = image
+        image = frame
     path = f"{directory}/{name}.png"
     if not cv2.imwrite(path, image):
         raise ValueError(f"Cannot convert portrait: {source}")
@@ -155,7 +176,10 @@ def main():
             else:
                 picture += 1
                 with contextlib.redirect_stdout(sys.stderr):
-                    png = prepare_portrait(command["path"], portrait_dir.name, f"portrait-{picture}")
+                    png = prepare_portrait(
+                        command["path"], portrait_dir.name, f"portrait-{picture}",
+                        width=loader.out_w, height=loader.out_h,
+                    )
                     try:
                         chosen = loader.load(png, avatar_id=portrait_id)
                     finally:

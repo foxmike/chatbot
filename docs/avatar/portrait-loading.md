@@ -78,6 +78,56 @@ entries are never served; only validated PNG bytes are cached. Not shared
 across processes — each worker caches independently. After an out-of-band
 portrait mutation, call `invalidate()` or `get_portrait(refresh=True)`.
 
+## Portrait dimensions and proportion standard
+
+New companion portraits request **1280×720 (16:9)**, matching the installed
+AVTR pipeline's source/output canvas. The gallery explicitly requests those
+dimensions and the visual generation API uses them as defaults. OpenRouter
+receives `image_config.aspect_ratio = "16:9"`; a provider may return another
+native resolution at that ratio. Explicit custom image dimensions remain supported.
+Frame a single, centered, front-facing head and shoulders with the whole head
+visible and enough margin for animation. Do not ask for a square face crop merely
+because AVTR's internal decoder produces a 512×512 crop.
+
+The actual installed AVTR code was inspected at
+`/home/mike/dev/tools/avtr-1/src/avtr1_renderer/`:
+
+- `pipeline.py::Pipeline.from_artifacts` defaults to `out_size=(720, 1280)`
+  in **height, width** order and passes those dimensions to `AvatarLoader`.
+- `avatar_loader.py::AvatarLoader.load` directly resizes a mismatched source
+  to `out_w × out_h` **before face detection**. Passing an existing square
+  portrait unchanged therefore widens the face; browser CSS cannot undo it.
+- Face registration subsequently extracts a landmark-aligned 512×512 crop
+  and a 256×256 appearance/motion input. Those are internal tensors, not
+  the required whole-portrait aspect ratio. MODNet's 512×288 tensor is also
+  an internal processing size, not the portrait generation standard.
+
+Chatbot's worker now prepares a private PNG at the actual loader dimensions:
+use **one uniform scale**, retain the **entire source**, and center it with
+padding. Never resize width and height independently or crop the face to fill
+an arbitrary frame. RGB padding matches the popup background (`#1e232d`);
+RGBA padding stays transparent. Native-sized frames are copied without resampling.
+Existing square, tall, wide, uploaded and generated portraits all work without
+regeneration or rewriting database images. EXIF orientation is applied by the
+portrait service before PNG encoding; its dimensions describe the oriented source.
+The worker, not the source image, supplies AVTR's padded canvas.
+
+The popup image fills its available stage and uses `object-contain`, keeping
+proportions intact as the window changes size without overflowing the controls.
+
+### Targeted verification
+
+- `tests/avatar_media/test_avatar_worker.py`: square/tall/wide/native inputs,
+  circular-feature proportions, full-source retention, alpha and custom loader size.
+- `tests/test_avatar_portraits.py`: source normalization, EXIF orientation and
+  existing portrait-service coverage.
+- `tests/test_portrait_dimensions.py`: 1280×720 API defaults, 16:9 provider request,
+  and explicit square image compatibility.
+- Real OpenCV preprocessing of an existing 1920×1920 companion image confirms a
+  centered 720×720 source in a 1280×720 frame. No AVTR/Qwen model is loaded for this check.
+- Browser rendering checks use the actual popup with preprocessed image fixtures at
+  920×800, 620×450 and 1200×1000. No speech requests or conversation writes are needed.
+
 ## AVTR-1 portrait-loading findings
 
 Sources read: `my_avatar/python/my_avatar/avatar_worker.py`,

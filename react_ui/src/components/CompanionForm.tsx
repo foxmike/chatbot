@@ -600,6 +600,9 @@ export function CompanionForm({
     try {
       const generated = await generateVisualImage({
         prompt,
+        // Match AVTR's output frame; the worker also fits older images without stretching.
+        width: 1280,
+        height: 720,
         ...(companionId ? { companion_id: companionId } : {}),
       });
       const imageUrl = generatedImageUrl(generated);
