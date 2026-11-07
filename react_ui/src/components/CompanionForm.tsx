@@ -20,6 +20,9 @@ import type {
 } from "../api/client";
 import type { ApiError } from "../types";
 import { avatarColorForKey, getInitial } from "../utils/avatar";
+import { listVoices } from "../api/voices";
+import type { Voice } from "../api/voices";
+import { companionVoiceOptions, voiceIdForValue } from "../utils/voices";
 
 const PERSONALITY_DIMS = [
   "openness",
@@ -105,6 +108,7 @@ interface CompanionFormData {
   favorite_topics: string[];
   avatar_url: string | null;
   avatar_header: string;
+  voice_id: string;          // "" = the built-in default voice
 }
 
 interface CompanionFormProps {
@@ -133,6 +137,7 @@ function emptyForm(): CompanionFormData {
     favorite_topics: [],
     avatar_url: null,
     avatar_header: "",
+    voice_id: "",
   };
 }
 
@@ -161,6 +166,7 @@ function companionToForm(companion: Companion | undefined): CompanionFormData {
     favorite_topics: companion.favorite_topics ?? [],
     avatar_url: companion.avatar_url ?? null,
     avatar_header: companion.avatar_header ?? "",
+    voice_id: companion.voice_id ?? "",
   };
 }
 
@@ -347,6 +353,13 @@ export function CompanionForm({
 }: CompanionFormProps) {
   const companionId = companion?.companion_id;
   const [form, setForm] = useState<CompanionFormData>(() => companionToForm(companion));
+  const [voices, setVoices] = useState<Voice[]>([]);
+
+  useEffect(() => {
+    listVoices()
+      .then((library) => setVoices(library.voices))
+      .catch(() => setVoices([]));
+  }, []);
   const [topicInput, setTopicInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [generatingGalleryImage, setGeneratingGalleryImage] = useState(false);
@@ -514,6 +527,7 @@ export function CompanionForm({
     slang_profile: parseJsonObjectField("Slang profile", form.slang_profile),
     adaptive_verbosity: form.adaptive_verbosity,
     favorite_topics: form.favorite_topics,
+    voice_id: voiceIdForValue(form.voice_id),
   });
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -970,6 +984,30 @@ export function CompanionForm({
             placeholder="Companion name"
             onChange={(e: ChangeEvent<HTMLInputElement>) => set("name", e.target.value)}
           />
+        </label>
+
+        <label className={LABEL}>
+          Default Voice
+          <select
+            aria-label="Default Voice"
+            value={form.voice_id}
+            disabled={disabled}
+            className={INPUT}
+            onChange={(e: ChangeEvent<HTMLSelectElement>) => set("voice_id", e.target.value)}
+          >
+            {companionVoiceOptions(voices).map((option) => (
+              <option key={option.value || "builtin"} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+            {form.voice_id && !voices.some((voice) => voice.voice_id === form.voice_id) ? (
+              <option value={form.voice_id}>Loading voice…</option>
+            ) : null}
+          </select>
+          <span className="text-xs font-normal text-gray-500">
+            Who speaks for this companion. A conversation can still choose another voice. Manage voices in
+            the Voice Library.
+          </span>
         </label>
 
         <label className={LABEL}>

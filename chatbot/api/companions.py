@@ -18,6 +18,7 @@ from chatbot.companions.companion import (
     CompanionCreateRequest,
     CompanionListResponse,
     CompanionManager,
+    CompanionVoiceError,
     CompanionResponse,
 )
 from chatbot.db import get_db
@@ -117,7 +118,10 @@ async def create_companion(
     db: AsyncSession = Depends(get_db),
 ) -> CompanionResponse:
     manager = CompanionManager(db)
-    return await manager.create(current_user.user_id, body)
+    try:
+        return await manager.create(current_user.user_id, body)
+    except CompanionVoiceError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 @companion_router.post("/generate-field", response_model=GenerateFieldResponse)
@@ -211,7 +215,10 @@ async def update_companion(
     db: AsyncSession = Depends(get_db),
 ) -> CompanionResponse:
     manager = CompanionManager(db)
-    companion = await manager.update(current_user.user_id, companion_id, body)
+    try:
+        companion = await manager.update(current_user.user_id, companion_id, body)
+    except CompanionVoiceError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     if companion is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

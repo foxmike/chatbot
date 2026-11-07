@@ -17,6 +17,7 @@ import { AvatarWindowManager } from "./avatar/avatarWindowManager";
 import { getAvatarSyncBridge } from "./avatar/avatarSync";
 import { liveAssistantText } from "./avatar/liveText";
 import ChatInput from "./components/ChatInput";
+import VoiceLibrary from "./components/VoiceLibrary";
 import ChatMessage from "./components/ChatMessage";
 import MessageList from "./components/MessageList";
 import { NotificationFeed } from "./components/NotificationFeed";
@@ -274,6 +275,8 @@ export default function App() {
   isAvatarActiveRef.current = isAvatarActive;
   const [activeProvider, setActiveProvider] = useState("openrouter");
   const [activeModel, setActiveModel] = useState("google/gemma-4-31b-it");
+  const [thinking, setThinking] = useState(false);
+  const [modelSendBlocker, setModelSendBlocker] = useState<string | null>(null);
   const [debugMode, setDebugMode] = useState(false);
   const [inspectedTurnId, setInspectedTurnId] = useState<string | null>(null);
   const [streamRequest, setStreamRequest] = useState<{
@@ -281,6 +284,7 @@ export default function App() {
     message: string;
     provider: string;
     model: string;
+    thinking: boolean;
   } | null>(null);
 
   const queueRef = useRef<Array<{
@@ -290,6 +294,7 @@ export default function App() {
     streaming: boolean;
     provider: string;
     model: string;
+    thinking: boolean;
   }>>([]);
   const processingRef = useRef(false);
   const streamSettleRef = useRef<{ sessionId: string; resolve: () => void; reject: (err: Error) => void } | null>(null);
@@ -523,7 +528,7 @@ export default function App() {
 
     while (queueRef.current.length > 0) {
       const item = queueRef.current.shift()!;
-      const { text, sessionId, roomId, streaming, provider, model } = item;
+      const { text, sessionId, roomId, streaming, provider, model, thinking } = item;
 
       setIsLoading(true);
       try {
@@ -531,7 +536,7 @@ export default function App() {
           try {
             await new Promise<void>((resolve, reject) => {
               streamSettleRef.current = { sessionId, resolve, reject };
-              setStreamRequest({ sessionId, message: text, provider, model });
+              setStreamRequest({ sessionId, message: text, provider, model, thinking });
             });
           } catch {
             console.error("Streaming failed for queued message, skipping");
@@ -544,6 +549,7 @@ export default function App() {
               roomId ?? undefined,
               provider,
               model,
+              thinking,
             );
             setMessagesBySession((currentMessages) => {
               const currentList = currentMessages[sessionId] ?? [];
@@ -617,6 +623,7 @@ export default function App() {
       streaming: useStreamingChat,
       provider,
       model,
+      thinking,
     });
 
     processQueue();
@@ -840,9 +847,13 @@ export default function App() {
             disabled={!activeSessionId}
             modelProvider={activeProvider}
             modelName={activeModel}
-            onModelChange={(provider, model) => {
+            sendBlockedReason={modelSendBlocker}
+            sessionId={activeSessionId}
+            onModelChange={(provider, model, sendBlocker, selectedThinking) => {
               setActiveProvider(provider);
               setActiveModel(model);
+              setModelSendBlocker(sendBlocker);
+              setThinking(selectedThinking);
             }}
           />
         </div>
@@ -941,6 +952,7 @@ export default function App() {
             onOpenAvatar={handleOpenAvatar}
           />
         ),
+        voices: <VoiceLibrary sessionId={activeSessionId} />,
         admin: <AdminDashboard />,
         }}
       />

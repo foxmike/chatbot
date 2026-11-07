@@ -114,10 +114,10 @@ def test_workers_are_built_with_the_known_good_environments_and_voice():
     avatar, tts = build_workers(config)
     assert str(avatar.python) == "/home/mike/dev/tools/avtr-1/.pixi/envs/default/bin/python"
     assert str(tts.python) == "/home/mike/dev/tools/qwen/.venv/bin/python"
-    assert Path(avatar.script).name == "avatar_worker.py" and Path(tts.script).name == "tts_worker.py"
+    assert Path(avatar.script).name == "avatar_worker.py" and Path(tts.script).name == "voice_worker.py"
     assert Path(avatar.script).is_file() and Path(tts.script).is_file()
-    # tts_worker.py argv: checkpoint, voice description
-    assert tts.args == (Path("/home/mike/dev/tools/qwen/models/Qwen3-TTS-12Hz-1.7B-VoiceDesign"),
-                        "A warm, natural young adult American woman with a relaxed, expressive "
-                        "conversational voice.")
+    # voice_worker.py argv: Base (speaks saved voices), VoiceDesign (on demand), library root, idle s
+    assert tts.args == (Path("/home/mike/dev/tools/qwen/models/Qwen3-TTS-12Hz-1.7B-Base"),
+                        Path("/home/mike/dev/tools/qwen/models/Qwen3-TTS-12Hz-1.7B-VoiceDesign"),
+                        config.voice_root, config.design_idle_seconds)
     assert avatar.args == ()   # portraits arrive as commands

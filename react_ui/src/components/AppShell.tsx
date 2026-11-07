@@ -9,6 +9,7 @@ export type AppPanelKey =
   | "timeline"
   | "roleplay"
   | "voice"
+  | "voices"
   | "admin";
 
 interface AppShellProps {
@@ -30,6 +31,7 @@ const panelTabs: { key: AppPanelKey; label: string }[] = [
   { key: "timeline", label: "Timeline" },
   { key: "roleplay", label: "Roleplay" },
   { key: "voice", label: "Avatar" },
+  { key: "voices", label: "Voice Library" },
   { key: "admin", label: "Admin" },
 ];
 

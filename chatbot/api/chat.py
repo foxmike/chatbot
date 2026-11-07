@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from dataclasses import asdict, is_dataclass
 from datetime import datetime, timedelta, timezone
 import logging
-from time import perf_counter
+from time import perf_counter, monotonic
 from typing import Any
 import uuid
 
@@ -24,6 +24,7 @@ from chatbot.core.steps import StepResult, TurnContext
 from chatbot.db import async_session_factory, get_db
 from chatbot.db.models import IdentityStateModel, Message, Room as RoomModel, Session
 from chatbot.providers.base import ProviderConfig, ProviderRegistry
+from chatbot.providers.router import apply_routing_overrides
 from chatbot.prompts.templates import render_room_prompt
 from chatbot.rooms.room import RoomType
 
@@ -64,6 +65,7 @@ class ChatRequest(BaseModel):
     room_id: str | None = None
     model_override: str | None = None
     provider_override: str | None = None
+    thinking: bool = False
 
 
 class ChatResponse(BaseModel):
@@ -161,12 +163,8 @@ async def chat(
         retrieval_engine = None
 
     metadata = _build_metadata(request, body.session_id, session, history, persona)
-    if body.provider_override:
-        metadata["provider_name"] = body.provider_override
-        metadata["default_provider"] = body.provider_override
-    if body.model_override:
-        metadata["model"] = body.model_override
-        metadata["default_model"] = body.model_override
+    apply_routing_overrides(metadata, body.provider_override, body.model_override)
+    metadata["thinking"] = body.thinking
 
     ctx = TurnContext(
         session_id=body.session_id,
@@ -232,6 +230,8 @@ async def chat(
         db_session=db_session,
         user_message=body.message,
         assistant_message=response,
+        provider_override=body.provider_override,
+        model_override=body.model_override,
     )
 
     return ChatResponse(
@@ -330,7 +330,12 @@ async def _prepare_memory_workflow(
     session_id: uuid.UUID,
 ) -> None:
     """Wire embeddings and retrieval before the turn pipeline reaches the LLM."""
+    times = ctx.metadata.get("avatar_latency_times")
+    if isinstance(times, dict):
+        times["embedding_prepare_start"] = monotonic()
     await _generate_recent_message_embeddings(db, session_id, ctx)
+    if isinstance(times, dict):
+        times["embedding_prepare_complete"] = monotonic()
 
     retrieval_engine = ctx.retrieval_engine or _metadata_retrieval_engine(ctx.metadata)
     if retrieval_engine is None:
@@ -349,7 +354,8 @@ async def _generate_recent_message_embeddings(
     limit: int = 20,
 ) -> None:
     try:
-        from chatbot.memory.embedding import generate_embedding
+        from chatbot.config import get_settings
+        from chatbot.memory.retrieval import OpenRouterEmbeddingProvider
     except ImportError:
         return
 
@@ -371,24 +377,35 @@ async def _generate_recent_message_embeddings(
         )
         return
 
-    generated = 0
-    for message in messages:
-        try:
-            embedding = await generate_embedding(db, message)
-        except Exception:
-            logger.warning(
-                "Message embedding generation failed for message %s",
-                getattr(message, "id", ""),
-                exc_info=True,
-            )
-            continue
-        if embedding:
-            generated += 1
-
     if messages:
         ctx.metadata["message_embeddings_checked"] = len(messages)
-    if generated:
-        ctx.metadata["message_embeddings_generated"] = generated
+    if not messages:
+        return
+
+    settings = get_settings()
+    if not settings.openrouter_api_key:
+        return
+    provider = OpenRouterEmbeddingProvider(
+        api_key=settings.openrouter_api_key,
+        base_url=getattr(settings, "embedding_base_url", settings.openrouter_base_url),
+        model=getattr(settings, "embedding_model", "openai/text-embedding-3-small"),
+    )
+    # The API accepts an input array. One request preserves the same per-message
+    # vectors while avoiding up to 20 sequential network round trips before chat.
+    try:
+        vectors = await provider.embed([f"{m.role}: {m.content}" for m in messages])
+        if len(vectors) != len(messages) or any(
+            provider.dimension > 0 and len(vector) != provider.dimension for vector in vectors
+        ):
+            raise ValueError("Embedding batch returned an unexpected shape")
+        for message, vector in zip(messages, vectors, strict=True):
+            message.embedding = vector
+            db.add(message)
+        await db.flush()
+    except Exception:
+        logger.warning("Recent message embedding batch failed for session %s", session_id, exc_info=True)
+        return
+    ctx.metadata["message_embeddings_generated"] = len(messages)
 
 
 def _metadata_retrieval_engine(metadata: Mapping[str, Any]) -> Any | None:
@@ -888,6 +905,8 @@ def _maybe_schedule_title_generation(
     db_session: Session,
     user_message: str,
     assistant_message: str,
+    provider_override: str | None = None,
+    model_override: str | None = None,
 ) -> None:
     """Schedule background title generation if the session has no title yet."""
     if db_session.title is not None:
@@ -911,7 +930,12 @@ def _maybe_schedule_title_generation(
         "model",
         "default_model",
     )
-    if not provider_name and not model:
+    if provider_override:
+        # The user's explicit selection also governs this background call:
+        # never send their conversation to a different provider or model.
+        provider_name = provider_override
+        model = model_override or ""
+    elif not provider_name and not model:
         provider_name = "openrouter"
 
     session_id = db_session.id

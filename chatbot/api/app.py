@@ -13,6 +13,8 @@ from chatbot.api.config import config_router
 from chatbot.api.health import router as health_router
 from chatbot.api.chat import _background_queue, chat_router
 from chatbot.api.memory import memory_router
+from chatbot.api.models import models_router
+from chatbot.api.voices import voices_router
 from chatbot.api.sessions import sessions_router
 from chatbot.api.agency import agency_router
 from chatbot.api.admin import admin_router
@@ -145,6 +147,8 @@ def create_app() -> FastAPI:
     app.include_router(sessions_router)
     app.include_router(chat_router)
     app.include_router(streaming_router)
+    app.include_router(models_router)
+    app.include_router(voices_router)
     app.include_router(memory_router)
     app.include_router(agency_router)
     app.include_router(rooms_router)

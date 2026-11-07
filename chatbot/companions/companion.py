@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+from uuid import UUID
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, field_validator
+import sqlalchemy as sa
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +21,7 @@ from chatbot.visual.appearance import (
     stable_outfit_id,
 )
 from chatbot.visual.generation import GenerationOptions, create_image_generation_service
+from chatbot.db.models import Voice
 
 
 class CompanionCreateRequest(BaseModel):
@@ -39,6 +42,9 @@ class CompanionCreateRequest(BaseModel):
     slang_profile: dict[str, object] | None = None
     adaptive_verbosity: float | None = Field(default=None, ge=0.0, le=1.0)
     favorite_topics: list[str] | None = None
+    # Default voice (a Voice Library voice id). Only changed when the request includes it, so
+    # editors that do not know about voices never clear an assignment.
+    voice_id: str | None = Field(default=None, max_length=36)
 
     @field_validator("gender")
     @classmethod
@@ -84,6 +90,7 @@ class CompanionResponse(BaseModel):
     slang_profile: dict[str, object] | None
     adaptive_verbosity: float | None = None
     favorite_topics: list[str] | None
+    voice_id: str | None = None
     display: CompanionDisplay
     created_at: str
     updated_at: str | None
@@ -220,6 +227,7 @@ def _row_to_companion(row: object) -> CompanionResponse:
         slang_profile=m.get("slang_profile"),
         adaptive_verbosity=m.get("adaptive_verbosity"),
         favorite_topics=m.get("favorite_topics"),
+        voice_id=m.get("voice_id"),
         display=_build_companion_display(
             companion_id=companion_id,
             name=name,
@@ -233,11 +241,38 @@ def _row_to_companion(row: object) -> CompanionResponse:
     )
 
 
+class CompanionVoiceError(ValueError):
+    """The requested default voice does not exist or is not usable by this user."""
+
+
 class CompanionManager:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
+    async def _validated_voice(self, user_id: str, voice_id: str | None) -> str | None:
+        """The voice id if the user may use it (their own or built-in, ready); None clears."""
+        if voice_id in (None, ""):
+            return None
+        try:
+            owner = UUID(str(user_id))
+        except ValueError as exc:
+            raise CompanionVoiceError("Voice not found") from exc
+        result = await self._session.execute(
+            sa.select(Voice.voice_id).where(
+                Voice.voice_id == str(voice_id), Voice.status == "ready",
+                sa.or_(Voice.is_builtin.is_(True), Voice.user_id == owner)))
+        found = result.scalar_one_or_none()
+        if found is None:
+            raise CompanionVoiceError("Voice not found")
+        return str(found)
+
+    async def _set_voice(self, companion_id: str, voice_id: str | None) -> None:
+        await self._session.execute(
+            text("UPDATE companions SET voice_id = :voice_id WHERE companion_id = :companion_id"),
+            dict(voice_id=voice_id, companion_id=companion_id))
+
     async def create(self, user_id: str, data: CompanionCreateRequest) -> CompanionResponse:
+        voice_id = await self._validated_voice(user_id, data.voice_id)
         companion_id = str(uuid4())
         avatar_url = data.avatar_url or None
         # exec_driver_sql sends raw SQL to asyncpg with native $N positional params,
@@ -279,6 +314,10 @@ class CompanionManager:
             ),
         )
         row = result.fetchone()
+        if voice_id is not None:
+            await self._set_voice(companion_id, voice_id)
+            await self._session.commit()
+            return await self.get(user_id, companion_id)
         await self._session.commit()
         return _row_to_companion(row)
 
@@ -340,6 +379,8 @@ class CompanionManager:
         existing = await self.get(user_id, companion_id)
         if existing is None:
             return None
+        voice_given = "voice_id" in data.model_fields_set
+        voice_id = await self._validated_voice(user_id, data.voice_id) if voice_given else None
 
         conn = await self._session.connection()
         await conn.exec_driver_sql(
@@ -385,6 +426,8 @@ class CompanionManager:
                WHERE id = $2""",
             (data.adaptive_verbosity, user_id),
         )
+        if voice_given:
+            await self._set_voice(companion_id, voice_id)
         await self._session.commit()
         return await self.get(user_id, companion_id)
 

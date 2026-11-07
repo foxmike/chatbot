@@ -43,6 +43,8 @@ export interface Companion {
   slang_profile: Record<string, unknown> | null;
   adaptive_verbosity: number | null;
   favorite_topics: string[] | null;
+  /** Default voice (Voice Library id); null uses the built-in default voice. */
+  voice_id?: string | null;
 }
 
 export interface CompanionCreate {
@@ -63,6 +65,8 @@ export interface CompanionCreate {
   slang_profile?: Record<string, unknown> | null;
   adaptive_verbosity?: number | null;
   favorite_topics?: string[] | null;
+  /** Only sent when chosen in the form; omitted, the companion keeps its voice. */
+  voice_id?: string | null;
 }
 
 export type GenerateCompanionFieldName =
@@ -479,6 +483,25 @@ function streamingBackendUrl(): string {
   return `http://${window.location.hostname}:8000/chat/stream`;
 }
 
+/**
+ * fetch() against the chatbot backend with the session's bearer token. For requests that are
+ * not plain JSON (multipart uploads, audio downloads); errors are thrown as ApiError.
+ */
+export async function authorizedFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const response = await authorizedRequest(path, init);
+  await assertOk(response);
+  return response;
+}
+
+/** Like authorizedFetch, but returns error responses too (for bodies with extra detail). */
+export async function authorizedRequest(path: string, init: RequestInit = {}): Promise<Response> {
+  const headers: Record<string, string> = { ...(init.headers as Record<string, string>) };
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
+  }
+  return fetch(`${BASE_URL}${backendPath(path)}`, { ...init, headers });
+}
+
 async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -603,14 +626,26 @@ export async function deleteSession(sessionId: string): Promise<void> {
   );
 }
 
+/** Models installed on the configured Ollama server, exactly as Ollama names them. */
+export async function fetchOllamaModels(signal?: AbortSignal): Promise<string[]> {
+  const response = await requestJson<{ provider: string; models: string[] }>(
+    "/models/ollama",
+    { method: "GET", signal },
+  );
+  return Array.isArray(response.models)
+    ? response.models.filter((model): model is string => typeof model === "string")
+    : [];
+}
+
 export function sendMessage(
   message: string,
   sessionId: string,
   roomId?: string,
   providerOverride?: string,
   modelOverride?: string,
+  thinking = false,
 ): Promise<ChatResponse> {
-  const body: Record<string, string> = { message, session_id: sessionId };
+  const body: Record<string, string | boolean> = { message, session_id: sessionId, thinking };
   if (roomId) body.room_id = roomId;
   if (providerOverride) body.provider_override = providerOverride;
   if (modelOverride) body.model_override = modelOverride;
@@ -629,6 +664,7 @@ export async function streamChat(
   roomId?: string,
   providerOverride?: string,
   modelOverride?: string,
+  thinking = false,
 ): Promise<void> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -639,7 +675,7 @@ export async function streamChat(
 
   let response: Response;
   try {
-    const body: Record<string, string> = { session_id: sessionId, message };
+    const body: Record<string, string | boolean> = { session_id: sessionId, message, thinking };
     if (roomId) body.room_id = roomId;
     if (providerOverride) body.provider_override = providerOverride;
     if (modelOverride) body.model_override = modelOverride;

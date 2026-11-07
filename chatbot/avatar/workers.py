@@ -140,7 +140,10 @@ def build_workers(config) -> tuple[Worker, Worker]:
     """(AVTR, TTS) workers for `config`. Portraits are selected later, via `portrait` commands."""
     avatar = Worker("AVTR", config.avtr_python, config.avatar_script, queue_size=64,
                     drop_frames_when_full=True, start_timeout=config.worker_start_timeout)
-    tts = Worker("TTS", config.qwen_python, config.tts_script, config.qwen_checkpoint, config.voice,
+    # Saved voices: Base stays loaded; VoiceDesign is loaded inside the same worker only to
+    # design a voice (one process, one GPU context, commands executed in order).
+    tts = Worker("TTS", config.qwen_python, config.voice_script, config.clone_checkpoint,
+                 config.design_checkpoint, config.voice_root, config.design_idle_seconds,
                  queue_size=4, start_timeout=config.worker_start_timeout)
     return avatar, tts
 

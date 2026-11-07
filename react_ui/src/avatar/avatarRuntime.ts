@@ -18,6 +18,9 @@ import {
   PACKET_MIC,
   PACKET_VIDEO,
   WS_CLOSE_DISPLACED,
+  buildAuthMessage,
+  buildRoutingMessage,
+  buildTtsModeMessage,
   encodeMicPacket,
   getAvatarWsUrl,
   parseBinaryPacket,
@@ -26,6 +29,7 @@ import type {
   AvatarClientMessage,
   AvatarServerMessage,
 } from "./avatarProtocol";
+import type { RoutingSelection as AvatarRoutingSelection } from "../utils/modelPicker";
 
 export interface AvatarRuntimeCallbacks {
   onStatusChange?: (status: string) => void;
@@ -89,6 +93,10 @@ export class AvatarRuntime {
   private sessionId: string | null = null;
   private companionId: string | null = null;
   private roomId: string | null = null;
+  // Supplies the model picker's current selection (read fresh on every use).
+  private getRouting: (() => AvatarRoutingSelection) | null = null;
+  // Supplies the TTS chunking mode chosen in the popup (read fresh on every use).
+  private getTtsMode: (() => string) | null = null;
 
   constructor(
     private callbacks: AvatarRuntimeCallbacks = {},
@@ -98,6 +106,8 @@ export class AvatarRuntime {
       companionId?: string | null;
       roomId?: string | null;
       syncBufferMs?: number;
+      getRouting?: () => AvatarRoutingSelection;
+      getTtsMode?: () => string;
     }
   ) {
     this.tabId = Math.random().toString(36).slice(2, 8);
@@ -105,6 +115,8 @@ export class AvatarRuntime {
     this.sessionId = options?.sessionId ?? null;
     this.companionId = options?.companionId ?? null;
     this.roomId = options?.roomId ?? null;
+    this.getRouting = options?.getRouting ?? null;
+    this.getTtsMode = options?.getTtsMode ?? null;
     if (typeof options?.syncBufferMs === "number") {
       this.syncBufferMs = options.syncBufferMs;
     }
@@ -210,6 +222,18 @@ export class AvatarRuntime {
     return this.micEnabled;
   }
 
+  /** Tell the backend the picker's current selection (used for the next spoken turn). */
+  public sendRouting(): void {
+    if (!this.getRouting) return;
+    this.sendJson(buildRoutingMessage(this.getRouting()));
+  }
+
+  /** Tell the backend the TTS mode now selected; it applies from the next speech turn. */
+  public sendTtsMode(): void {
+    if (!this.getTtsMode) return;
+    this.sendJson(buildTtsModeMessage(this.getTtsMode()));
+  }
+
   public sendJson(message: AvatarClientMessage): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
@@ -239,14 +263,19 @@ export class AvatarRuntime {
       this.callbacks.onConnected?.();
 
       // Send initial authentication & context handshake
-      this.sendJson({
-        type: "auth",
-        token: this.token,
-        session_id: this.sessionId,
-        companion_id: this.companionId,
-        room_id: this.roomId,
-        tab_id: this.tabId,
-      });
+      this.sendJson(
+        buildAuthMessage(
+          {
+            token: this.token,
+            sessionId: this.sessionId,
+            companionId: this.companionId,
+            roomId: this.roomId,
+            tabId: this.tabId,
+          },
+          this.getRouting ? this.getRouting() : null,
+          this.getTtsMode ? this.getTtsMode() : null,
+        ),
+      );
 
       // Automatically enable mic if previously requested or as default
       if (this.micEnabled) {
@@ -309,6 +338,7 @@ export class AvatarRuntime {
 
   private spokenTurnActive = false;
   private spokenText = "";
+  private firstTextAcked = false;
 
   private finishSpokenTurn(text: string | undefined, turnId?: string): void {
     this.spokenTurnActive = false;
@@ -341,6 +371,7 @@ export class AvatarRuntime {
         // The backend runs the chat turn itself; `transcript` is the user's recognized words.
         this.spokenTurnActive = true;
         this.spokenText = "";
+        this.firstTextAcked = false;
         this.callbacks.onTranscription?.(msg.text, true);
         this.callbacks.onTurnStart?.(msg.text, undefined);
         break;
@@ -355,6 +386,10 @@ export class AvatarRuntime {
       case "token":
         if (this.spokenTurnActive) this.spokenText += msg.text;
         this.callbacks.onTurnDelta?.(msg.text, msg.turn_id);
+        if (this.spokenTurnActive && !this.firstTextAcked && msg.turn_id && msg.text) {
+          this.firstTextAcked = true;
+          this.sendJson({ type: "text_timing_ack", turn_id: msg.turn_id });
+        }
         break;
       case "response":
         // Final SSE payload of a spoken turn (carries the full text and the chatbot turn id).
@@ -386,6 +421,7 @@ export class AvatarRuntime {
         const frames = this.segments.has(id)
           ? this.segments.get(id)!.frames
           : this.pendingVideo.get(id)!;
+        if (frames.length === 0) console.info("avatar_media", "browser_video_received", id, performance.now());
         frames.push({ pts, jpeg });
         if (frames.length > 150) {
           frames.shift();
@@ -394,6 +430,7 @@ export class AvatarRuntime {
       }
     } else if (packet.type === "audio") {
       const { id, sampleRate, pcm } = packet;
+      console.info("avatar_media", "browser_audio_received", id, performance.now());
       const generation = this.playbackGeneration;
 
       this.audioChain = this.audioChain
@@ -467,6 +504,7 @@ export class AvatarRuntime {
           };
 
           source.start(begin);
+          console.info("avatar_media", "playback_scheduled", id, performance.now(), begin);
         })
         .catch((error) => console.error("Audio scheduling failed", error));
     }
@@ -532,6 +570,7 @@ export class AvatarRuntime {
         if (current) {
           if (!current.started) {
             current.started = true;
+            console.info("avatar_media", "playback_started", current.id, performance.now());
             const outputLatency =
               (this.audioContext.outputLatency ||
                 (this.audioContext as unknown as { baseLatency?: number }).baseLatency ||

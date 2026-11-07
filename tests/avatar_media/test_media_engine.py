@@ -87,13 +87,14 @@ async def test_reasoning_tags_and_markup_never_reach_tts():
     assert spoken == "Hello there, friend." and "secret" not in spoken
 
 
-async def test_tts_receives_the_exact_configured_voice():
+async def test_tts_receives_the_turns_saved_voice_on_every_sentence():
+    """Speech uses the saved voice the turn started with (Base model cloning), never a description."""
     h = await Harness().ready()
-    await speak(h, "Hello there, my friend.")
-    command = next(m for m in h.tts.sent if m["type"] == "speak")
-    assert command["voice"] == ("A warm, natural young adult American woman with a relaxed, "
-                                "expressive conversational voice.")
-    assert command["mode"] == "design"
+    await speak(h, "Hello there, my friend. How are you today?")
+    commands = [m for m in h.tts.sent if m["type"] == "speak"]
+    assert len(commands) >= 2
+    assert all(m["voice"] == h.voice for m in commands)
+    assert all("mode" not in m and "instruct" not in m for m in commands)
 
 
 async def test_silence_is_trimmed_before_audio_is_sent():
@@ -109,7 +110,7 @@ async def test_silence_is_trimmed_before_audio_is_sent():
 async def test_barge_in_cancels_turn_clears_queues_and_discards_stale_synthesis():
     h = await Harness(auto_playback=False).ready()
     h.tts.hold = asyncio.Event()                      # Qwen is busy when the user interrupts
-    turn = await h.engine.begin_response()
+    turn = await h.engine.begin_response(speech_mode="fast")
     await h.engine.feed_text(turn, "Let me tell you a long story about the sea, and the sky. ")
     await wait_for(lambda: h.engine.tts_pending)
     stale_id = next(iter(h.engine.tts_pending))
@@ -159,7 +160,7 @@ async def test_stale_avtr_frames_after_interrupt_are_not_forwarded():
 
 async def test_next_turn_works_after_interruption_and_ids_are_not_reused():
     h = await Harness(auto_playback=True).ready()
-    turn1 = await h.engine.begin_response()
+    turn1 = await h.engine.begin_response(speech_mode="fast")
     await h.engine.feed_text(turn1, "A first answer that gets interrupted, midway. ")
     await wait_for(lambda: h.tts.sent)
     await h.engine.cancel(turn1)
@@ -209,7 +210,7 @@ async def test_avtr_failure_mid_turn_fails_it():
 async def test_feed_text_applies_backpressure_when_too_much_text_is_pending():
     h = await Harness().ready()
     h.tts.hold = asyncio.Event()
-    turn = await h.engine.begin_response()
+    turn = await h.engine.begin_response(speech_mode="fast")
     task = asyncio.create_task(h.engine.feed_text(turn, "word " * 400))
     await asyncio.sleep(0.2)
     assert not task.done()                                  # blocked: engine saturated
@@ -475,7 +476,7 @@ async def test_missing_dependency_is_reported_at_start_not_mid_conversation(monk
 
 async def test_skip_during_playback_stops_speech_only_and_the_next_turn_speaks():
     h = await Harness(auto_playback=False).ready()
-    turn = await h.engine.begin_response()
+    turn = await h.engine.begin_response(speech_mode="fast")
     await h.engine.feed_text(turn, "Let me tell you a long story about the sea, and the sky. ")
     await wait_for(lambda: h.frames("audio"))
     starts = (h.avatar.starts, h.tts.starts)
@@ -506,7 +507,7 @@ async def test_skip_during_playback_stops_speech_only_and_the_next_turn_speaks()
 async def test_skip_before_the_first_pcm_prevents_speech_from_starting():
     h = await Harness(auto_playback=False).ready()
     h.tts.hold = asyncio.Event()                  # Qwen is busy: no PCM exists yet
-    turn = await h.engine.begin_response()
+    turn = await h.engine.begin_response(speech_mode="fast")
     await h.engine.feed_text(turn, "Hello there, my friend. ")
     await wait_for(lambda: h.engine.tts_pending)
     await h.engine.skip_speech(turn)
@@ -551,9 +552,9 @@ async def test_skip_without_an_active_turn_is_a_no_op():
 
 async def test_barge_in_after_a_skipped_turn_still_works_on_the_next_one():
     h = await Harness(auto_playback=False).ready()
-    first = await h.engine.begin_response()
+    first = await h.engine.begin_response(speech_mode="fast")
     await h.engine.skip_speech(first)
-    second = await h.engine.begin_response()
+    second = await h.engine.begin_response(speech_mode="fast")
     await h.engine.feed_text(second, "A second answer that will be interrupted, midway. ")
     await wait_for(lambda: h.engine.tts_pending or h.frames("audio"))
     h.engine.listening = False

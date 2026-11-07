@@ -76,6 +76,16 @@ export type AvatarSyncEvent =
       sessionId: string;
     }
   | {
+      // Who speaks in a conversation changed (chat or popup selector); re-read it.
+      type: "VOICE_SELECTION_CHANGED";
+      sessionId: string;
+      voiceId: string | null;
+    }
+  | {
+      // Voices were created, renamed or deleted; selectors refresh their lists.
+      type: "VOICE_LIBRARY_CHANGED";
+    }
+  | {
       type: "REQUEST_SYNC";
       tabId: string;
     }

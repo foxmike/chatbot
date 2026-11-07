@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
@@ -13,6 +14,8 @@ from chatbot.auth.dependencies import CurrentUser, get_current_user
 from chatbot.db import get_db
 from chatbot.db.models import Companion, CharacterProfileModel, IdentityStateModel, Message, Session
 from chatbot.soul.evolution import IdentityState
+
+logger = logging.getLogger(__name__)
 
 
 class SessionCreateRequest(BaseModel):
@@ -232,11 +235,13 @@ async def delete_session(
             detail="Session not found",
         )
 
-    messages_result = await db.execute(select(Message).where(Message.session_id == sid))
-    for message in messages_result.scalars().all():
-        await db.delete(message)
-    await db.delete(session)
-    await db.commit()
+    try:
+        await db.delete(session)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        logger.exception("Session deletion failed for %s", session_id)
+        raise HTTPException(status_code=500, detail="Session deletion failed")
     return SessionDeleteResponse(session_id=session_id, deleted=True)
 
 

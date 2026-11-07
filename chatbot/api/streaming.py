@@ -8,6 +8,7 @@ import logging
 from collections.abc import AsyncIterator, Iterable, Mapping
 from datetime import datetime, timedelta, timezone
 import inspect
+import time
 from time import perf_counter
 from typing import Any
 import uuid
@@ -39,7 +40,8 @@ from chatbot.core.turn import (
 from chatbot.db import streaming_session_factory, get_db
 from chatbot.companions.companion import CompanionManager
 from chatbot.db.models import IdentityStateModel, Message, Session
-from chatbot.providers.base import ProviderConfig, ProviderRegistry
+from chatbot.providers.base import ProviderConfig, ProviderRegistry, ProviderSelectionError
+from chatbot.providers.router import apply_routing_overrides
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +53,7 @@ class StreamRequest(BaseModel):
     room_id: str | None = None
     model_override: str | None = None
     provider_override: str | None = None
+    thinking: bool = False
 
     model_config = {"str_strip_whitespace": True, "str_min_length": 1}
 
@@ -146,6 +149,7 @@ async def _stream_turn(
     identity_state: Any,
     history: list[dict[str, Any]],
 ) -> AsyncIterator[str]:
+    context_at = time.monotonic()
     stream_db = streaming_session_factory()
     typing_active = False
     avatar = None
@@ -171,20 +175,24 @@ async def _stream_turn(
                 avatar = None
             if avatar is not None:
                 avatar_turn = await coordinator.begin(avatar, source=source)
+                if avatar_turn.source == "spoken":
+                    avatar_turn.latency_times["begin_complete"] = time.monotonic()
                 # The previous turn's interrupted persistence must finish BEFORE
                 # loading context for its successor, including typed -> spoken.
                 history = await _load_db_session_history(
                     stream_db, session_id, room_id=session_room_id,
                 )
                 identity_state = await _load_stream_session_identity(stream_db, session_id)
+                if avatar_turn.source == "spoken":
+                    avatar_turn.latency_times["history_ready"] = time.monotonic()
         metadata = _stream_metadata(http_request)
-        if request.model_override:
-            metadata["model"] = request.model_override
-            metadata["default_model"] = request.model_override
-        if request.provider_override:
-            metadata["provider_name"] = request.provider_override
-            metadata["default_provider"] = request.provider_override
+        apply_routing_overrides(metadata, request.provider_override, request.model_override)
+        metadata["thinking"] = request.thinking
         metadata["turn_id"] = avatar_turn.turn_id if avatar_turn else str(uuid.uuid4())
+        if avatar_turn and avatar_turn.source == "spoken":
+            avatar_turn.latency_times["context_start"] = context_at
+            metadata["avatar_latency_times"] = avatar_turn.latency_times
+            logger.info("avatar_latency turn_id=%s stage=context_start t=%.6f", avatar_turn.turn_id, context_at)
         metadata["session_id"] = request.session_id
         metadata["session_record"] = session_snapshot
         metadata["db_session"] = stream_db
@@ -218,11 +226,17 @@ async def _stream_turn(
             ctx.metadata["identity_state"] = identity_state
 
         if http_request is not None:
+            if avatar_turn and avatar_turn.source == "spoken":
+                avatar_turn.latency_times["memory_prepare_start"] = time.monotonic()
             await _prepare_memory_workflow(http_request, ctx, stream_db, session_id)
+            if avatar_turn and avatar_turn.source == "spoken":
+                avatar_turn.latency_times["memory_prepare_complete"] = time.monotonic()
 
         pipeline = build_default_pipeline()
         ctx.metadata.setdefault("full_conversation_history", list(ctx.history))
         trace_id = await _start_turn_trace(ctx)
+        if avatar_turn and avatar_turn.source == "spoken":
+            avatar_turn.latency_times["trace_started"] = time.monotonic()
 
         yield _sse_data({"type": "typing", "status": "started"})
         typing_active = True
@@ -234,6 +248,9 @@ async def _stream_turn(
                 continue
 
             if step_name == "call_provider":
+                if avatar_turn and avatar_turn.source == "spoken":
+                    avatar_turn.latency_times["context_complete"] = time.monotonic()
+                    logger.info("avatar_latency turn_id=%s stage=context_complete t=%.6f", avatar_turn.turn_id, time.monotonic())
                 provider_seen = True
                 yield _sse_data({"step": step_name, "status": "streaming"})
 
@@ -251,7 +268,7 @@ async def _stream_turn(
                         else:
                             if avatar_turn:
                                 coordinator.publish(avatar, avatar_turn, token)
-                            yield _sse_data({"type": "token", "text": token})
+                            yield _sse_data({"type": "token", "text": token, "turn_id": avatar_turn.turn_id if avatar_turn else None})
                             if avatar_turn:
                                 avatar_turn.text_delivered += token
                     stream_attempted = stream_attempted or bool(
@@ -377,6 +394,8 @@ async def _stream_turn(
                 session_title=session_title,
                 user_message=request.message,
                 assistant_message=response,
+                provider_override=request.provider_override,
+                model_override=request.model_override,
             )
 
         await _run_post_stream_db_write(
@@ -475,7 +494,18 @@ async def _stream_turn(
 
 
 async def _stream_provider_tokens(ctx: TurnContext) -> AsyncIterator[str]:
-    provider = _select_provider(ctx)
+    try:
+        provider = _select_provider(ctx)
+    except ProviderSelectionError as exc:
+        # Same outcome as the non-streaming CallProviderStep: report, never substitute.
+        logger.warning("Explicit provider selection failed: %s", exc)
+        ctx.metadata["_stream_provider_attempted"] = True
+        ctx.provider_response = f"Provider error: {exc}"
+        _store_llm_trace_metadata(
+            ctx, provider=None, config=_provider_config(ctx), result=None, streaming=True
+        )
+        yield f"Provider stream error: {exc}"
+        return
     if provider is None:
         return
 
@@ -508,7 +538,7 @@ async def _stream_provider_tokens(ctx: TurnContext) -> AsyncIterator[str]:
                 yield text
     except (asyncio.CancelledError, GeneratorExit):
         ctx.provider_response = "".join(streamed_text_parts)
-        _store_llm_trace_metadata(ctx, provider=provider, config=config, result=result_for_metadata)
+        _store_llm_trace_metadata(ctx, provider=provider, config=config, result=result_for_metadata, streaming=True)
         raise
     except Exception as exc:
         import logging
@@ -519,7 +549,7 @@ async def _stream_provider_tokens(ctx: TurnContext) -> AsyncIterator[str]:
             exc_info=True,
         )
         ctx.provider_response = f"Provider error: {exc}"
-        _store_llm_trace_metadata(ctx, provider=provider, config=config, result=None)
+        _store_llm_trace_metadata(ctx, provider=provider, config=config, result=None, streaming=True)
         yield f"Provider stream error: {exc}"
         return
 
@@ -532,6 +562,7 @@ async def _stream_provider_tokens(ctx: TurnContext) -> AsyncIterator[str]:
         provider=provider,
         config=config,
         result=result_for_metadata,
+        streaming=True,
     )
 
 
@@ -925,6 +956,8 @@ def _maybe_schedule_title_generation(
     user_message: str,
     assistant_message: str,
     turn_id: str | None = None,
+    provider_override: str | None = None,
+    model_override: str | None = None,
 ) -> None:
     """Schedule background title generation if the session has no title yet."""
     if session_title is not None:
@@ -951,7 +984,12 @@ def _maybe_schedule_title_generation(
         "model",
         "default_model",
     )
-    if not provider_name and not model:
+    if provider_override:
+        # The user's explicit selection also governs this background call:
+        # never send their conversation to a different provider or model.
+        provider_name = provider_override
+        model = model_override or ""
+    elif not provider_name and not model:
         provider_name = "openrouter"
 
     asyncio.create_task(

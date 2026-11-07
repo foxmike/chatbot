@@ -39,6 +39,28 @@ class FakeProvider(Provider):
         return ProviderResponse(text=prompt, finish_reason="stop", model=config.model)
 
 
+@pytest.mark.parametrize("streaming", [False, True])
+def test_ollama_reports_reasoning_when_off_as_unsupported(monkeypatch, streaming):
+    def handler(request):
+        if streaming:
+            return httpx.Response(200, text='data: {"choices":[{"delta":{"reasoning":"hidden"}}]}\n\ndata: [DONE]\n\n')
+        return httpx.Response(200, json={"choices": [{"message": {"content": "answer", "reasoning": "hidden"}}]})
+
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr("chatbot.providers.openai_compat.httpx.AsyncClient",
+                        lambda: real_client(transport=httpx.MockTransport(handler)))
+    provider = OpenAICompatProvider("http://ollama.test/v1", ollama=True)
+    config = ProviderConfig(model="example", thinking=False)
+
+    async def call():
+        if streaming:
+            return [chunk async for chunk in provider.stream("hello", [], config)]
+        return await provider.complete("hello", [], config)
+
+    with pytest.raises(ProviderError, match="does not support disabling"):
+        asyncio.run(call())
+
+
 class FakeHTTPClient:
     response: httpx.Response | None = None
     requests: list[dict[str, Any]] = []

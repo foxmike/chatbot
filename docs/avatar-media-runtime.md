@@ -11,6 +11,7 @@ companions, or any provider.
 | File | Role |
 |---|---|
 | `speech_chunks.py` | `VisibleTextFilter`, `AdaptiveChunker`, `SpeechPlanner`, `trim_silence`, `edge_silence`. **Byte-identical to my_avatar** (a test enforces it). |
+| `sentence_chunks.py` | `SentenceChunker` (natural mode) and `make_chunker(mode)`. Kept out of `speech_chunks.py` so the proven chunker stays byte-identical. |
 | `media.py` | `AvatarMediaEngine`: the public interface, the pull-based chunk→TTS→AVTR pipeline, interruption. |
 | `session.py` | `MediaSession`: one-owner browser connection lifecycle (`da976ad`), routes engine output to the browser. Framework-neutral `MediaTransport`; `FastAPIWebSocketTransport` adapter included. |
 | `protocol.py` | Binary framing (unchanged my_avatar protocol) and the event dataclasses. |
@@ -114,6 +115,57 @@ async def avatar_ws(ws: WebSocket):
 down instead of reconnecting). An evicted window's own disconnect is ignored; the active
 window's disconnect cancels any in-flight turn and emits `Interrupted("disconnect")`. Call
 `await engine.stop()` from the FastAPI lifespan shutdown.
+
+## TTS speech modes
+
+How the reply text is cut for Qwen3-TTS. Only generated speech is affected: microphone, STT,
+endpointing, VAD and the LLM text stream are not.
+
+| Mode | Behaviour |
+|---|---|
+| `natural` (default) | One TTS request per **complete sentence** (`SentenceChunker`). No size limit, no clause/word cuts, no first-chunk timeout, no playback-driven cuts. A paragraph break also ends a unit; leftover text is flushed when the response finishes. Abbreviations (`Dr.`, `e.g.`, `p.m.`), initials, decimals, URLs, list markers and ellipses are not treated as sentence ends; closing quotes, brackets and markdown emphasis stay with their sentence. A full stop followed only by whitespace waits for the next character (it could be a lowercase continuation). |
+| `fast` | The existing adaptive chunking and `SpeechPlanner`, unchanged (38/28/150 chars, 0.3 s first-chunk wait, 0.8 s urgent lead, 10 s max lead, 3 queued chunks). |
+
+* The LLM text still streams to the UI immediately; only the TTS branch waits. Natural mode does
+  not apply the engine's pending-text backpressure (it would wait for a sentence end that needs
+  the text it is throttling). Later sentences still synthesize while earlier ones play, bounded by
+  the existing `MAX_AUDIO_CHUNKS` / `MAX_LEAD_SECONDS` limits.
+* A sentence Qwen cannot synthesize fails the turn with the worker's error; it is never split or
+  retried in `fast` mode.
+* The mode is per avatar connection (`AvatarBinding.speech_mode`). The popup sends the saved choice
+  as `tts_mode` in the `auth` handshake and `{"type": "tts_mode", "mode": ...}` when the dropdown
+  changes. Invalid values are rejected (handshake: `error` frame, then close 1008; live message:
+  `error` frame, mode unchanged). `begin_response(speech_mode=...)` captures the mode when a turn
+  starts, so a change applies from the next turn, for typed and spoken turns alike.
+* Turn diagnostics (`turn_summary`, `chunk_planned`) carry `speech_mode`; the summary line adds
+  average characters per chunk, sentence-boundary vs mid-sentence cuts and playback gaps next to
+  the existing first-token / first-sentence / first-chunk / first-PCM / first-playback / RTF figures.
+
+## Voice Library (saved voices)
+
+Who speaks is a saved voice: a canonical **reference recording + its transcript**. Every
+conversational sentence is synthesized by **Qwen3-TTS-12Hz-1.7B-Base** with
+`generate_voice_clone(voice_clone_prompt=...)`, the prompt built once per voice by
+`create_voice_clone_prompt(ref_audio, ref_text)` (full ICL cloning, never embedding-only).
+Voices are created in two ways, both ending in the same reference + transcript:
+
+* **Design** — **Qwen3-TTS-12Hz-1.7B-VoiceDesign** renders candidates from a description;
+  the user saves one, and that exact recording (moved, never regenerated) is the reference.
+* **Clone** — an uploaded recording (validated, decoded in memory with PyAV, normalized to
+  24 kHz mono PCM WAV) plus a user-reviewed transcript (faster-whisper may suggest one).
+
+| Piece | Where |
+|---|---|
+| Qwen worker | `worker_scripts/voice_worker.py` — Base loaded at start and kept warm; VoiceDesign loaded only for design previews and released after `AVATAR_DESIGN_IDLE_SECONDS` (or on save/cancel). One thread executes all model work in order, so GPU operations never overlap. Reuses the proven runaway guard from the byte-identical `tts_worker.py`. |
+| Prompt cache | In the worker's memory, keyed by (voice id, fingerprint = sha256(reference sha256 + transcript)), LRU of 8. A changed reference/transcript has a new key; `forget` drops a deleted/edited voice. Nothing serialized: after a restart prompts are rebuilt from the files. |
+| References | Read only from inside `VOICE_LIBRARY_DIR`, passed to Qwen as `(waveform, sr)` (never a path/URL, so Qwen's URL loader is never used). |
+| Persistence | `voices` table (metadata; migration `e7a4c2d9f1b3`), files under `VOICE_LIBRARY_DIR/library/<voice_id>/reference.wav`. Candidates live in `previews/<user_id>/<preview_id>/` until saved, cancelled or expired. |
+| Selection | Per speech turn, `MediaAdapter.begin_turn` resolves: conversation override (`sessions.voice_id`) → companion default (`companions.voice_id`) → built-in default voice. An unusable selected voice fails the turn's speech with an explicit error; it never falls back. The resolved voice is fixed for the whole turn (`_Turn.voice`). |
+| Built-in default | Explicit initialization: `python -m chatbot.voices.init_default` (or admin `POST /voices/default/initialize`) renders one VoiceDesign reference of `AVATAR_QWEN_VOICE`. It is a new rendering, not bit-identical to earlier per-sentence output. |
+| API | `chatbot/api/voices.py`: `GET /voices`, `POST /voices/previews/design`, `POST /voices/references` (upload), `POST /voices/previews/{id}/sample`, `GET /voices/previews/{id}[/audio/{reference,sample}]`, `DELETE /voices/previews/{id}`, `POST /voices`, `GET/PATCH/DELETE /voices/{id}` (delete refuses a voice in use unless `replacement_voice_id` / `clear_session_overrides`), `GET /voices/{id}/audio`, `POST /voices/{id}/speak`, `GET/PUT /voices/sessions/{session_id}`. |
+
+Previews run on the same persistent worker (only the TTS worker is started for them, never
+AVTR) and are refused (409) while the avatar is speaking. Interruptions never cancel them.
 
 ## Behaviour preserved from my_avatar
 

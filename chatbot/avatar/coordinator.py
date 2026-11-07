@@ -8,6 +8,9 @@ from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Protocol
 import uuid
+import time
+
+from chatbot.avatar.protocol import DEFAULT_SPEECH_MODE
 
 
 logger = logging.getLogger(__name__)
@@ -38,6 +41,7 @@ class AvatarTurn:
     turn_id: str
     source: str
     task: asyncio.Task[Any] | None
+    latency_times: dict[str, float] = field(default_factory=dict)
     queue: asyncio.Queue[str | None] = field(default_factory=lambda: asyncio.Queue(128))
     queued_chars: int = 0
     generated_chars: int = 0
@@ -82,6 +86,18 @@ class AvatarBinding:
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     send_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     on_transcript: Callable[[str], Awaitable[None]] | None = None
+    # The user's explicit provider/model selection from the picker. Spoken turns
+    # use it exactly as typed turns do; None means "no explicit selection".
+    provider_override: str | None = None
+    model_override: str | None = None
+    thinking: bool = False
+    # When set, the picker cannot currently produce a valid request (e.g. Ollama
+    # is unreachable); spoken turns report this instead of falling back.
+    routing_blocked: str | None = None
+    # How this window's reply speech is chunked for TTS ("natural" or "fast"); per connection,
+    # so one avatar session can never change another's.
+    speech_mode: str = DEFAULT_SPEECH_MODE
+    stt_completed_at: float | None = None
 
     async def send(
         self, payload: dict[str, Any] | bytes, *, turn: AvatarTurn | None = None
@@ -178,6 +194,10 @@ class AvatarCoordinator:
                 raise RuntimeError("Avatar connection replaced")
             turn = AvatarTurn(str(uuid.uuid4()), source, asyncio.current_task())
             binding.turn = turn
+            if source == "spoken" and binding.stt_completed_at is not None:
+                turn.latency_times["stt_complete"] = binding.stt_completed_at
+                logger.info("avatar_latency turn_id=%s stage=stt_complete t=%.6f", turn.turn_id, binding.stt_completed_at)
+                binding.stt_completed_at = None
             try:
                 async with asyncio.timeout(5):
                     await binding.runtime.begin_turn(turn.turn_id)
@@ -190,6 +210,9 @@ class AvatarCoordinator:
             return turn
 
     def publish(self, binding: AvatarBinding, turn: AvatarTurn, text: str) -> None:
+        if turn.source == "spoken" and turn.generated_chars == 0:
+            turn.latency_times["coordinator_first_text"] = time.monotonic()
+            logger.info("avatar_latency turn_id=%s stage=coordinator_first_text t=%.6f", turn.turn_id, time.monotonic())
         turn.generated_chars += len(text)
         if turn.interrupted or turn.speech_failed or turn.speech_skipped or binding.turn is not turn:
             return
@@ -342,6 +365,7 @@ class AvatarCoordinator:
             await self.interrupt(binding)
             return
         if kind == "transcript":
+            binding.stt_completed_at = time.monotonic()
             text = str(event.get("text", "")).strip()
             if text and len(text) <= 32768 and binding.on_transcript:
                 # Never run the conversation inline in the STT/media event pump.
@@ -368,6 +392,8 @@ class AvatarCoordinator:
             turn.playback_changed.set()
         elif kind in {"media", "idle", "json", "status", "config"}:
             await binding.send(event["data"], turn=turn if turn_id is not None else None)
+            if kind == "media" and event["data"][:1] == b"A":
+                logger.info("avatar_media stage=websocket_send_complete turn_id=%s t=%.6f", turn_id, time.monotonic())
         elif kind == "error":
             self._speech_failure(binding, turn)
 

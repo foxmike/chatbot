@@ -1,6 +1,7 @@
 """Fakes for the Qwen/AVTR worker processes and a recording event sink."""
 import asyncio
 import base64
+import functools
 
 import numpy as np
 
@@ -11,10 +12,29 @@ from chatbot.avatar.stt import Transcriber
 
 SR = 24000
 
+# A resolved saved voice as the runtime passes it to the engine (see media.VOICE_FIELDS).
+TEST_VOICE = {"voice_id": "voice-test", "fingerprint": "f" * 64, "reference": "library/voice-test/reference.wav",
+              "transcript": "This is the reference recording.", "language": "English"}
+
 
 def tone(seconds, sr=SR, lead=0.0, tail=0.0):
     body = 0.4 * np.sin(np.linspace(0, 2 * np.pi * 220 * seconds, int(seconds * sr))).astype("<f4")
     return np.concatenate((np.zeros(int(lead * sr), "<f4"), body, np.zeros(int(tail * sr), "<f4")))
+
+
+class FakeVoices:
+    """Stands in for the database voice resolver: a fixed voice, or a configured one/error."""
+
+    def __init__(self, voice=None):
+        self.voice = dict(voice or TEST_VOICE)
+        self.error = None
+        self.calls = []
+
+    async def resolve(self, binding):
+        self.calls.append(binding.session_id)
+        if self.error:
+            raise self.error
+        return {**self.voice, "source": "session"}
 
 
 class FakeWorker:
@@ -63,19 +83,59 @@ class FakeWorker:
 
 
 class FakeTTS(FakeWorker):
+    """Stands in for voice_worker.py: Base speaks saved voices, VoiceDesign designs them."""
+
     def __init__(self):
         super().__init__("TTS")
         self.hold = None            # asyncio.Event: replies wait for it (simulates a busy Qwen)
         self.synth_delay = 0.005
         self.replies = []
+        self.prompts = set()        # (voice_id, fingerprint) with a built clone prompt
+        self.design_loaded = False
+        self.fail_design = None
 
     @staticmethod
     def speech_seconds(text):
         return 0.004 * len(text) + 0.05   # fast fake speech keeps the planner's lead small
 
     async def react(self, message):
-        if message["type"] != "speak":
+        kind = message["type"]
+        if kind == "design":
+            if self.fail_design:
+                self.reply({"type": "error", "id": message["id"], "error": self.fail_design})
+                return
+            self.design_loaded = True
+        elif kind == "prepare":
+            key = (message["voice"]["voice_id"], message["voice"]["fingerprint"])
+            cache = "hit" if key in self.prompts else "built"
+            self.prompts.add(key)
+            self.reply({"type": "prepared", "id": message["id"], "voice_id": key[0], "fingerprint": key[1],
+                        "prompt": cache, "prepare_ms": 1.0, "warm_ms": None})
             return
+        elif kind == "forget":
+            dropped = {k for k in self.prompts if k[0] == message["voice_id"]}
+            self.prompts -= dropped
+            self.reply({"type": "forgotten", "id": message["id"], "voice_id": message["voice_id"],
+                        "dropped": len(dropped)})
+            return
+        elif kind == "unload_design":
+            released, self.design_loaded = self.design_loaded, False
+            self.reply({"type": "design_unloaded", "id": message["id"], "released": released,
+                        "reason": "request"})
+            return
+        elif kind == "status":
+            self.reply({"type": "status", "id": message["id"], "base_loaded": True,
+                        "design_loaded": self.design_loaded, "base_loads": 1, "design_loads": 0,
+                        "cached_prompts": [{"voice_id": v, "fingerprint": f} for v, f in sorted(self.prompts)]})
+            return
+        elif kind != "speak":
+            return
+        extra = {"model": "design"} if kind == "design" else {}
+        if kind == "speak":
+            key = (message["voice"]["voice_id"], message["voice"]["fingerprint"])
+            extra = {"model": "base", "prompt": "hit" if key in self.prompts else "built",
+                     "voice_id": key[0], "fingerprint": key[1]}
+            self.prompts.add(key)
         text = message["text"]
         duration = self.speech_seconds(text)
         audio = tone(duration, lead=0.3, tail=0.4)   # Qwen-style edge silence for trim_silence
@@ -87,7 +147,7 @@ class FakeTTS(FakeWorker):
             await self.messages.put({
                 "type": "audio", "id": message["id"], "sr": SR, "duration": len(audio) / SR,
                 "audio": base64.b64encode(audio.tobytes()).decode(), "generation": 0.8 * duration,
-                "retried": False})
+                "retried": False, **extra})
         self.replies.append(asyncio.create_task(answer()))
 
 
@@ -135,6 +195,9 @@ class Harness:
             worker_factory=lambda _: (self.avatar, self.tts),
             transcriber=Transcriber(model_factory=lambda *a, **k: self._model()),
             resampler=lambda audio, sr: audio[:: sr // 16000].astype("<f4"))
+        # Turns require a resolved voice; tests get a fixed one unless they pass `voice=`.
+        self.voice = dict(TEST_VOICE)
+        self.engine.begin_response = functools.partial(self.engine.begin_response, voice=self.voice)
 
     def _model(self):
         outer = self

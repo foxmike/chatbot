@@ -36,9 +36,9 @@ def reader(commands, wake, interrupt):
     for line in sys.stdin:
         try:
             command = json.loads(line)
-            if command.get("type") in ("speak", "interrupt", "portrait"):
+            if command.get("type") in ("speak", "interrupt", "portrait", "pause_render", "resume_render"):
                 wake.set()  # end an idle pacing sleep so new audio is picked up at once
-            if command.get("type") == "interrupt":
+            if command.get("type") in ("interrupt", "pause_render"):
                 interrupt.set()
             if command.get("type") == "listen":
                 try:
@@ -199,6 +199,7 @@ def main():
         emit(**reply, load_ms=1000 * (time.monotonic() - started))
 
     emit(type="ready", window=window, step=step)
+    rendering = False
     if len(sys.argv) > 1 and sys.argv[1]:
         load_portrait({"portrait_id": "default", "path": sys.argv[1], "request_id": None})
     while True:
@@ -212,6 +213,14 @@ def main():
             kind = command.get("type")
             if kind == "stop":
                 return
+            if kind == "pause_render":
+                rendering = False
+                emit(type="render_paused", at=time.monotonic())
+                continue
+            if kind == "resume_render":
+                rendering = True
+                emit(type="render_resumed", at=time.monotonic())
+                continue
             if kind == "listen":
                 chunk = decode(command)
                 listen = np.concatenate((listen, chunk))[-window:]
@@ -236,6 +245,9 @@ def main():
                 offset = 0
                 state = None
                 emit(type="interrupted", at=time.monotonic())
+        if not rendering:
+            wake.wait()
+            continue
         if avatar is None:
             wake.wait(0.1)  # nothing to render until a portrait is selected
             continue

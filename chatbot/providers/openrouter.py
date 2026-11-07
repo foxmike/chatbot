@@ -16,12 +16,14 @@ class OpenRouterProvider(OpenAICompatProvider):
         default_model: str = _DEFAULT_MODEL,
         *,
         timeout_seconds: float = 60.0,
+        ollama: bool = False,
     ) -> None:
         super().__init__(
             base_url=base_url,
             api_key=api_key,
             default_model=default_model,
             timeout_seconds=timeout_seconds,
+            ollama=ollama,
         )
 
 

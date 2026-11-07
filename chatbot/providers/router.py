@@ -6,7 +6,12 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-from chatbot.providers.base import Provider, ProviderConfig, ProviderRegistry
+from chatbot.providers.base import (
+    Provider,
+    ProviderConfig,
+    ProviderRegistry,
+    ProviderSelectionError,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -51,6 +56,39 @@ _KNOWN_MODEL_REGISTRY: Mapping[str, frozenset[str]] = {
         }
     ),
 }
+
+
+EXPLICIT_PROVIDER_KEY = "explicit_provider"
+EXPLICIT_MODEL_KEY = "explicit_model"
+
+
+def apply_routing_overrides(
+    metadata: dict[str, Any],
+    provider_override: str | None,
+    model_override: str | None,
+) -> None:
+    """Record a user's explicit provider/model selection in turn metadata.
+
+    Shared by the chat and streaming endpoints so both route identically. The
+    values are stored exactly as given. An explicit provider is flagged so that
+    the turn pipeline's provider selection uses that provider and no other.
+
+    A provider selected without a model gets *that provider's own* configured
+    model (resolved by the provider adapter); the application-wide default model
+    belongs to whichever provider is the default and must not be sent elsewhere.
+    """
+
+    if provider_override:
+        metadata["provider_name"] = provider_override
+        metadata["default_provider"] = provider_override
+        metadata[EXPLICIT_PROVIDER_KEY] = provider_override
+        if not model_override:
+            metadata["model"] = ""
+            metadata["default_model"] = ""
+    if model_override:
+        metadata["model"] = model_override
+        metadata["default_model"] = model_override
+        metadata[EXPLICIT_MODEL_KEY] = model_override
 
 
 class TaskClass(str, Enum):
@@ -118,21 +156,7 @@ class ProviderRouter:
             if name in excluded or not _provider_is_available(provider):
                 unavailable.append(name)
                 continue
-            if name == "ollama" and config is not None:
-                from chatbot.config import get_settings
-                settings = get_settings()
-                if hasattr(config, "extra"):
-                    if config.extra is None:
-                        config.extra = {}
-                    if "options" not in config.extra:
-                        config.extra["options"] = {}
-                    config.extra["options"]["num_ctx"] = settings.ollama_num_ctx
-                elif isinstance(config, dict):
-                    if "extra" not in config:
-                        config["extra"] = {}
-                    if "options" not in config["extra"]:
-                        config["extra"]["options"] = {}
-                    config["extra"]["options"]["num_ctx"] = settings.ollama_num_ctx
+            _apply_provider_options(name, config)
 
             return provider
 
@@ -146,6 +170,25 @@ class ProviderRouter:
             raise LookupError(f"no available provider matched routing policy{suffix}")
 
         raise LookupError("routing policy did not produce any provider candidates")
+
+    def select_exact(
+        self,
+        name: str,
+        config: ProviderConfig | Mapping[str, Any] | None = None,
+    ) -> Provider:
+        """Return exactly the named provider, or raise.
+
+        Used for explicit user selections: the routing policy, default and
+        fallback providers are ignored, and no other provider is ever returned.
+        """
+
+        provider = self._providers.get(name)
+        if provider is None:
+            raise ProviderSelectionError(f"provider not registered: {name}")
+        if not _provider_is_available(provider):
+            raise ProviderSelectionError(f"provider unavailable: {name}")
+        _apply_provider_options(name, config)
+        return provider
 
     def _candidate_names(self, config: ProviderConfig | Mapping[str, Any] | None) -> tuple[str, ...]:
         candidates: list[str] = []
@@ -290,6 +333,32 @@ def validate_identifier(provider_id: str, model_id: str) -> bool:
     if known_models is None:
         return False
     return model_id in known_models
+
+
+def _apply_provider_options(
+    name: str,
+    config: ProviderConfig | Mapping[str, Any] | None,
+) -> None:
+    """Apply provider-specific request options (currently Ollama's context size)."""
+
+    if name != "ollama" or config is None:
+        return
+
+    from chatbot.config import get_settings
+
+    settings = get_settings()
+    if hasattr(config, "extra"):
+        if config.extra is None:
+            config.extra = {}
+        if "options" not in config.extra:
+            config.extra["options"] = {}
+        config.extra["options"]["num_ctx"] = settings.ollama_num_ctx
+    elif isinstance(config, dict):
+        if "extra" not in config:
+            config["extra"] = {}
+        if "options" not in config["extra"]:
+            config["extra"]["options"] = {}
+        config["extra"]["options"]["num_ctx"] = settings.ollama_num_ctx
 
 
 def _coerce_providers(providers: ProviderCollection) -> dict[str, Provider]:
@@ -535,11 +604,14 @@ def _dedupe(names: Sequence[str]) -> tuple[str, ...]:
 
 
 __all__ = [
+    "EXPLICIT_MODEL_KEY",
+    "EXPLICIT_PROVIDER_KEY",
     "NamedProvider",
     "PolicyProviderRouter",
     "ProviderRouter",
     "TaskClass",
     "TaskClassRoutingConfig",
+    "apply_routing_overrides",
     "select",
     "select_model_for_task",
     "task_class_routing_config_from_settings",

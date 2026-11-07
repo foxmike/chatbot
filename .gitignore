@@ -33,3 +33,6 @@ state/runs/
 __pycache__/
 uv.lock
 .abracapocus/plans/**/.materialize_debug/
+
+# Voice Library recordings (user data)
+data/

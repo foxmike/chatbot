@@ -18,6 +18,19 @@ import struct
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+# How the chatbot's reply is cut into text for Qwen3-TTS. Only the generated speech is
+# affected; microphone, STT, endpointing and the LLM text stream are not.
+SPEECH_MODES = ("natural", "fast")   # natural: one request per complete sentence; fast: adaptive chunks
+DEFAULT_SPEECH_MODE = "natural"
+
+
+def validate_speech_mode(mode: Any) -> str:
+    """Return `mode` when it is a known TTS mode; raise ValueError with a clear message otherwise."""
+    if isinstance(mode, str) and mode in SPEECH_MODES:
+        return mode
+    raise ValueError(f"Invalid TTS mode {mode!r}; expected one of: {', '.join(SPEECH_MODES)}")
+
+
 MIC_SAMPLE_RATE = 16000
 AUDIO_TAG = b"A"
 VIDEO_TAG = b"V"

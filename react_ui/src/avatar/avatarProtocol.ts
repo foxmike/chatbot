@@ -41,6 +41,28 @@ export interface AvatarAuthMessage {
   companion_id?: string | null;
   room_id?: string | null;
   tab_id?: string;
+  /** The model picker's selection, so spoken turns use it like typed turns do. */
+  provider_override?: string | null;
+  model_override?: string | null;
+  thinking?: boolean;
+  blocked?: string | null;
+  /** The saved TTS chunking mode ("natural" | "fast"); absent means the backend default. */
+  tts_mode?: string;
+}
+
+/** The TTS dropdown changed while the avatar is running; applies from the next turn. */
+export interface AvatarTtsModeMessage {
+  type: "tts_mode";
+  mode: string;
+}
+
+/** The model picker changed while the avatar is running; applies to the next turn. */
+export interface AvatarRoutingMessage {
+  type: "routing";
+  provider_override: string | null;
+  model_override: string | null;
+  thinking: boolean;
+  blocked: string | null;
 }
 
 export interface AvatarMicControlMessage {
@@ -109,8 +131,15 @@ export interface AvatarTextInputMessage {
   session_id?: string | null;
 }
 
+export interface AvatarTextTimingAckMessage {
+  type: "text_timing_ack";
+  turn_id: string;
+}
+
 export type AvatarClientMessage =
   | AvatarAuthMessage
+  | AvatarRoutingMessage
+  | AvatarTtsModeMessage
   | AvatarMicControlMessage
   | AvatarInterruptionAckMessage
   | AvatarPlaybackStartMessage
@@ -120,7 +149,8 @@ export type AvatarClientMessage =
   | AvatarBufferStatsMessage
   | AvatarSwitchSessionMessage
   | AvatarSkipSpeechMessage
-  | AvatarTextInputMessage;
+  | AvatarTextInputMessage
+  | AvatarTextTimingAckMessage;
 
 // --- Server -> Client JSON Messages ---
 
@@ -298,6 +328,51 @@ export function encodeAudioPacket(id: string, sampleRate: number, pcm: Float32Ar
  * connect directly to ws://{hostname}:8000/api/avatar/ws.
  * If already on port 8000, connect to ws://{host}/api/avatar/ws.
  */
+/** The picker selection carried by the handshake and by live `routing` updates. */
+export interface AvatarRoutingFields {
+  provider_override: string | null;
+  model_override: string | null;
+  thinking: boolean;
+  blocked: string | null;
+}
+
+export function buildAuthMessage(
+  context: {
+    token: string | null;
+    sessionId: string | null;
+    companionId: string | null;
+    roomId: string | null;
+    tabId: string;
+  },
+  routing: AvatarRoutingFields | null,
+  ttsMode?: string | null,
+): AvatarAuthMessage {
+  return {
+    type: "auth",
+    token: context.token,
+    session_id: context.sessionId,
+    companion_id: context.companionId,
+    room_id: context.roomId,
+    tab_id: context.tabId,
+    ...(routing ?? {}),
+    ...(ttsMode ? { tts_mode: ttsMode } : {}),
+  };
+}
+
+export function buildTtsModeMessage(mode: string): AvatarTtsModeMessage {
+  return { type: "tts_mode", mode };
+}
+
+export function buildRoutingMessage(routing: AvatarRoutingFields): AvatarRoutingMessage {
+  return {
+    type: "routing",
+    provider_override: routing.provider_override,
+    model_override: routing.model_override,
+    thinking: routing.thinking,
+    blocked: routing.blocked,
+  };
+}
+
 export function getAvatarWsUrl(tabId?: string): string {
   if (typeof window === "undefined") {
     const base = "ws://127.0.0.1:8000/api/avatar/ws";

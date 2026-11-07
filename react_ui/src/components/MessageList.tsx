@@ -21,6 +21,7 @@ interface MessageListProps {
     message: string;
     provider: string;
     model: string;
+    thinking: boolean;
   } | null;
   /** Called when a streamed assistant message is fully received. */
   onStreamComplete?: (message: Message) => void;
@@ -69,7 +70,7 @@ export function MessageList({
   useEffect(() => {
     if (!streamRequest) return;
 
-    const { sessionId, message, provider, model } = streamRequest;
+    const { sessionId, message, provider, model, thinking } = streamRequest;
 
     // Abort any in-flight stream from a previous request.
     abortRef.current?.abort();
@@ -126,6 +127,7 @@ export function MessageList({
       undefined,
       provider,
       model,
+      thinking,
     );
 
     return () => {

@@ -17,6 +17,9 @@ class ProviderConfig:
     stop: Sequence[str] | None = None
     timeout_seconds: float | None = None
     extra: Mapping[str, Any] = field(default_factory=dict)
+    thinking: bool = False
+    trace_turn_id: str | None = None
+    trace_timings: dict[str, float] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +46,13 @@ class ProviderAuthError(ProviderError):
 
 class ProviderRateLimitError(ProviderError):
     """Raised when a provider rejects a request due to rate limiting."""
+
+
+class ProviderSelectionError(ProviderError, LookupError):
+    """Raised when an explicitly requested provider cannot be used.
+
+    Explicit provider selections are never substituted with another provider.
+    """
 
 
 class Provider(ABC):

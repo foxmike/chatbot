@@ -6,6 +6,7 @@ from chatbot.providers.base import (
     ProviderRateLimitError,
     ProviderRegistry,
     ProviderResponse,
+    ProviderSelectionError,
     ProviderTimeoutError,
 )
 
@@ -17,5 +18,6 @@ __all__ = [
     "ProviderRateLimitError",
     "ProviderRegistry",
     "ProviderResponse",
+    "ProviderSelectionError",
     "ProviderTimeoutError",
 ]

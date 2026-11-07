@@ -1,12 +1,17 @@
 import { useRef, useState } from "react";
 import ModelPicker from "./ModelPicker";
+import VoiceSelector from "./VoiceSelector";
 
 interface ChatInputProps {
   onSend: (message: string, provider: string, model: string) => void;
   disabled: boolean;
   modelProvider: string;
   modelName: string;
-  onModelChange: (provider: string, model: string) => void;
+  onModelChange: (provider: string, model: string, sendBlocker: string | null, thinking: boolean) => void;
+  /** When set, sending is prevented (e.g. the selected Ollama server is unreachable). */
+  sendBlockedReason?: string | null;
+  /** The active conversation, whose speaking voice the Voice selector controls. */
+  sessionId?: string | null;
 }
 
 export function ChatInput({
@@ -15,6 +20,8 @@ export function ChatInput({
   modelProvider,
   modelName,
   onModelChange,
+  sendBlockedReason = null,
+  sessionId = null,
 }: ChatInputProps) {
   const [message, setMessage] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -33,7 +40,7 @@ export function ChatInput({
   const sendMessage = () => {
     const trimmedMessage = message.trim();
 
-    if (!trimmedMessage || disabled) {
+    if (!trimmedMessage || disabled || sendBlockedReason) {
       return;
     }
 
@@ -52,7 +59,14 @@ export function ChatInput({
 
   return (
     <div className="border-t border-gray-700 bg-gray-800 p-4">
-      <ModelPicker onChange={onModelChange} />
+      <div className="flex min-w-0 flex-wrap items-start gap-x-3">
+        <div className="min-w-0 flex-1">
+          <ModelPicker onChange={onModelChange} />
+        </div>
+        <div className="mb-2">
+          <VoiceSelector sessionId={sessionId} />
+        </div>
+      </div>
       <div className="flex items-end gap-3">
         <textarea
           ref={textareaRef}
@@ -73,9 +87,10 @@ export function ChatInput({
         />
         <button
           type="button"
-          disabled={disabled || message.trim().length === 0}
+          disabled={disabled || Boolean(sendBlockedReason) || message.trim().length === 0}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-white transition hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 focus:ring-offset-gray-800 disabled:cursor-not-allowed disabled:bg-indigo-600 disabled:opacity-50"
           aria-label="Send message"
+          title={sendBlockedReason ?? undefined}
           onClick={sendMessage}
         >
           <svg

@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
+import time
+from time import perf_counter
 from collections.abc import AsyncIterator, Mapping, Sequence
 from typing import Any
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 from chatbot.providers.base import (
     Provider,
@@ -27,6 +32,7 @@ class OpenAICompatProvider(Provider):
         default_model: str = "",
         *,
         timeout_seconds: float = 60.0,
+        ollama: bool = False,
     ) -> None:
         if not base_url or not base_url.strip():
             raise ValueError("base_url must not be empty")
@@ -34,6 +40,7 @@ class OpenAICompatProvider(Provider):
         self.api_key = api_key or ""
         self.default_model = default_model or ""
         self.timeout_seconds = timeout_seconds
+        self.ollama = ollama
 
     async def complete(
         self,
@@ -42,6 +49,7 @@ class OpenAICompatProvider(Provider):
         config: ProviderConfig,
     ) -> ProviderResponse:
         model = self._resolve_model(config)
+        started = perf_counter()
         payload = self._build_payload(prompt, history, config, model)
         headers = {
             "Content-Type": "application/json",
@@ -65,7 +73,19 @@ class OpenAICompatProvider(Provider):
         if response.status_code >= 400:
             self._raise_provider_http_error(response)
 
-        return self._to_provider_response(response)
+        result = self._to_provider_response(response)
+        if self.ollama:
+            raw = result.raw or {}
+            message = (raw.get("choices") or [{}])[0].get("message") or {}
+            usage = raw.get("usage") or {}
+            reasoning_chars = len(message.get("reasoning") or message.get("reasoning_content") or "")
+            if not config.thinking and reasoning_chars:
+                raise ProviderError("Ollama generated reasoning despite Thinking Off; this model or server does not support disabling it")
+            logger.info("Ollama generation model=%s thinking=%s duration_s=%.3f completion_tokens=%s reasoning_chars=%s",
+                        model, config.thinking, perf_counter() - started,
+                        usage.get("completion_tokens"), reasoning_chars)
+
+        return result
 
     async def stream(
         self,
@@ -74,8 +94,17 @@ class OpenAICompatProvider(Provider):
         config: ProviderConfig,
     ) -> AsyncIterator[str]:
         model = self._resolve_model(config)
+        started = perf_counter()
+        first_raw = None
+        first_visible = None
+        logged_visible = False
+        logged_yield = False
+        reasoning_chars = 0
+        usage = {}
         payload = self._build_payload(prompt, history, config, model)
         payload["stream"] = True
+        if self.ollama:
+            payload["stream_options"] = {"include_usage": True}
         headers = {
             "Content-Type": "application/json",
         }
@@ -84,6 +113,10 @@ class OpenAICompatProvider(Provider):
 
         try:
             async with httpx.AsyncClient() as client:
+                if config.trace_turn_id:
+                    if config.trace_timings is not None:
+                        config.trace_timings["provider_http_start"] = time.monotonic()
+                    logger.info("avatar_latency turn_id=%s stage=provider_http_start t=%.6f", config.trace_turn_id, time.monotonic())
                 async with client.stream(
                     "POST",
                     f"{self.base_url}/chat/completions",
@@ -96,11 +129,45 @@ class OpenAICompatProvider(Provider):
                         self._raise_provider_http_error(response)
 
                     async for line in response.aiter_lines():
+                        if config.trace_turn_id and first_raw is None and line.startswith("data: "):
+                            if config.trace_timings is not None:
+                                config.trace_timings["provider_first_event"] = time.monotonic()
+                            logger.info("avatar_latency turn_id=%s stage=provider_first_event t=%.6f", config.trace_turn_id, time.monotonic())
+                            first_raw = perf_counter() - started
+                        if self.ollama and line.startswith("data: ") and line[6:] != "[DONE]":
+                            try:
+                                event = json.loads(line[6:])
+                                usage = event.get("usage") or usage
+                                delta = (event.get("choices") or [{}])[0].get("delta") or {}
+                                reasoning = delta.get("reasoning") or delta.get("reasoning_content") or ""
+                                visible = delta.get("content") or ""
+                                if reasoning and not config.thinking:
+                                    raise ProviderError("Ollama generated reasoning despite Thinking Off; this model or server does not support disabling it")
+                                if (reasoning or visible) and first_raw is None:
+                                    first_raw = perf_counter() - started
+                                reasoning_chars += len(reasoning)
+                                if visible and first_visible is None:
+                                    first_visible = perf_counter() - started
+                            except (ValueError, TypeError, AttributeError):
+                                pass
                         token = self._token_from_sse_line(line)
                         if token is None:
                             continue
                         if token == "[DONE]":
+                            if self.ollama:
+                                logger.info("Ollama generation model=%s thinking=%s first_raw_s=%s first_visible_s=%s duration_s=%.3f reasoning_chars=%s completion_tokens=%s",
+                                            model, config.thinking, first_raw, first_visible, perf_counter() - started, reasoning_chars, usage.get("completion_tokens"))
                             return
+                        if config.trace_turn_id and not logged_visible:
+                            if config.trace_timings is not None:
+                                config.trace_timings["provider_first_visible"] = time.monotonic()
+                            logged_visible = True
+                            logger.info("avatar_latency turn_id=%s stage=provider_first_visible t=%.6f", config.trace_turn_id, time.monotonic())
+                        if config.trace_turn_id and not logged_yield:
+                            if config.trace_timings is not None:
+                                config.trace_timings["adapter_yield"] = time.monotonic()
+                            logged_yield = True
+                            logger.info("avatar_latency turn_id=%s stage=adapter_yield t=%.6f", config.trace_turn_id, time.monotonic())
                         yield token
         except httpx.TimeoutException as exc:
             raise ProviderTimeoutError("OpenAI-compatible provider stream timed out") from exc
@@ -139,6 +206,8 @@ class OpenAICompatProvider(Provider):
         for key, value in config.extra.items():
             if key not in payload:
                 payload[key] = value
+        if self.ollama:
+            payload["reasoning_effort"] = "high" if config.thinking else "none"
         return payload
 
     def _to_provider_response(self, response: httpx.Response) -> ProviderResponse:

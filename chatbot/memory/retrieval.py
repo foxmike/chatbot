@@ -769,11 +769,11 @@ class OpenRouterEmbeddingProvider(EmbeddingProvider):
         if not isinstance(data, list):
             raise ValueError("OpenRouter embeddings response missing 'data' list")
 
-        return [
-            list(item["embedding"])
-            for item in data
-            if isinstance(item, Mapping) and "embedding" in item
-        ]
+        # Batch responses identify their input position; honor it even if a
+        # provider returns items out of order.
+        if data and all(isinstance(item, Mapping) and isinstance(item.get("index"), int) for item in data):
+            data = sorted(data, key=lambda item: item["index"])
+        return [list(item["embedding"]) for item in data if isinstance(item, Mapping) and "embedding" in item]
 
 
 class DisabledEmbeddingProvider(EmbeddingProvider):

@@ -8,7 +8,8 @@ import re
 import time
 import uuid
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict, is_dataclass, replace
+from urllib.parse import urlsplit, urlunsplit
 from datetime import datetime, timezone
 from enum import Enum
 import inspect
@@ -18,7 +19,8 @@ from typing import Any
 from chatbot.core.steps import StepResult, TurnContext, TurnStep
 from chatbot.perf.background import BackgroundQueue, BackgroundTask
 from chatbot.perf.cache import PersonaCache
-from chatbot.providers.base import ProviderConfig
+from chatbot.providers.base import ProviderConfig, ProviderSelectionError
+from chatbot.providers.router import EXPLICIT_MODEL_KEY, EXPLICIT_PROVIDER_KEY
 
 try:
     from chatbot.continuity.rituals import get_due_rituals, trigger_ritual
@@ -629,8 +631,15 @@ class CallProviderStep(TurnStep):
     name = "call_provider"
 
     async def run(self, ctx: TurnContext) -> TurnContext:
-        provider = _select_provider(ctx)
         config = _provider_config(ctx)
+        try:
+            provider = _select_provider(ctx)
+        except ProviderSelectionError as exc:
+            # An explicit selection is never substituted: report the error.
+            logger.warning("Explicit provider selection failed: %s", exc)
+            ctx.provider_response = f"Provider error: {exc}"
+            _store_llm_trace_metadata(ctx, provider=None, config=config, result=None)
+            return ctx
         if provider is None:
             ctx.provider_response = _fallback_provider_response(ctx)
             _store_llm_trace_metadata(ctx, provider=None, config=config, result=None)
@@ -1591,6 +1600,7 @@ def _trace_step_metadata(
         metadata["compiled_context_chars"] = len(str(ctx.compiled_context or ""))
         metadata["snippet_count"] = len(_trace_retrieval_snippets(ctx))
     elif normalized_name == "call_provider":
+        metadata["thinking"] = ctx.metadata.get("thinking", False)
         metadata["model_provider"] = _trace_model_provider(ctx)
         metadata["model_id"] = _trace_model_id(ctx)
         prompt_tokens, completion_tokens = _trace_token_counts(ctx, _trace_prompt(ctx))
@@ -1612,16 +1622,65 @@ def _trace_step_metadata(
     return _json_safe(metadata)
 
 
+def _safe_endpoint(provider: Any | None) -> str | None:
+    """The provider's base URL without credentials, query string or fragment."""
+
+    base_url = getattr(provider, "base_url", None)
+    if not isinstance(base_url, str) or not base_url:
+        return None
+    try:
+        parts = urlsplit(base_url)
+        host = parts.hostname or ""
+        netloc = f"{host}:{parts.port}" if parts.port else host
+        return urlunsplit((parts.scheme, netloc, parts.path.rstrip("/"), "", ""))
+    except ValueError:
+        return None
+
+
+def _registry_name(ctx: TurnContext, provider: Any | None) -> str | None:
+    """The registry name the selected provider instance is registered under."""
+
+    registry = ctx.metadata.get("provider_registry")
+    names = getattr(registry, "names", None)
+    if provider is None or not callable(names):
+        return None
+    try:
+        for name in names():
+            if registry.get(name) is provider:
+                return str(name)
+    except Exception:
+        return None
+    return None
+
+
 def _store_llm_trace_metadata(
     ctx: TurnContext,
     *,
     provider: Any | None,
     config: ProviderConfig,
     result: Any | None,
+    streaming: bool = False,
 ) -> None:
     model_id = _result_model_id(result) or config.model or _trace_model_id(ctx)
-    model_provider = _trace_provider_name(ctx, provider, model_id)
+    # Prefer the provider that was actually called over the requested name, so
+    # the trace shows where the request really went.
+    actual_provider = _registry_name(ctx, provider)
+    model_provider = actual_provider or _trace_provider_name(ctx, provider, model_id)
     usage = _provider_usage(result)
+    endpoint = _safe_endpoint(provider)
+    explicit_provider = ctx.metadata.get(EXPLICIT_PROVIDER_KEY)
+    explicit_model = ctx.metadata.get(EXPLICIT_MODEL_KEY)
+    logger.info(
+        "LLM destination: provider=%s endpoint=%s model=%s "
+        "explicit_provider=%s explicit_model=%s streaming=%s called=%s",
+        model_provider or explicit_provider or "unknown",
+        endpoint or "none",
+        config.model or "(provider default)",
+        bool(explicit_provider),
+        bool(explicit_model),
+        streaming,
+        provider is not None,
+    )
 
     if model_id:
         ctx.metadata["model_id"] = model_id
@@ -1642,6 +1701,11 @@ def _store_llm_trace_metadata(
         "provider": model_provider,
         "model": model_id,
         "task_class": _trace_task_class(ctx),
+        "endpoint": endpoint,
+        "explicit_provider": bool(explicit_provider),
+        "explicit_model": bool(explicit_model),
+        "thinking": config.thinking,
+        **({"avatar_latency_times": config.trace_timings} if config.trace_timings is not None else {}),
     }
 
     if "llm_prompt" not in ctx.metadata:
@@ -3173,7 +3237,24 @@ def _coerce_memory_list(value: Any) -> list[dict]:
     return memories
 
 
+def _select_explicit_provider(ctx: TurnContext, provider_name: str) -> Any:
+    """Return the explicitly selected provider or raise; never substitute another."""
+
+    registry = ctx.metadata.get("provider_registry")
+    if registry is None:
+        raise ProviderSelectionError(
+            f"provider registry is unavailable; cannot use provider: {provider_name}"
+        )
+    if ProviderRouter is None:
+        raise ProviderSelectionError(f"provider router is unavailable: {provider_name}")
+    return ProviderRouter(registry).select_exact(provider_name, _provider_config(ctx))
+
+
 def _select_provider(ctx: TurnContext) -> Any | None:
+    explicit_provider = ctx.metadata.get(EXPLICIT_PROVIDER_KEY)
+    if explicit_provider:
+        return _select_explicit_provider(ctx, str(explicit_provider))
+
     provider = ctx.metadata.get("provider")
     if provider is not None:
         return provider
@@ -3238,13 +3319,16 @@ def _apply_sampling_profile(ctx: TurnContext, config: ProviderConfig) -> Provide
         stop=config.stop,
         timeout_seconds=config.timeout_seconds,
         extra=dict(config.extra),
+        thinking=config.thinking,
+        trace_turn_id=config.trace_turn_id,
+        trace_timings=config.trace_timings,
     )
 
 
 def _provider_config(ctx: TurnContext) -> ProviderConfig:
     config = ctx.metadata.get("provider_config")
     if isinstance(config, ProviderConfig):
-        return _apply_sampling_profile(ctx, config)
+        return _apply_sampling_profile(ctx, replace(config, thinking=ctx.metadata.get("thinking", False), trace_turn_id=ctx.metadata.get("turn_id"), trace_timings=ctx.metadata.get("avatar_latency_times")))
 
     if isinstance(config, Mapping):
         model = str(config.get("model") or "")
@@ -3257,6 +3341,9 @@ def _provider_config(ctx: TurnContext) -> ProviderConfig:
             stop=_optional_stop(config.get("stop")),
             timeout_seconds=_optional_float(config.get("timeout_seconds")),
             extra=dict(extra),
+            thinking=ctx.metadata.get("thinking", False),
+            trace_turn_id=ctx.metadata.get("turn_id"),
+            trace_timings=ctx.metadata.get("avatar_latency_times"),
         )
         return _apply_sampling_profile(ctx, built)
 
@@ -3267,6 +3354,9 @@ def _provider_config(ctx: TurnContext) -> ProviderConfig:
         top_p=_optional_float(ctx.metadata.get("top_p")),
         stop=_optional_stop(ctx.metadata.get("stop")),
         timeout_seconds=_optional_float(ctx.metadata.get("timeout_seconds")),
+        thinking=ctx.metadata.get("thinking", False),
+        trace_turn_id=ctx.metadata.get("turn_id"),
+        trace_timings=ctx.metadata.get("avatar_latency_times"),
     )
     return _apply_sampling_profile(ctx, built)
 

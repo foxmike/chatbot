@@ -9,7 +9,7 @@ from chatbot.avatar.portraits import PortraitNotFoundError
 from chatbot.avatar.runtime import AvatarRuntimeHost
 from chatbot.avatar.protocol import unpack_frame
 
-from .helpers import Harness, wait_for
+from .helpers import FakeVoices, Harness, wait_for
 
 
 class FakeSocket:
@@ -37,9 +37,10 @@ class FakePortraits:
         return SimpleNamespace(cache_key=f"{user_id}:{companion_id}:img1", png_bytes=b"\x89PNG\r\n\x1a\nfake")
 
 
-async def rig(tmp_path, portraits=None):
+async def rig(tmp_path, portraits=None, voices=None):
     h = Harness(auto_playback=False)
-    host = AvatarRuntimeHost(engine=h.engine, portraits=portraits or FakePortraits())
+    host = AvatarRuntimeHost(engine=h.engine, portraits=portraits or FakePortraits(),
+                             voices=voices or FakeVoices())
     host._portrait_dir = tmp_path
     ws = FakeSocket()
     binding = AvatarBinding("session-1", "user-1", "companion-1", ws)
@@ -127,7 +128,7 @@ async def test_barge_in_interrupts_the_chat_turn_and_stops_the_browser(tmp_path)
     turn = await coordinator.begin(binding, source="spoken")
     turn.task = asyncio.create_task(asyncio.sleep(30))     # stands in for the LLM generation
     turn.task.add_done_callback(lambda t: (cancelled.append(t.cancelled()), turn.finished.set()))
-    coordinator.publish(binding, turn, "A long answer that will be interrupted, midway. ")
+    coordinator.publish(binding, turn, "A long answer that will be interrupted, midway. And then more")
     await wait_for(lambda: turn.segments)
     h.engine.listening = False
     for _ in range(8):
@@ -165,3 +166,73 @@ async def test_closing_keeps_models_loaded_but_detaches_the_engine(tmp_path):
     assert (h.avatar.starts, h.tts.starts) == (1, 1) and {"type": "status", "value": "Listening"} in ws2.json
     await host.aclose()
     assert (h.avatar.stops, h.tts.stops) == (1, 1)
+
+
+async def test_replaced_connection_cannot_cancel_new_owner_or_pause_renderer(tmp_path):
+    h, host, first_socket, first, coordinator, _ = await rig(tmp_path)
+    second_socket = FakeSocket()
+    second = AvatarBinding("session-2", "user-1", "companion-1", second_socket)
+    await coordinator.connect(second, host.factory)
+    assert h.engine.sink == second.runtime._on_event
+    turn = await coordinator.begin(second, source="spoken")
+    coordinator.publish(second, turn, "Hello again. ")
+    await coordinator.detach(first)
+    assert h.engine.sink == second.runtime._on_event
+    assert h.engine.turn is not None and h.engine.turn.label == turn.turn_id
+    assert not any(m.get("type") == "pause_render" for m in h.avatar.sent)
+    coordinator.end(second, turn)
+    seen = set()
+    for _ in range(300):
+        await ack_audio(coordinator, second, second_socket, seen)
+        if turn.drained and turn.segments and len(turn.acknowledged) == len(turn.segments):
+            break
+        await asyncio.sleep(0.01)
+    await asyncio.wait_for(coordinator.wait_playback(turn), 3)
+    assert any(packet[:1] == b"A" for packet in second_socket.binary)
+    assert any(packet[:1] == b"V" for packet in second_socket.binary)
+    assert not any(packet[:1] == b"A" for packet in first_socket.binary)
+    await coordinator.detach(second)
+    assert h.avatar.sent[-1]["type"] == "pause_render"
+    assert h.avatar.alive
+    await host.aclose()
+
+
+async def test_repeated_reconnect_pauses_and_resumes_without_reloading(tmp_path):
+    h, host, _, first, coordinator, _ = await rig(tmp_path)
+    await coordinator.detach(first)
+    for index in range(3):
+        binding = AvatarBinding(f"reconnect-{index}", "user-1", "companion-1", FakeSocket())
+        await coordinator.connect(binding, host.factory)
+        assert h.avatar.sent[-1]["type"] == "resume_render"
+        await coordinator.detach(binding)
+        assert h.avatar.sent[-1]["type"] == "pause_render"
+    assert h.avatar.starts == 1 and h.avatar.stops == 0
+    await host.aclose()
+
+
+async def test_replacement_during_synthesis_invalidates_old_turn_without_stopping_new(tmp_path):
+    h, host, _, first, coordinator, _ = await rig(tmp_path)
+    h.tts.hold = asyncio.Event()
+    old_turn = await coordinator.begin(first, source="spoken")
+    coordinator.publish(first, old_turn, "A sentence being synthesized.")
+    coordinator.end(first, old_turn)
+    await wait_for(lambda: any(m.get("type") == "speak" for m in h.tts.sent))
+    second_socket = FakeSocket()
+    second = AvatarBinding("session-2", "user-1", "companion-1", second_socket)
+    await coordinator.connect(second, host.factory)
+    assert old_turn.interrupted
+    h.tts.hold.set()
+    new_turn = await coordinator.begin(second, source="spoken")
+    coordinator.publish(second, new_turn, "A new response.")
+    coordinator.end(second, new_turn)
+    await coordinator.detach(first)
+    seen = set()
+    for _ in range(300):
+        await ack_audio(coordinator, second, second_socket, seen)
+        if new_turn.drained and new_turn.segments and len(new_turn.acknowledged) == len(new_turn.segments):
+            break
+        await asyncio.sleep(0.01)
+    await asyncio.wait_for(coordinator.wait_playback(new_turn), 3)
+    assert any(packet[:1] == b"A" for packet in second_socket.binary)
+    await coordinator.detach(second)
+    await host.aclose()

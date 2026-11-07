@@ -6,7 +6,9 @@ from pydantic import RedisDsn, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-DEFAULT_AVATAR_QWEN_MODEL = "Qwen3-TTS-12Hz-1.7B-VoiceDesign"
+DEFAULT_AVATAR_QWEN_MODEL = "Qwen3-TTS-12Hz-1.7B-VoiceDesign"   # creates voices (Voice Design)
+DEFAULT_AVATAR_QWEN_CLONE_MODEL = "Qwen3-TTS-12Hz-1.7B-Base"    # speaks with saved voices (cloning)
+DEFAULT_VOICE_LIBRARY_DIR = Path(__file__).resolve().parents[1] / "data" / "voices"
 DEFAULT_AVATAR_QWEN_VOICE = (
     "A warm, natural young adult American woman with a relaxed, expressive conversational voice."
 )
@@ -71,6 +73,15 @@ class Settings(BaseSettings):
     avatar_portrait: str | None = None
     avatar_gpu_sampling: bool = False
     avatar_worker_start_timeout: float = 120.0
+    # Voice Library: Base speaks every saved voice; VoiceDesign is loaded only to design one
+    # and released after this many idle seconds.
+    avatar_qwen_clone_model: str = DEFAULT_AVATAR_QWEN_CLONE_MODEL
+    avatar_design_idle_seconds: float = 90.0
+    voice_library_dir: Path = DEFAULT_VOICE_LIBRARY_DIR
+    voice_upload_max_bytes: int = 20 * 1024 * 1024
+    voice_reference_min_seconds: float = 3.0
+    voice_reference_max_seconds: float = 30.0
+    voice_preview_ttl_seconds: int = 3600
 
     # Image Generation Configuration
     image_generation_provider: str = "openrouter"

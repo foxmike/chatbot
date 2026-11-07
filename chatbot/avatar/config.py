@@ -10,8 +10,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from chatbot.config import (
+    DEFAULT_AVATAR_QWEN_CLONE_MODEL as DEFAULT_CLONE_MODEL,
     DEFAULT_AVATAR_QWEN_MODEL as DEFAULT_VOICE_MODEL,
     DEFAULT_AVATAR_QWEN_VOICE as DEFAULT_VOICE,
+    DEFAULT_VOICE_LIBRARY_DIR,
     Settings,
 )
 
@@ -25,9 +27,14 @@ class MediaConfig:
     # Child-process environments (independent of chatbot's own Python).
     avtr_path: Path = Path("/home/mike/dev/tools/avtr-1")
     qwen_path: Path = Path("/home/mike/dev/tools/qwen")
-    # Speech synthesis.
+    # Speech synthesis. `voice_model` (VoiceDesign) creates voices from a description and
+    # `voice` is the built-in default voice's description; `clone_model` (Base) speaks every
+    # saved voice from its reference recording. Saved voices live under `voice_root`.
     voice_model: str = DEFAULT_VOICE_MODEL
     voice: str = DEFAULT_VOICE
+    clone_model: str = DEFAULT_CLONE_MODEL
+    voice_root: Path = DEFAULT_VOICE_LIBRARY_DIR
+    design_idle_seconds: float = 90.0
     # Speech recognition (faster-whisper on CPU).
     stt_model: str = "base.en"
     stt_device: str = "cpu"
@@ -67,6 +74,9 @@ class MediaConfig:
             portrait=Path(settings.avatar_portrait) if settings.avatar_portrait else None,
             gpu_sampling=settings.avatar_gpu_sampling,
             worker_start_timeout=settings.avatar_worker_start_timeout,
+            clone_model=settings.avatar_qwen_clone_model,
+            voice_root=Path(settings.voice_library_dir),
+            design_idle_seconds=settings.avatar_design_idle_seconds,
         )
 
     @property
@@ -84,6 +94,18 @@ class MediaConfig:
     @property
     def qwen_checkpoint(self) -> Path:
         return self.qwen_path / "models" / self.voice_model
+
+    @property
+    def design_checkpoint(self) -> Path:
+        return self.qwen_checkpoint
+
+    @property
+    def clone_checkpoint(self) -> Path:
+        return self.qwen_path / "models" / self.clone_model
+
+    @property
+    def voice_script(self) -> Path:
+        return _WORKER_DIR / "voice_worker.py"
 
     @property
     def tts_script(self) -> Path:

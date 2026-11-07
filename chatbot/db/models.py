@@ -140,6 +140,14 @@ class Companion(Base):
         ),
         nullable=True,
     )
+    # Default voice for conversations with this companion (a Voice Library reference).
+    voice_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("voices.voice_id", name="companions_voice_id_fkey", ondelete="RESTRICT",
+                      use_alter=True),
+        index=True,
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True),
         nullable=False,
@@ -181,6 +189,50 @@ class Companion(Base):
                 else list(defaults.favorite_topics)
             ),
         )
+
+
+class Voice(Base):
+    """A saved Voice Library voice: metadata only.
+
+    The identity is the canonical reference recording (a WAV file in the voice library
+    directory, never in this row) plus its transcript; Qwen3-TTS Base clones from them.
+    `user_id` is NULL only for built-in voices, which every user may use but not modify.
+    """
+
+    __tablename__ = "voices"
+    __table_args__ = (
+        sa.CheckConstraint("method IN ('designed', 'cloned')", name="voices_method_check"),
+        sa.CheckConstraint("(user_id IS NULL) = is_builtin", name="voices_owner_check"),
+    )
+
+    voice_id: Mapped[str] = mapped_column(
+        sa.String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        sa.ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True
+    )
+    name: Mapped[str] = mapped_column(sa.String(80), nullable=False)
+    method: Mapped[str] = mapped_column(sa.String(16), nullable=False)          # designed | cloned
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)    # designed voices
+    reference_path: Mapped[str] = mapped_column(sa.String(255), nullable=False)  # relative to library root
+    reference_sha256: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    reference_duration: Mapped[float] = mapped_column(sa.Float, nullable=False)
+    reference_sample_rate: Mapped[int] = mapped_column(sa.Integer, nullable=False)
+    reference_transcript: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    language: Mapped[str] = mapped_column(sa.String(32), nullable=False, server_default="English")
+    model_family: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    creation_model: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    synthesis_model: Mapped[str] = mapped_column(sa.String(128), nullable=False)
+    status: Mapped[str] = mapped_column(sa.String(16), nullable=False, server_default="ready")
+    is_builtin: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.false())
+    extra_metadata: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=sa.sql.func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=sa.sql.func.now(),
+        onupdate=sa.sql.func.now(),
+    )
 
 
 class ImageMemory(Base):
@@ -314,6 +366,14 @@ class Session(Base):
     mood_state: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
     user_state: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
     conversation_mode: Mapped[str | None] = mapped_column(sa.String, nullable=True)
+    # Session-level voice override; when NULL the companion's default voice is used.
+    voice_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("voices.voice_id", name="sessions_voice_id_fkey", ondelete="RESTRICT",
+                      use_alter=True),
+        index=True,
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True),
         nullable=False,
@@ -329,15 +389,19 @@ class Session(Base):
     user: Mapped[User] = relationship(back_populates="sessions")
     companion: Mapped[Companion | None] = relationship()
     room: Mapped[Room | None] = relationship(back_populates="session", foreign_keys=[room_id])
-    messages: Mapped[list[Message]] = relationship(back_populates="session")
-    episodes: Mapped[list[Episode]] = relationship(back_populates="session")
+    messages: Mapped[list[Message]] = relationship(back_populates="session", cascade="all, delete-orphan")
+    episodes: Mapped[list[Episode]] = relationship(back_populates="session", cascade="all, delete-orphan")
     relationship_configs: Mapped[list[RelationshipConfigModel]] = relationship(
-        back_populates="session"
+        back_populates="session", cascade="all, delete-orphan"
     )
     character_profiles: Mapped[list[CharacterProfileModel]] = relationship(
-        back_populates="session"
+        back_populates="session", cascade="all, delete-orphan"
     )
-    identity_states: Mapped[list[IdentityStateModel]] = relationship(back_populates="session")
+    identity_states: Mapped[list[IdentityStateModel]] = relationship(back_populates="session", cascade="all, delete-orphan")
+    bot_mood_logs: Mapped[list[BotMoodLog]] = relationship(cascade="all, delete-orphan")
+    user_state_logs: Mapped[list[UserStateLog]] = relationship(cascade="all, delete-orphan")
+    # A room can outlive a conversation; only its optional session reference is cleared.
+    referenced_rooms: Mapped[list[Room]] = relationship(foreign_keys="[Room.session_id]")
 
 
 class RelationshipConfigModel(Base):
@@ -517,6 +581,7 @@ class Message(Base):
     session: Mapped[Session] = relationship(back_populates="messages")
     user: Mapped[User | None] = relationship()
     companion: Mapped[Companion | None] = relationship()
+    semantic_facts: Mapped[list[SemanticFact]] = relationship(back_populates="source_message")
 
 
 class Episode(Base):
@@ -612,7 +677,7 @@ class SemanticFact(Base):
     )
 
     user: Mapped[User] = relationship(back_populates="semantic_facts")
-    source_message: Mapped[Message | None] = relationship()
+    source_message: Mapped[Message | None] = relationship(back_populates="semantic_facts")
 
 
 class Entity(Base):
@@ -991,6 +1056,7 @@ class UsageRecord(Base):
 
 
 __all__ = [
+    "Voice",
     "AgencyRitual",
     "AgencyTimeline",
     "Appearance",

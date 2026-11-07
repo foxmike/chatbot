@@ -32,6 +32,7 @@ import numpy as np
 from chatbot.avatar.config import MediaConfig
 from chatbot.avatar.metrics import chunk_report, elapsed, format_chunk_row, format_summary, log
 from chatbot.avatar.protocol import (
+    DEFAULT_SPEECH_MODE,
     Diagnostic,
     Interrupted,
     MediaEvent,
@@ -42,6 +43,7 @@ from chatbot.avatar.protocol import (
     UserSpeechStarted,
     pack_audio,
     pack_video,
+    validate_speech_mode,
 )
 from chatbot.avatar.speech_chunks import (
     AdaptiveChunker,
@@ -50,6 +52,7 @@ from chatbot.avatar.speech_chunks import (
     edge_silence,
     trim_silence,
 )
+from chatbot.avatar.sentence_chunks import make_chunker
 from chatbot.avatar.stt import Endpointer, SpeechStart, Transcriber, Utterance
 from chatbot.avatar.workers import Worker, WorkerError, build_workers
 
@@ -67,6 +70,10 @@ EventSink = Callable[[MediaEvent], Awaitable[None]]
 Resampler = Callable[[np.ndarray, int], np.ndarray]
 
 
+VOICE_FIELDS = ("voice_id", "fingerprint", "reference", "transcript", "language")
+TOOL_TIMEOUT = 300.0      # seconds: a VoiceDesign preview may first have to load the checkpoint
+
+
 class MediaError(RuntimeError):
     """The engine cannot do what was asked (not started, no portrait, unknown turn...)."""
 
@@ -81,12 +88,28 @@ class PortraitResult:
     switched: bool = True    # False when it was already the active portrait
 
 
+class EngineBusyError(MediaError):
+    """A Voice Library request arrived while the avatar is speaking; nothing was done."""
+
+
+def validate_voice(voice: Any) -> dict:
+    """A saved-voice spec for the TTS worker: every field present, nothing else carried."""
+    if not isinstance(voice, dict):
+        raise MediaError("no voice selected for this turn")
+    missing = [key for key in VOICE_FIELDS if not voice.get(key)]
+    if missing:
+        raise MediaError(f"voice is incomplete (missing {', '.join(missing)})")
+    return {key: str(voice[key]) for key in VOICE_FIELDS}
+
+
 @dataclass
 class _Turn:
     turn_id: str
     seq: int
     label: str | None
     metrics: dict
+    speech_mode: str = DEFAULT_SPEECH_MODE   # fixed for the whole turn when it begins
+    voice: dict | None = None                # who speaks: fixed for the whole turn when it begins
     chunker: AdaptiveChunker = field(default_factory=AdaptiveChunker)
     planner: SpeechPlanner = field(default_factory=SpeechPlanner)
     visible: VisibleTextFilter = field(default_factory=VisibleTextFilter)
@@ -158,6 +181,9 @@ class AvatarMediaEngine:
         self._portrait_requests: dict[str, asyncio.Future] = {}
         # Per-segment bookkeeping, keyed by segment id "<turn seq>:<chunk number>".
         self.tts_pending: dict[str, asyncio.Future] = {}
+        # Voice Library requests (previews, prompt preparation): never touched by interruptions.
+        self.tool_pending: dict[str, asyncio.Future] = {}
+        self._tool_lock = asyncio.Lock()
         self.audio_pending: dict[str, tuple] = {}
         self.avatar_audio_received: dict[str, float] = {}
         self.playback_pending: dict[str, asyncio.Future] = {}
@@ -192,8 +218,8 @@ class AvatarMediaEngine:
         async with self._start_lock:
             if self.ready and self.transcriber.loaded:
                 return
-            log("CONFIG", f"Portrait: {self.config.portrait}; TTS: {self.config.voice_model}; "
-                f"voice: {self.config.voice}")
+            log("CONFIG", f"Portrait: {self.config.portrait}; TTS: {self.config.clone_model} (saved voices), "
+                f"{self.config.voice_model} on demand (voice design)")
             if self._resample is default_resampler:
                 default_resampler(np.zeros(8, "<f4"), 24000)   # fail now, not mid-conversation
             avatar_restarted = not self.avatar.alive
@@ -248,6 +274,72 @@ class AvatarMediaEngine:
     async def _ensure_ready(self) -> None:
         if not self.ready:
             await self.start()
+
+    # ------------------------------------------------------------------ voice library
+
+    async def _ensure_tts(self) -> None:
+        """Start only the Qwen worker (never AVTR) for Voice Library work."""
+        async with self._start_lock:
+            if not self.tts.alive:
+                await self.tts.start()
+            if not self._pumps or any(task.done() for task in self._pumps):
+                self._pumps = [asyncio.create_task(self._avatar_messages()),
+                               asyncio.create_task(self._tts_messages())]
+
+    async def _tool(self, message: dict, *, exclusive: bool = True, timeout: float = TOOL_TIMEOUT) -> dict:
+        """Send one Voice Library command to the TTS worker and wait for its reply.
+
+        `exclusive` requests (previews) are refused while a turn is speaking, so a preview can
+        never delay or reorder a conversation's speech, and run one at a time.
+        """
+        if exclusive and self.turn is not None:
+            raise EngineBusyError("The avatar is speaking; try again when it has finished")
+        async with self._tool_lock:
+            if exclusive and self.turn is not None:
+                raise EngineBusyError("The avatar is speaking; try again when it has finished")
+            await self._ensure_tts()
+            request_id = f"voice:{uuid.uuid4()}"
+            future = asyncio.get_running_loop().create_future()
+            self.tool_pending[request_id] = future
+            try:
+                await self.tts.send({**message, "id": request_id})
+                return await asyncio.wait_for(future, timeout)
+            finally:
+                self.tool_pending.pop(request_id, None)
+
+    @staticmethod
+    def _decoded(reply: dict) -> dict:
+        audio = np.frombuffer(base64.b64decode(reply["audio"]), dtype="<f4")
+        return {**{k: v for k, v in reply.items() if k != "audio"}, "audio": audio}
+
+    async def design_preview(self, text: str, instruct: str, language: str = "English") -> dict:
+        """One VoiceDesign candidate: {"audio": float32 waveform, "sr", "duration", ...}."""
+        return self._decoded(await self._tool({"type": "design", "text": text, "instruct": instruct,
+                                               "language": language}))
+
+    async def voice_preview(self, text: str, voice: dict) -> dict:
+        """Speak `text` with a saved (or candidate clone) voice through the Base model."""
+        return self._decoded(await self._tool({"type": "speak", "text": text, "voice": validate_voice(voice)}))
+
+    async def prepare_voice(self, voice: dict, warm: bool = False) -> dict:
+        """Build (or confirm cached) the reusable clone prompt for `voice` ahead of its first turn."""
+        return await self._tool({"type": "prepare", "voice": validate_voice(voice), "warm": warm},
+                                exclusive=False)
+
+    async def forget_voice(self, voice_id: str) -> None:
+        """Drop cached prompts for `voice_id` (its reference changed or it was deleted)."""
+        if self.tts.alive:
+            await self._tool({"type": "forget", "voice_id": voice_id}, exclusive=False, timeout=30)
+
+    async def unload_design(self) -> bool:
+        """Release the VoiceDesign checkpoint now (Base stays loaded)."""
+        if not self.tts.alive:
+            return False
+        reply = await self._tool({"type": "unload_design"}, exclusive=False, timeout=60)
+        return bool(reply.get("released"))
+
+    async def tts_status(self) -> dict:
+        return await self._tool({"type": "status"}, exclusive=False, timeout=30)
 
     @property
     def busy(self) -> bool:
@@ -395,6 +487,7 @@ class AvatarMediaEngine:
                 if self._is_stale(segment_id):
                     continue
                 if message.get("kind") == "speech" and message.get("first") and segment_id in self.audio_pending:
+                    log("AVTR", f"First frame generated for segment {segment_id} at {message['generated_at']:.6f}")
                     audio, sr, metrics = self.audio_pending.pop(segment_id)
                     metrics.setdefault("first_video_delivered", now)
                     metrics.setdefault("first_video_generated", message["generated_at"])
@@ -410,6 +503,8 @@ class AvatarMediaEngine:
             elif kind == "fps":
                 log("AVTR", f"Animation FPS: {message['value']:.1f}; render compute {message.get('step_ms', 0):.0f}ms per 200ms step")
                 await self._diagnostic("avtr_fps", fps=message["value"], step_ms=message.get("step_ms", 0))
+            elif kind in ("render_paused", "render_resumed"):
+                log("AVTR", f"Renderer {kind.removeprefix('render_')} at {message['at']:.6f}")
             elif kind == "audio_received":
                 if self._is_stale(message["id"]):
                     continue
@@ -437,6 +532,22 @@ class AvatarMediaEngine:
         while True:
             message = await self.tts.messages.get()
             kind = message.get("type")
+            tool = self.tool_pending.pop(message.get("id"), None) if message.get("id") else None
+            if tool is not None:
+                if not tool.done():
+                    if kind == "error":
+                        tool.set_exception(MediaError(message["error"]))
+                    else:
+                        tool.set_result(message)
+                continue
+            if kind == "error" and message.get("id") is None:
+                for pending in list(self.tool_pending.values()):
+                    if not pending.done():
+                        pending.set_exception(MediaError(message["error"]))
+                self.tool_pending.clear()
+            if kind == "design_unloaded":
+                log("TTS", f"VoiceDesign released ({message.get('reason')})")
+                continue
             if kind in ("audio", "error"):
                 future = self.tts_pending.pop(message.get("id"), None)
                 if kind == "error" and message.get("id") is None:
@@ -516,12 +627,22 @@ class AvatarMediaEngine:
 
     # ------------------------------------------------------------------ response turns
 
-    async def begin_response(self, label: str | None = None) -> str:
+    async def begin_response(self, label: str | None = None, speech_mode: str | None = None,
+                             voice: dict | None = None) -> str:
         """Open a response stream; returns the engine's turn id for the calls below.
 
         Starts the engine on demand and requires a portrait. A still-active previous turn is
-        cancelled first. `label` is an opaque caller tag echoed in diagnostics.
+        cancelled first. `label` is an opaque caller tag echoed in diagnostics. `speech_mode`
+        ("natural" or "fast"; default natural) decides how the text is cut for TTS and stays
+        the same for this whole turn, whatever the caller selects while it runs. `voice` (a
+        resolved saved voice, see VOICE_FIELDS) is required and likewise fixed for the turn:
+        every sentence of it is spoken by that voice. There is no default voice here.
         """
+        try:
+            speech_mode = validate_speech_mode(DEFAULT_SPEECH_MODE if speech_mode is None else speech_mode)
+        except ValueError as exc:
+            raise MediaError(str(exc)) from exc
+        voice = validate_voice(voice)
         await self._ensure_ready()
         if self.portrait_id is None:
             raise MediaError("no portrait selected; call set_portrait() first")
@@ -533,11 +654,14 @@ class AvatarMediaEngine:
         if now - info.get("stt_end", now) > 120:
             info = {}   # a stale transcript is not this response's origin
         metrics = {"turn": self._seq, "speech_end": info.get("speech_end", now),
-                   "endpoint_delay": info.get("endpoint_delay"), "chunks": 0}
+                   "endpoint_delay": info.get("endpoint_delay"), "chunks": 0, "chunk_chars": 0,
+                   "sentence_cuts": 0, "mid_sentence_cuts": 0, "speech_mode": speech_mode,
+                   "voice_id": voice["voice_id"]}
         for key in ("stt_start", "stt_end"):
             if key in info:
                 metrics[key] = info[key]
-        turn = _Turn(str(self._seq), self._seq, label, metrics)
+        turn = _Turn(str(self._seq), self._seq, label, metrics, speech_mode=speech_mode,
+                     chunker=make_chunker(speech_mode), voice=voice)
         self.turn = turn
         self._turns[turn.turn_id] = turn
         if len(self._turns) > 20:   # finished turns are only kept so wait_turn() can be late
@@ -579,7 +703,10 @@ class AvatarMediaEngine:
         turn.response_text += visible
         turn.chunker.feed(visible, time.monotonic())
         turn.text_changed.set()
-        while backpressure and len(turn.chunker.pending) > MAX_PENDING_CHARS and turn.alive:
+        # Natural mode holds text until a sentence ends, so throttling on pending text would
+        # wait for a sentence that cannot complete without the text being throttled.
+        throttle = backpressure and turn.speech_mode != "natural"
+        while throttle and len(turn.chunker.pending) > MAX_PENDING_CHARS and turn.alive:
             await asyncio.sleep(0.05)   # bounded: TTS drains text as it frees up
         return turn.alive
 
@@ -706,14 +833,19 @@ class AvatarMediaEngine:
                 if future and not future.done():
                     future.cancel()
                 self.segment_metrics.pop(segment_id, None)
+            rows = chunk_report(self.timeline, str(turn.seq), turn.metrics["speech_end"])
+            gaps = [row["silence_ms"] for row in rows if row.get("silence_ms")]
+            turn.metrics["playback_gaps"] = len(gaps)
+            turn.metrics["playback_gap_ms"] = sum(gaps)
             summary = format_summary(turn.metrics, self.gpu_samples)
             log("TOTAL", summary)
-            rows = chunk_report(self.timeline, str(turn.seq), turn.metrics["speech_end"])
             for row in rows:
                 log("CHUNK", format_chunk_row(row))
             await self._diagnostic("turn_summary", turn_id=turn.turn_id, label=turn.label, summary=summary,
-                                   status=status, metrics={k: v for k, v in turn.metrics.items()
-                                                           if isinstance(v, (int, float, bool, type(None)))})
+                                   status=status, speech_mode=turn.speech_mode,
+                                   voice_id=(turn.voice or {}).get("voice_id"),
+                                   metrics={k: v for k, v in turn.metrics.items()
+                                            if isinstance(v, (int, float, bool, type(None)))})
             await self._diagnostic("chunk_report", turn_id=turn.turn_id, rows=rows)
             if self.turn is turn:   # not already superseded by an interruption
                 self.turn = None
@@ -739,17 +871,23 @@ class AvatarMediaEngine:
             chunk = chunker.take(now, budget, urgent)
             if chunk:
                 metrics.setdefault("first_speech_chunk", chunk.at)
-                if chunk.reason in ("first sentence", "sentence"):
+                if chunk.reason in ("first sentence", "sentence", "paragraph"):
                     metrics.setdefault("first_sentence", chunk.at)
                 metrics["chunks"] += 1
-                log("PLAN", f"Chunk {number + 1}: {len(chunk.text)} chars ({chunk.reason}); budget {budget}; "
+                metrics["chunk_chars"] += len(chunk.text)
+                if chunk.reason in ("first sentence", "sentence", "paragraph", "final"):
+                    metrics["sentence_cuts"] += 1
+                else:
+                    metrics["mid_sentence_cuts"] += 1
+                log("PLAN", f"Chunk {number + 1}: {len(chunk.text)} chars ({chunk.reason}, {turn.speech_mode}); budget {budget}; "
                     f"queued audio {lead:.2f}s; synthesis rate {planner.rate:.2f}; "
                     f"audio/char {planner.audio_per_char*1000:.0f}ms; text pending {len(chunker.pending)}")
                 self.mark(f"{turn.seq}:{number + 1}", text_started=chunk.started_at,
                           text_ready=chunk.ready_at, text_emit=chunk.at, chars=len(chunk.text),
                           reason=chunk.reason)
                 await self._diagnostic("chunk_planned", turn_id=turn.turn_id, number=number + 1,
-                                       text=chunk.text, chars=len(chunk.text), reason=chunk.reason, budget=budget,
+                                       speech_mode=turn.speech_mode,
+                                       voice_id=turn.voice["voice_id"], text=chunk.text, chars=len(chunk.text), reason=chunk.reason, budget=budget,
                                        queued_audio=lead, synthesis_rate=planner.rate,
                                        audio_per_char=planner.audio_per_char, pending=len(chunker.pending))
                 return chunk
@@ -758,21 +896,21 @@ class AvatarMediaEngine:
             with contextlib.suppress(asyncio.TimeoutError):
                 await asyncio.wait_for(turn.text_changed.wait(), 0.05)
 
-    async def _synthesize(self, text: str, segment_id: str, metrics: dict):
-        log("TTS", f"Chunk {segment_id} started; text: {text}")
+    async def _synthesize(self, text: str, segment_id: str, metrics: dict, voice: dict):
+        log("TTS", f"Chunk {segment_id} started (voice {voice['voice_id']}); text: {text}")
         start = time.monotonic()
-        self.mark(segment_id, synth_start=start)
+        self.mark(segment_id, synth_start=start, voice_id=voice["voice_id"])
         future = asyncio.get_running_loop().create_future()
         self.tts_pending[segment_id] = future
-        await self.tts.send({"type": "speak", "id": segment_id, "text": text,
-                             "voice": self.config.voice, "mode": self.config.tts_mode})
+        await self.tts.send({"type": "speak", "id": segment_id, "text": text, "voice": voice})
         try:
             result = await asyncio.wait_for(future, timeout=120)
         finally:
             self.tts_pending.pop(segment_id, None)
         now = time.monotonic()
         metrics.setdefault("first_audio", now)
-        self.mark(segment_id, synth_end=now, generation=result["generation"])
+        self.mark(segment_id, synth_end=now, generation=result["generation"],
+                  prompt_cache=result.get("prompt"))
         raw = np.frombuffer(base64.b64decode(result["audio"]), dtype="<f4")
         generation, duration = result["generation"], result["duration"]
         metrics["tts_total"] = metrics.get("tts_total", 0) + generation
@@ -800,7 +938,7 @@ class AvatarMediaEngine:
                 segment_id = f"{turn.seq}:{number}"
                 turn.segment_ids.add(segment_id)
                 self.mark(segment_id, tts_idle_since=idle_since, tts_got=time.monotonic())
-                audio_chunk, sr = await self._synthesize(chunk.text, segment_id, turn.metrics)
+                audio_chunk, sr = await self._synthesize(chunk.text, segment_id, turn.metrics, turn.voice)
                 if not turn.alive:
                     return   # interrupted while Qwen was busy: drop the stale waveform
                 info = self.timeline.get(segment_id, {})

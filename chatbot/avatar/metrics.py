@@ -113,6 +113,14 @@ def format_summary(m: dict, gpu_samples=()) -> str:
         fields.append(f"TTS generation {m['tts_total']*1000:.0f}ms / audio {m['audio_duration']*1000:.0f}ms "
                       f"(RTF {m['tts_total']/m['audio_duration']:.2f})")
     fields.append(f"chunks {m['chunks']}")
+    if m.get("speech_mode"):
+        fields.append(f"TTS mode {m['speech_mode']}")
+    if m["chunks"] and m.get("chunk_chars") is not None:
+        fields.append(f"avg {m['chunk_chars'] / m['chunks']:.0f} chars/chunk "
+                      f"({m.get('sentence_cuts', 0)} sentence-boundary, "
+                      f"{m.get('mid_sentence_cuts', 0)} mid-sentence cuts)")
+    if m.get("playback_gaps") is not None:
+        fields.append(f"playback gaps {m['playback_gaps']} ({m.get('playback_gap_ms', 0):.0f}ms)")
     samples = [(memory, utilization) for at, memory, utilization in gpu_samples if at >= base]
     if samples:
         fields.append(f"GPU {min(x[0] for x in samples)}–{max(x[0] for x in samples)}MiB; "

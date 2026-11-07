@@ -2,6 +2,25 @@ import { useEffect, useRef, useState } from "react";
 import { AvatarRuntime } from "../avatar/avatarRuntime";
 import { getAvatarSyncBridge } from "../avatar/avatarSync";
 import { getAccessToken, listCompanions, type Companion } from "../api/client";
+import {
+  DEFAULT_TTS_MODE,
+  TTS_MODES,
+  isTtsMode,
+  loadTtsMode,
+  saveTtsMode,
+  type TtsMode,
+} from "../avatar/ttsMode";
+import VoiceSelector from "./VoiceSelector";
+import { STORAGE_KEY, routingFromStorage, type RoutingSelection } from "../utils/modelPicker";
+
+/** The model picker's persisted selection, read fresh each time it is needed. */
+function currentRouting(): RoutingSelection {
+  try {
+    return routingFromStorage(localStorage.getItem(STORAGE_KEY));
+  } catch {
+    return routingFromStorage(null);
+  }
+}
 
 interface AvatarPopupProps {
   initialCompanionId?: string | null;
@@ -20,6 +39,17 @@ export function AvatarPopup({
   const [companion, setCompanion] = useState<Companion | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(initialSessionId ?? null);
   const [roomId, setRoomId] = useState<string | null>(initialRoomId ?? null);
+
+  // Restored from localStorage so the choice survives reopening the popup; Natural when unset.
+  const [ttsMode, setTtsMode] = useState<TtsMode>(() => {
+    try {
+      return loadTtsMode(localStorage);
+    } catch {
+      return DEFAULT_TTS_MODE;
+    }
+  });
+  const ttsModeRef = useRef<TtsMode>(ttsMode);
+  ttsModeRef.current = ttsMode;
 
   const imgRef = useRef<HTMLImageElement | null>(null);
   const runtimeRef = useRef<AvatarRuntime | null>(null);
@@ -149,6 +179,10 @@ export function AvatarPopup({
           new URLSearchParams(window.location.search).get("companion_id") ??
           undefined,
         roomId,
+        // Spoken turns use the model picker's selection (shared via localStorage).
+        getRouting: currentRouting,
+        // Sent with the handshake, so the mode is set before the first speech turn.
+        getTtsMode: () => ttsModeRef.current,
       }
     );
 
@@ -169,7 +203,14 @@ export function AvatarPopup({
 
     window.addEventListener("beforeunload", handleBeforeUnload);
 
+    // The picker lives in the main window; its changes arrive as storage events.
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === STORAGE_KEY) runtime.sendRouting();
+    };
+    window.addEventListener("storage", handleStorage);
+
     return () => {
+      window.removeEventListener("storage", handleStorage);
       window.removeEventListener("beforeunload", handleBeforeUnload);
       bridge.publish({
         type: "AVATAR_CLOSED",
@@ -188,6 +229,19 @@ export function AvatarPopup({
 
   // Speech exists from the moment a response starts ("Responding…") until playback has ended.
   const canSkipSpeech = !isDisplaced && statusText.startsWith("Responding");
+
+  // Applies from the next speech turn; a turn already speaking keeps the mode it started with.
+  const handleTtsModeChange = (value: string) => {
+    if (!isTtsMode(value)) return;
+    setTtsMode(value);
+    try {
+      saveTtsMode(localStorage, value);
+    } catch {
+      // Persistence is best-effort.
+    }
+    ttsModeRef.current = value;
+    runtimeRef.current?.sendTtsMode();
+  };
 
   const handleSkipSpeech = () => {
     runtimeRef.current?.skipSpeech();
@@ -280,7 +334,7 @@ export function AvatarPopup({
       </main>
 
       {/* Footer Controls matching proven my_avatar UI */}
-      <footer className="flex w-full items-center justify-center gap-4 py-2 shrink-0">
+      <footer className="flex w-full flex-wrap items-center justify-center gap-4 py-2 shrink-0">
         <button
           type="button"
           onClick={handleToggleMic}
@@ -298,6 +352,29 @@ export function AvatarPopup({
           />
           {micEnabled ? "Disable microphone" : "Enable microphone"}
         </button>
+
+        <label
+          htmlFor="tts-mode"
+          className="flex items-center gap-2 text-sm font-medium text-gray-300"
+          title="How the reply is cut for speech. Applies from the next reply."
+        >
+          TTS:
+          <select
+            id="tts-mode"
+            aria-label="TTS"
+            value={ttsMode}
+            onChange={(event) => handleTtsModeChange(event.target.value)}
+            className="rounded-lg border border-gray-700 bg-[#293240] px-2 py-2 text-sm text-white transition hover:bg-[#3b4658] focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          >
+            {TTS_MODES.map((mode) => (
+              <option key={mode.id} value={mode.id}>
+                {mode.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <VoiceSelector sessionId={sessionId} variant="popup" />
 
         <button
           type="button"
