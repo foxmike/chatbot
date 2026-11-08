@@ -717,6 +717,17 @@ async def _persist_messages(
         )
         if completed and not interrupted:
             await conversation.record_completed_interaction(db, companion_id, current_user.user_id)
+            # The durable memory-extraction job is inserted in the same
+            # transaction that persists the completed turn's messages and
+            # effects: a rollback leaves neither completed turn nor job.
+            # Interrupted and failed turns schedule no job.
+            await conversation.schedule_memory_job(
+                db,
+                session_id=session_id,
+                user_id=uuid.UUID(current_user.user_id),
+                companion_id=companion_id,
+                turn_id=turn_id,
+            )
         await db.commit()
     except Exception as exc:
         try:

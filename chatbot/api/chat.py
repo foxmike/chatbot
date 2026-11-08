@@ -180,6 +180,16 @@ async def chat(
         await conversation.record_completed_interaction(
             db, db_session.companion_id or companion_id, user_uuid
         )
+        # The durable memory-extraction job is inserted in the same transaction
+        # that persists the completed turn's messages and effects: a rollback
+        # leaves neither completed turn nor job.
+        await conversation.schedule_memory_job(
+            db,
+            session_id=sid,
+            user_id=user_uuid,
+            companion_id=db_session.companion_id or companion_id,
+            turn_id=ctx.metadata.get("turn_id"),
+        )
     await db.commit()
 
     conversation.schedule_title_generation(

@@ -59,7 +59,9 @@ def _scripts() -> ScriptDirectory:
 
 def test_the_timeline_revision_extends_the_chain_and_is_the_only_head() -> None:
     scripts = _scripts()
-    assert scripts.get_heads() == ["a12f907bc341"]
+    # The chain head is the durable background-jobs revision (Phase 2 design,
+    # Task 2.2); the timeline revision remains the one below it.
+    assert scripts.get_heads() == ["b8d5e3f7a9c1"]
     assert scripts.get_revision("a12f907bc341").down_revision == REVISION
     assert scripts.get_revision(REVISION).down_revision == PREVIOUS_HEAD
 

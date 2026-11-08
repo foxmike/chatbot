@@ -61,7 +61,7 @@ _TABLES = [
     models.User, models.Companion, models.Session, models.Message, models.SemanticFact, models.Episode,
     models.BotMoodLog, models.UserStateLog, models.IdentityStateModel,
     models.CharacterProfileModel, models.Room, RelationshipTimelineEntryModel,
-    models.CompanionIdentityModel, models.CompanionRelationshipModel,
+    models.CompanionIdentityModel, models.CompanionRelationshipModel, models.BackgroundJob,
 ]
 
 
@@ -106,6 +106,11 @@ class Env:
             "user_state_logs": await self.count(models.UserStateLog),
             "timeline": await self.count(RelationshipTimelineEntryModel),
         }
+
+    async def jobs(self) -> list[models.BackgroundJob]:
+        async with self.factory() as db:
+            result = await db.execute(select(models.BackgroundJob).order_by(models.BackgroundJob.created_at))
+            return list(result.scalars().all())
 
 
 PG_URL = os.environ.get("PHASE0_PG_URL")
@@ -670,3 +675,167 @@ def test_title_scheduling_skips_titled_sessions_and_missing_registries() -> None
             assistant_message="a", session_factory=MagicMock(),
         )
     scheduled.assert_not_called()
+
+
+# --------------------------------------------------------------------------
+# Durable memory job creation: the completion hook schedules one job
+# --------------------------------------------------------------------------
+
+
+async def test_a_completed_turn_schedules_one_durable_memory_job(
+    env: Env, provider: FakeProvider
+) -> None:
+    await run_stream(env, MILESTONE)
+
+    user, assistant = await env.messages()
+    jobs = await env.jobs()
+    assert len(jobs) == 1
+    job = jobs[0]
+    assert job.task_type == "memory_extract"
+    assert job.turn_id == user.turn_id == assistant.turn_id
+    assert job.session_id == SESSION_ID
+    assert job.user_id == USER_ID
+    assert job.status == "pending"
+    assert job.attempt_count == 0
+    # Compact parameters only: identifiers, not the conversation history.
+    assert job.payload == {
+        "session_id": str(SESSION_ID),
+        "user_id": str(USER_ID),
+        "companion_id": None,
+        "turn_id": job.turn_id,
+    }
+
+
+async def test_duplicate_scheduling_creates_no_duplicate_job(env: Env) -> None:
+    async with env.factory() as db:
+        await conversation.schedule_memory_job(
+            db, session_id=SESSION_ID, user_id=USER_ID, companion_id=None, turn_id="turn-1"
+        )
+        await conversation.schedule_memory_job(
+            db, session_id=SESSION_ID, user_id=USER_ID, companion_id=None, turn_id="turn-1"
+        )
+        await db.commit()
+
+    assert await env.count(models.BackgroundJob) == 1
+
+
+async def test_standard_and_streaming_share_the_scheduling(
+    env: Env, provider: FakeProvider
+) -> None:
+    await standard_chat(env, "Hello! Good morning.")
+    await run_stream(env, "Hello! Good morning.")
+
+    jobs = await env.jobs()
+    assert len(jobs) == 2
+    standard_rows = await env.messages()
+    assert {job.turn_id for job in jobs} == {row.turn_id for row in standard_rows}
+
+
+async def test_standard_fast_path_still_schedules_the_durable_job(
+    env: Env, provider: FakeProvider
+) -> None:
+    queue = chat_api._background_queue
+    before = queue.pending_count
+
+    response, commits = await standard_chat(env, "Hello! Good morning.")
+
+    assert commits == 1  # the job insert shares the turn's one transaction
+    assert await env.count(models.BackgroundJob) == 1
+    assert queue.pending_count == before + 1  # volatile delivery is unchanged
+    assert [step["name"] for step in response.step_results] == [
+        "receive", "retrieve", "compile_context", "call_provider", "respond", "update_identity",
+    ]
+
+
+async def test_a_job_is_not_scheduled_when_the_messages_are_not_saved(
+    env: Env, provider: FakeProvider, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A realistic persistence failure: the real _persist_messages rolls back the
+    # session it was given (and, being non-strict, logs and carries on).
+    monkeypatch.setattr(
+        conversation, "add_turn_messages", AsyncMock(side_effect=RuntimeError("database unavailable"))
+    )
+
+    frames = await run_stream(env, MILESTONE)
+
+    assert any('"type": "response"' in frame for frame in frames)  # delivery is unaffected
+    assert await env.count(models.Message) == 0
+    assert await env.count(models.BackgroundJob) == 0
+
+
+async def test_a_failed_generation_saves_the_error_text_but_no_job(
+    env: Env, provider: FakeProvider, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def failing(ctx: TurnContext) -> AsyncIterator[str]:
+        ctx.provider_response = "Provider error: connection reset"
+        yield "Provider stream error: connection reset"
+
+    monkeypatch.setattr(streaming, "_stream_provider_tokens", failing)
+
+    frames = await run_stream(env, MILESTONE)
+
+    assert any('"type": "error"' in frame for frame in frames)
+    messages = await env.messages()
+    assert [m.role for m in messages] == ["user", "assistant"]
+    assert messages[1].content == "Provider error: connection reset"  # established behavior
+    assert await env.count(models.BackgroundJob) == 0
+
+
+async def test_a_spoken_barge_in_saves_no_job(
+    env: Env, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The approved design: interrupted, failed, or unsaved turns schedule no job."""
+    from test_avatar_backend import CID, FakeRuntime, FakeSocket  # real coordinator, fake media
+
+    from chatbot.avatar.coordinator import AvatarBinding, AvatarCoordinator
+
+    async with env.factory() as db:  # messages.companion_id is a real foreign key on PostgreSQL
+        db.add(models.Companion(companion_id=CID, user_id=USER_ID, name="Companion"))
+        await db.commit()
+
+    release = asyncio.Event()
+
+    async def hold_after_first_chunk(index: int) -> None:
+        if index == 1:
+            await release.wait()
+
+    fake = FakeProvider(chunks=("Heard. ", "Never heard."), hook=hold_after_first_chunk)
+    monkeypatch.setattr(turn_module, "_select_provider", lambda ctx: fake)
+    app = app_with_engine()
+    hub = AvatarCoordinator()
+    binding = AvatarBinding(str(SESSION_ID), str(USER_ID), CID, FakeSocket())
+    await hub.connect(binding, FakeRuntime)
+    app.state.avatar_coordinator = hub
+    request = Request(
+        {"type": "http", "app": app, "state": {"avatar_source": "spoken", "avatar_binding": binding}}
+    )
+    stream_request = streaming.StreamRequest(session_id=str(SESSION_ID), message=MILESTONE)
+    kwargs = stream_kwargs(
+        app, await snapshot(env), http_request=request, session_companion_id=CID, history=None
+    )
+
+    async def consume() -> None:
+        async for _ in streaming._stream_turn(stream_request, **kwargs):
+            pass
+
+    task = asyncio.create_task(consume())
+
+    async def first_segment_exists() -> None:
+        while not binding.turn or not binding.turn.segments:
+            if task.done():
+                task.result()  # surface a failed turn instead of waiting forever
+            await asyncio.sleep(0)
+
+    await asyncio.wait_for(first_segment_exists(), 5)
+    await hub.control(binding, {"type": "playback_end", "id": next(iter(binding.turn.segments))})
+    await hub.interrupt(binding)
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(task, 5)
+
+    messages = await env.messages()
+    assert [m.role for m in messages] == ["user", "assistant", "system"]
+    assert messages[1].content == "Heard. "
+    assert "interrupted" in messages[2].content
+    assert await env.effects() == {"facts": 0, "mood_logs": 0, "user_state_logs": 0, "timeline": 0}
+    assert await env.count(models.BackgroundJob) == 0  # interrupted turns schedule no job
+    await hub.detach(binding)

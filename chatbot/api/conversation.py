@@ -31,11 +31,12 @@ import uuid
 
 from fastapi import HTTPException, Request, status
 from sqlalchemy import or_, select, update, func, case
+from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from chatbot.api.sessions import sessions_store
 from chatbot.core.steps import TurnContext
-from chatbot.db.models import Companion, CompanionIdentityModel, CompanionRelationshipModel, IdentityStateModel, Message, Room as RoomModel, Session
+from chatbot.db.models import BackgroundJob, Companion, CompanionIdentityModel, CompanionRelationshipModel, IdentityStateModel, Message, Room as RoomModel, Session
 from chatbot.providers.base import ProviderConfig, ProviderRegistry
 from chatbot.providers.router import apply_routing_overrides
 
@@ -155,6 +156,62 @@ async def _load_companion_state(db: AsyncSession, user_id: str, companion_id: st
         .where(Companion.companion_id == companion_id, Companion.user_id == uuid.UUID(user_id))
     )
     return result.one_or_none()
+
+
+MEMORY_JOB_TASK_TYPE = "memory_extract"
+
+
+def _memory_job_payload(
+    session_id: uuid.UUID,
+    user_id: uuid.UUID,
+    companion_id: str | None,
+    turn_id: str,
+) -> dict[str, Any]:
+    """Compact work parameters for the eventual memory handler (Task 2.2c.2).
+
+    Identifiers only: the handler loads the persisted turn messages by
+    ``turn_id``; no conversation history is copied into the job row.
+    """
+    return {
+        "session_id": str(session_id),
+        "user_id": str(user_id),
+        "companion_id": companion_id,
+        "turn_id": turn_id,
+    }
+
+
+async def schedule_memory_job(
+    db: AsyncSession,
+    *,
+    session_id: uuid.UUID,
+    user_id: uuid.UUID,
+    companion_id: str | None,
+    turn_id: str | None,
+) -> None:
+    """Insert the durable memory-extraction job for one completed turn.
+
+    The authoritative completion hook (Phase 2 design, Task 2.2) schedules
+    extraction only after the turn's successful persistence eligibility is
+    known, and inserts the job inside the same transaction that persists the
+    completed turn's messages and effects — a rollback leaves neither
+    completed turn nor job. Interrupted, failed, or unsaved turns schedule no
+    job because the completion hook is not called for them.
+
+    Job identity is deterministic per persisted logical turn and work type:
+    the unique constraint on ``(task_type, turn_id)`` makes duplicate
+    scheduling a no-op via the conflict-safe insert.
+    """
+    if turn_id is None:
+        return
+    statement = postgres_insert(BackgroundJob).values(
+        task_type=MEMORY_JOB_TASK_TYPE,
+        turn_id=turn_id,
+        session_id=session_id,
+        user_id=user_id,
+        companion_id=companion_id,
+        payload=_memory_job_payload(session_id, user_id, companion_id, turn_id),
+    ).on_conflict_do_nothing(index_elements=["task_type", "turn_id"])
+    await db.execute(statement)
 
 
 async def record_completed_interaction(

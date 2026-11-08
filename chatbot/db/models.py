@@ -1022,6 +1022,115 @@ class Scene(Base):
     room: Mapped[Room] = relationship(back_populates="scenes", foreign_keys=[room_id])
 
 
+class BackgroundJob(Base):
+    """Durable completed-turn work dispatch row (Phase 2 design, Task 2.2).
+
+    Job identity is unique per persisted logical turn and work type: the
+    ``uq_background_jobs_turn_identity`` constraint on ``(task_type, turn_id)``
+    makes re-enqueueing the same turn's work conflict-safe, so callers can
+    insert with ``ON CONFLICT DO NOTHING``. Only the authoritative completion
+    hook schedules a job, in the same transaction as the completed messages,
+    so a rollback leaves neither completed turn nor job.
+
+    Lease recovery: a ``running`` job whose ``claimed_at`` exceeds the fixed
+    lease timeout is eligible again (claiming is done with ``SKIP LOCKED``
+    row locking, so a live claim cannot be double-claimed). Retries are
+    bounded by ``attempt_count`` against a finite attempt limit; exhaustion
+    persists ``failed`` with ``last_error`` and ``completed_at``. Never
+    silently discard terminal work.
+    """
+
+    __tablename__ = "background_jobs"
+    __table_args__ = (
+        sa.CheckConstraint(
+            "status IN ('pending', 'running', 'succeeded', 'failed')",
+            name="ck_background_jobs_status",
+        ),
+        sa.UniqueConstraint(
+            "task_type", "turn_id", name="uq_background_jobs_turn_identity"
+        ),
+        sa.Index(
+            "ix_background_jobs_status_available_at", "status", "available_at"
+        ),
+    )
+
+    # Deterministic UUID job key: the identity is the (task_type, turn_id)
+    # pair above; the primary key is generated per row and indexed.
+    job_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=sa.text("gen_random_uuid()"),
+    )
+    task_type: Mapped[str] = mapped_column(sa.String, nullable=False)
+    # Stable persisted turn id (String(64) to match messages.turn_id); nullable
+    # only when identity is derived from the persisted user/assistant message
+    # IDs carried in the payload instead.
+    turn_id: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        sa.ForeignKey("sessions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        sa.ForeignKey("users.id"), nullable=True, index=True
+    )
+    # Nullable for companion-less sessions.
+    companion_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("companions.companion_id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    # Compact work parameters / references (turn/message ids), never a copied
+    # unbounded conversation history; the worker loads the persisted turn
+    # messages. Bounded by the writer, not by the database.
+    payload: Mapped[dict[str, object]] = mapped_column(
+        sa.JSON, nullable=False, default=dict
+    )
+    status: Mapped[str] = mapped_column(
+        sa.String,
+        nullable=False,
+        default="pending",
+        server_default=sa.text("'pending'"),
+    )
+    attempt_count: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, default=0, server_default=sa.text("0")
+    )
+    # When the job becomes claimable; now() for immediate work, later for
+    # bounded exponential retry delay.
+    available_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.sql.func.now(),
+    )
+    claimed_at: Mapped[datetime | None] = mapped_column(
+        sa.DateTime(timezone=True), nullable=True
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        sa.DateTime(timezone=True), nullable=True
+    )
+    # Bounded error text; writers truncate before persisting.
+    last_error: Mapped[str | None] = mapped_column(sa.String(2000), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.sql.func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.sql.func.now(),
+        onupdate=sa.sql.func.now(),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Observability
+# ---------------------------------------------------------------------------
+
+
 class TraceRecord(Base):
     __tablename__ = "observability_traces"
 
@@ -1124,6 +1233,7 @@ __all__ = [
     "AgencyRitual",
     "AgencyTimeline",
     "Appearance",
+    "BackgroundJob",
     "Base",
     "BotMoodLog",
     "CharacterProfileModel",
