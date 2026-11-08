@@ -203,6 +203,11 @@ class CompanionIdentityModel(Base):
     trait_adjustments: Mapped[dict] = mapped_column(
         sa.JSON, nullable=False, default=dict, server_default=sa.text("'{}'")
     )
+    # Developed opinions, preferences, interests and self-understanding with
+    # evidence (``chatbot/soul/self_model.py``). ``{}`` means no development.
+    self_model: Mapped[dict] = mapped_column(
+        sa.JSON, nullable=False, default=dict, server_default=sa.text("'{}'")
+    )
     version: Mapped[int] = mapped_column(
         sa.Integer, nullable=False, default=1, server_default=sa.text("1")
     )
