@@ -178,6 +178,9 @@ class PgvectorStore(VectorStore):
 
         for name, value in filter.items():
             column = self.table.c.get(name)
+            if name == "owner_session_id":
+                stmt = self._apply_owner_session_filter(stmt, value)
+                continue
             if column is None and name == "session_id":
                 stmt = self._apply_session_filter(stmt, value)
                 continue
@@ -187,6 +190,57 @@ class PgvectorStore(VectorStore):
             stmt = self._apply_column_filter(stmt, column, value)
 
         return stmt
+
+    def _apply_owner_session_filter(
+        self, stmt: sa.sql.Select[Any], session_id: Any
+    ) -> sa.sql.Select[Any]:
+        """Scope semantic facts to the owner and context of a trusted session."""
+        if self.table.name != models.SemanticFact.__tablename__:
+            raise ValueError("owner_session_id is only supported for semantic facts")
+
+        session_id_value = self._coerce_column_value(models.Session.id, session_id)
+        owner_session = sa.select(models.Session.user_id).where(
+            models.Session.id == session_id_value
+        ).scalar_subquery()
+        stmt = stmt.where(models.SemanticFact.user_id == owner_session)
+
+        source_message_id = self.table.c.get("source_message_id")
+        if source_message_id is None:
+            return stmt
+
+        current_companion = sa.select(models.Session.companion_id).where(
+            models.Session.id == session_id_value
+        ).scalar_subquery()
+        other_companion_source = sa.exists(
+            sa.select(1)
+            .select_from(models.Message)
+            .join(models.Session, models.Session.id == models.Message.session_id)
+            .where(
+                models.Message.id == source_message_id,
+                sa.func.coalesce(
+                    models.Message.companion_id, models.Session.companion_id
+                ).is_not(None),
+                sa.func.coalesce(
+                    models.Message.companion_id, models.Session.companion_id
+                ) != current_companion,
+            )
+        )
+        stmt = stmt.where(~other_companion_source)
+
+        current_room = sa.select(models.Session.room_id).where(
+            models.Session.id == session_id_value
+        ).scalar_subquery()
+        other_room_source = sa.exists(
+            sa.select(1)
+            .select_from(models.Message)
+            .join(models.Session, models.Session.id == models.Message.session_id)
+            .where(
+                models.Message.id == source_message_id,
+                models.Session.room_id.is_not(None),
+                models.Session.room_id != current_room,
+            )
+        )
+        return stmt.where(~other_room_source)
 
     def _apply_session_filter(
         self,
