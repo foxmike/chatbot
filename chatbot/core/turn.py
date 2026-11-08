@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import json
 import os
 import re
 import time
@@ -13,6 +14,7 @@ from urllib.parse import urlsplit, urlunsplit
 from datetime import datetime, timezone
 from enum import Enum
 import inspect
+from copy import deepcopy
 from time import perf_counter
 from typing import Any
 
@@ -178,18 +180,24 @@ logger = logging.getLogger(__name__)
 
 FAST_PATH_STEPS: list[str] = [
     "receive",
+    "restore_mood",
     "retrieve",
     "compile_context",
     "call_provider",
+    "update_mood",
+    "persist_emotional_state",
     "respond",
     "update_identity",
 ]
 ROOM_FAST_PATH_STEPS: list[str] = [
     "receive",
     "room_context",
+    "restore_mood",
     "retrieve",
     "compile_context",
     "call_provider",
+    "update_mood",
+    "persist_emotional_state",
     "respond",
     "update_identity",
 ]
@@ -406,6 +414,91 @@ class RetrieveStep(TurnStep):
         )
 
 
+class RestoreMoodStep(TurnStep):
+    """Restore the current companion mood before either fast or deep preparation."""
+
+    name = "restore_mood"
+
+    async def run(self, ctx: TurnContext) -> TurnContext:
+        if not _emotional_intelligence_ready(ctx):
+            return ctx
+        if ctx.metadata.get("companion_identity") is None:
+            return ctx
+        if _phase5_roleplay_context(ctx):
+            ctx.metadata["phase5_roleplay_context"] = True
+            ctx.metadata["mood_restoration"] = {"source": "omitted_roleplay"}
+            return ctx
+
+        from chatbot.soul.mood_continuity import (
+            load_restorable_mood,
+            restore_mood,
+            restore_mood_tier,
+            temperament_from_character,
+        )
+
+        now = datetime.now(timezone.utc)
+        temperament = _phase5_temperament(ctx, temperament_from_character)
+        relationship = ctx.metadata.get("companion_relationship")
+        current = _coerce_mood_state(
+            ctx.metadata.get("mood_state") or _read_session_field(ctx, "mood_state")
+        )
+        db = _db_session(ctx)
+        user_id = ctx.metadata.get("user_id")
+        companion_id = ctx.metadata.get("companion_id")
+        room_id = ctx.metadata.get("room_id")
+        source_session_id: str | None = None
+        if current is None and db is not None and user_id and companion_id:
+            try:
+                restorable = await load_restorable_mood(
+                    db,
+                    user_id=user_id,
+                    companion_id=str(companion_id),
+                    room_id=str(room_id) if room_id else None,
+                    exclude_session_id=ctx.session_id,
+                    now=now,
+                )
+            except Exception:
+                logger.warning("Cross-session mood restoration failed", exc_info=True)
+                restorable = None
+            if restorable is not None:
+                current = restore_mood(
+                    restorable.state, now=now, temperament=temperament, relationship=relationship
+                )
+                source_session_id = restorable.source_session_id
+                if restorable.mood_tier is not None:
+                    identity = _current_identity_state(ctx)
+                    reset_target = getattr(identity, "mood_reset_target", None)
+                    if identity is not None and isinstance(reset_target, Mapping):
+                        identity = deepcopy(identity)
+                        identity.mood = restore_mood_tier(
+                            restorable.mood_tier,
+                            reset_target,
+                            now=now,
+                            last_updated=restorable.mood_tier_updated_at,
+                            temperament=temperament,
+                        )
+                        ctx.metadata["identity_state"] = identity
+        if current is None:
+            engine = _configured_component(ctx, ("mood_engine", "bot_mood_engine"), MoodEngine)
+            baseline = getattr(engine, "baseline_state", None)
+            current = baseline(temperament) if callable(baseline) else None
+            restored_from = "temperament_baseline"
+        else:
+            current = restore_mood(
+                current, now=now, temperament=temperament, relationship=relationship
+            )
+            restored_from = "previous_session" if source_session_id else "current_session"
+        if current is not None:
+            ctx.metadata["mood_state"] = current
+        ctx.metadata["phase5_mood_active"] = True
+        ctx.metadata["mood_restoration"] = {
+            "source": restored_from,
+            "source_session_id": source_session_id,
+            "restored_at": now.isoformat(),
+        }
+        return ctx
+
+
 class InferUserStateStep(TurnStep):
     name = "infer_user_state"
 
@@ -553,17 +646,24 @@ class CompileContextStep(TurnStep):
                     exc_info=True,
                 )
 
+        if _phase5_roleplay_context(ctx):
+            ctx.metadata["phase5_roleplay_context"] = True
         mood_state = _current_mood_state(ctx) if _emotional_intelligence_ready(ctx) else None
         mode = _current_conversation_mode(ctx) if _emotional_intelligence_ready(ctx) else None
+        if _phase5_roleplay_context(ctx):
+            mood_state = None
         persona_prompt = await self._persona_prompt(ctx, mood=mood_state, mode=mode)
         scene_prompt = _roleplay_scene_prompt(ctx)
         phase4 = _phase4_prompt_sections(ctx)
+        phase5 = await _phase5_prompt_sections(ctx)
         if compose_prompt_layers is not None:
             persona_prompt = compose_prompt_layers({
                 "companion_identity": persona_prompt,
                 "open_threads": phase4["open_threads"],
                 "room_scene": scene_prompt,
+                "emotional_associations": phase5["emotional_associations"],
                 "character_behavior": phase4["character_behavior"],
+                "social_context": phase5["social_context"],
             })
             if scene_prompt:
                 ctx.metadata["roleplay_scene_prompt"] = scene_prompt
@@ -571,7 +671,8 @@ class CompileContextStep(TurnStep):
             persona_prompt = "\n\n".join(
                 part for part in (
                     persona_prompt.strip(), phase4["open_threads"], scene_prompt,
-                    phase4["character_behavior"],
+                    phase5["emotional_associations"], phase4["character_behavior"],
+                    phase5["social_context"],
                 ) if part
             )
             if scene_prompt:
@@ -746,9 +847,24 @@ class UpdateMoodStep(TurnStep):
             "conversation_mode": _json_safe(_current_conversation_mode(ctx)),
             "retrieved_memories": _json_safe(ctx.retrieved_memories),
             "extracted_memories": _json_safe(ctx.extracted_memories),
+            "emotional_associations": _json_safe(
+                ctx.metadata.get("emotional_associations_context", ())
+            ),
         }
         try:
-            updated_state = mood_engine.update(turn_result, current_state)
+            if ctx.metadata.get("phase5_roleplay_context"):
+                return ctx
+            if ctx.metadata.get("phase5_mood_active"):
+                from chatbot.soul.mood_continuity import temperament_from_character
+
+                updated_state = mood_engine.update(
+                    turn_result,
+                    current_state,
+                    temperament=_phase5_temperament(ctx, temperament_from_character),
+                    now=datetime.now(timezone.utc),
+                )
+            else:
+                updated_state = mood_engine.update(turn_result, current_state)
         except Exception:
             logger.warning(
                 "Mood update failed for session %s",
@@ -770,6 +886,8 @@ class PersistEmotionalStateStep(TurnStep):
             return ctx
 
         mood_state = _current_mood_state(ctx)
+        if ctx.metadata.get("phase5_roleplay_context"):
+            mood_state = None
         user_state = _current_user_state(ctx)
         mode = _current_conversation_mode(ctx)
         if mood_state is None and user_state is None and mode is None:
@@ -946,10 +1064,13 @@ class UpdateIdentityStep(TurnStep):
         ctx.metadata["previous_identity_state"] = _coerce_identity_state(identity)
         ctx.metadata["identity_state_model"] = updated_identity
         ctx.metadata["identity_state"] = _coerce_identity_state(updated_identity)
-        ctx.metadata["mood_state"] = updated_mood
+        phase5_mood = bool(ctx.metadata.get("phase5_mood_active"))
+        if not phase5_mood:
+            ctx.metadata["mood_state"] = updated_mood
 
-        _persist_identity_session_mapping(ctx, updated_identity, updated_mood)
-        await _persist_db_identity_state(ctx, identity, updated_identity, updated_mood)
+        session_mood = None if phase5_mood else updated_mood
+        _persist_identity_session_mapping(ctx, updated_identity, session_mood)
+        await _persist_db_identity_state(ctx, identity, updated_identity, session_mood)
         return ctx
 
 
@@ -1438,6 +1559,7 @@ def build_default_pipeline(
         [
             ReceiveStep(),
             RoomContextStep(),
+            RestoreMoodStep(),
             SceneAwareRetrievalStep(WorkingMemoryLoader),
             InferUserStateStep(UserStateEngine, MoodEngine),
             SelectConversationModeStep(ModeSelector),
@@ -2863,7 +2985,7 @@ def _phase4_prompt_sections(ctx: TurnContext) -> dict[str, str | None]:
         or ctx.metadata.get("active_scene")
         or ctx.metadata.get("scene_id")
     )
-    if is_scene or mode_name == "roleplay" or intent == "roleplay":
+    if is_scene or mode_name == "roleplay" or intent == "roleplay" or _phase5_roleplay_context(ctx):
         omitted = "scene" if is_scene else "roleplay"
         behavior_meta["omitted"] = omitted
         thread_meta["omitted"] = omitted
@@ -2946,6 +3068,225 @@ def _phase4_prompt_sections(ctx: TurnContext) -> dict[str, str | None]:
     identity_sources["behavior"] = behavior_meta
     identity_sources["open_threads"] = thread_meta
     return empty
+
+
+async def _phase5_prompt_sections(ctx: TurnContext) -> dict[str, str | None]:
+    """Add bounded mood-associated and social evidence to shared preparation."""
+    identity_sources = ctx.metadata.get("identity_sources")
+    if not isinstance(identity_sources, dict):
+        identity_sources = {}
+        ctx.metadata["identity_sources"] = identity_sources
+    association_meta: dict[str, Any] = {
+        "included": 0, "excluded": 0, "chars": 0, "truncated": False, "omitted": None,
+        "ids": [], "implicit_unresolved": 0,
+    }
+    social_meta: dict[str, Any] = {
+        "included": 0, "excluded": 0, "chars": 0, "truncated": False, "omitted": None,
+        "character_signals": 0, "relationship_signals": 0, "views": 0, "evidence": 0,
+    }
+    mood_state = ctx.metadata.get("mood_state")
+    restoration = ctx.metadata.get("mood_restoration") or {}
+    identity_sources["mood_continuity"] = {
+        "source": restoration.get("source") or ("session_state" if mood_state is not None else "baseline"),
+        "mood": getattr(mood_state, "mood", None),
+        "energy": getattr(mood_state, "energy", None),
+        "last_updated": (
+            getattr(mood_state, "last_updated", None).isoformat()
+            if getattr(mood_state, "last_updated", None) is not None
+            else None
+        ),
+    }
+    output: dict[str, str | None] = {"emotional_associations": None, "social_context": None}
+    if ctx.metadata.get("companion_identity") is None:
+        association_meta["omitted"] = social_meta["omitted"] = "no_companion"
+        identity_sources["emotional_associations"] = association_meta
+        identity_sources["social_context"] = social_meta
+        return output
+    if _phase5_roleplay_context(ctx):
+        association_meta["omitted"] = social_meta["omitted"] = "roleplay_or_scene"
+        identity_sources["emotional_associations"] = association_meta
+        identity_sources["social_context"] = social_meta
+        return output
+
+    profile = ctx.metadata.get("character_profile") or ctx.persona
+    relationship = ctx.metadata.get("companion_relationship") or {}
+    experiences: list[dict[str, Any]] = []
+    for memory in ctx.retrieved_memories or ():
+        if not isinstance(memory, Mapping):
+            continue
+        provenance = memory.get("extraction_metadata") or {}
+        if not isinstance(provenance, Mapping):
+            provenance = {}
+        kind = str(provenance.get("kind") or memory.get("kind") or "")
+        if kind != "shared_experience":
+            continue
+        detail = provenance.get("experience") or {}
+        if not isinstance(detail, Mapping):
+            detail = {}
+        experiences.append({
+            "id": str(memory.get("id") or ""),
+            "title": str(detail.get("title") or "")[:120],
+            "narrative": str(memory.get("fact_text") or memory.get("content") or "")[:240],
+            "topics": list(detail.get("topics") or memory.get("topics") or ())[:5],
+            "source_message_id": str(memory.get("source_message_id") or ""),
+            "turn_id": str(provenance.get("turn_id") or ""),
+            "status": "recorded",
+        })
+
+    records: list[Any] = []
+    db = _db_session(ctx)
+    session_id = _coerce_uuid(ctx.session_id)
+    if db is not None and session_id is not None:
+        try:
+            from chatbot.soul.emotional_associations import retrieve_emotional_associations
+
+            threads = ctx.metadata.get("companion_open_threads") or ()
+            thread_subjects = [
+                str(row.get("subject") or row.get("summary") or row.get("topic") or "")
+                for row in threads
+                if isinstance(row, Mapping) and row.get("status", "open") == "open"
+            ]
+            records = await retrieve_emotional_associations(
+                db,
+                session_id=session_id,
+                message=ctx.user_message,
+                experience_ids=[item["id"] for item in experiences if item["id"]],
+                thread_subjects=thread_subjects,
+                limit=3,
+                include_unresolved=True,
+                max_unresolved=1,
+            )
+            from chatbot.soul.emotional_associations import render_associations
+
+            rendered = render_associations(records, max_chars=700)
+            if rendered:
+                output["emotional_associations"] = rendered
+                association_meta.update({
+                    "included": len(records),
+                    "chars": len(rendered),
+                    "ids": [record.id for record in records],
+                    "implicit_unresolved": sum("unfinished" in record.reasons for record in records),
+                    "excluded": max(0, len(records) - rendered.count("\n- ")),
+                    "truncated": len(records) > rendered.count("\n- "),
+                })
+            else:
+                association_meta["omitted"] = "no_relevant_association"
+        except Exception:
+            association_meta["omitted"] = "retrieval_error"
+            logger.warning("Emotional association retrieval failed", exc_info=True)
+    else:
+        association_meta["omitted"] = "database_unavailable"
+
+    try:
+        from chatbot.soul.social_interpretation import assemble_social_interpretation
+
+        association_refs = [
+            {
+                "id": record.id,
+                "kind": "emotional_association",
+                "status": "established",
+                "subject": record.subject,
+                "statement": record.interpretation,
+                "interpretation": record.interpretation,
+                "source_message_id": record.source_message_id,
+                "turn_id": record.turn_id,
+                "certainty": "established",
+                "unresolved": record.unresolved,
+            }
+            for record in records
+        ]
+        social = assemble_social_interpretation(
+            personality=profile,
+            relationship=relationship,
+            conversation_context=ctx.user_message,
+            effective_traits=(
+                ctx.metadata.get("companion_identity")
+                if isinstance(ctx.metadata.get("companion_identity"), Mapping)
+                else {}
+            ),
+            self_model=ctx.metadata.get("companion_self_model"),
+            relationship_history=ctx.metadata.get("companion_relationship_history"),
+            shared_experiences=experiences,
+            social_references=association_refs,
+        )
+        social_data = social.as_dict()
+        # Personality, configured relationship and established opinions already
+        # appear in the persona/Phase 4 layers. Add only dynamic shared evidence
+        # and factual interaction history here to avoid duplicating those layers.
+        social_payload = {
+            "interaction_history": social_data["interaction_history"],
+            "shared_evidence": social_data["shared_evidence"],
+            "ambiguity": social_data["interpretation"],
+        }
+        social_prefix = "SOCIAL CONTEXT (stored evidence, not a verdict on current intent):\n"
+        social_json = json.dumps(social_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        if social_payload["interaction_history"] or social_payload["shared_evidence"]:
+            while len(social_prefix) + len(social_json) > 1_200 and social_payload["shared_evidence"]:
+                social_payload["shared_evidence"].pop()
+                social_json = json.dumps(social_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+                social_meta["truncated"] = True
+            output["social_context"] = social_prefix + social_json
+            social_meta.update({
+                "chars": len(output["social_context"]),
+                "included": len(social_payload["shared_evidence"]) + bool(social_payload["interaction_history"]),
+                "excluded": max(0, len(experiences) + len(association_refs) - len(social_payload["shared_evidence"])),
+                "character_signals": len(social_data["character_signals"]),
+                "relationship_signals": len(social_data["relationship_signals"]),
+                "views": len(social_data["established_views"]),
+                "evidence": len(social_payload["shared_evidence"]),
+            })
+        else:
+            social_meta.update({
+                "omitted": "no_relevant_shared_evidence",
+                "character_signals": len(social_data["character_signals"]),
+                "relationship_signals": len(social_data["relationship_signals"]),
+                "views": len(social_data["established_views"]),
+                "excluded": len(experiences) + len(association_refs),
+            })
+        ctx.metadata["social_interpretation"] = social_data
+    except Exception:
+        social_meta["omitted"] = "assembly_error"
+        logger.warning("Social context assembly failed", exc_info=True)
+
+    ctx.metadata["emotional_associations_context"] = records
+    identity_sources["emotional_associations"] = association_meta
+    identity_sources["social_context"] = social_meta
+    return output
+
+
+def _phase5_roleplay_context(ctx: TurnContext) -> bool:
+    mode = _current_conversation_mode(ctx)
+    mode_name = str(getattr(mode, "value", mode) or "").casefold()
+    intent = str(ctx.metadata.get("intent") or "").casefold()
+    if (
+        ctx.metadata.get("scene_memory_isolation")
+        or ctx.metadata.get("active_scene")
+        or ctx.metadata.get("scene_id")
+        or str(ctx.metadata.get("room_type") or "").casefold() == "roleplay_scene"
+        or mode_name == "roleplay"
+        or intent == "roleplay"
+    ):
+        return True
+    try:
+        from chatbot.memory.extraction import _ROLEPLAY_FRAME, _normalize_quotes
+
+        return bool(_ROLEPLAY_FRAME.search(_normalize_quotes(ctx.user_message or "")))
+    except Exception:
+        return False
+
+
+def _phase5_temperament(ctx: TurnContext, factory: Any) -> Any:
+    profile = ctx.metadata.get("character_profile") or ctx.persona or {}
+    traits = ctx.metadata.get("companion_identity")
+    if isinstance(profile, Mapping):
+        values = dict(profile)
+        if isinstance(traits, Mapping):
+            values["personality_sliders"] = dict(traits)
+        return factory(values)
+    return factory({
+        "personality_sliders": dict(traits) if isinstance(traits, Mapping) else {},
+        "humor_style": getattr(profile, "humor_style", ""),
+    })
 
 
 def _current_character_profile(ctx: TurnContext) -> Any | None:

@@ -28,7 +28,9 @@ class PromptLayerName(str, Enum):
     RELATIONSHIP_STAGE = "relationship_stage"
     ROOM_SCENE = "room_scene"
     MOOD_STATE = "mood_state"
+    EMOTIONAL_ASSOCIATIONS = "emotional_associations"
     CHARACTER_BEHAVIOR = "character_behavior"
+    SOCIAL_CONTEXT = "social_context"
     MEMORY = "memory"
     SESSION_GOALS = "session_goals"
 
@@ -41,7 +43,9 @@ PROMPT_LAYER_ORDER: tuple[PromptLayerName, ...] = (
     PromptLayerName.RELATIONSHIP_STAGE,
     PromptLayerName.ROOM_SCENE,
     PromptLayerName.MOOD_STATE,
+    PromptLayerName.EMOTIONAL_ASSOCIATIONS,
     PromptLayerName.CHARACTER_BEHAVIOR,
+    PromptLayerName.SOCIAL_CONTEXT,
     PromptLayerName.MEMORY,
     PromptLayerName.SESSION_GOALS,
 )
@@ -107,7 +111,9 @@ PROMPT_LAYER_TITLES: dict[PromptLayerName, str] = {
     PromptLayerName.RELATIONSHIP_STAGE: "Relationship Stage",
     PromptLayerName.ROOM_SCENE: "Room/Scene",
     PromptLayerName.MOOD_STATE: "Mood/State",
+    PromptLayerName.EMOTIONAL_ASSOCIATIONS: "Emotional Associations",
     PromptLayerName.CHARACTER_BEHAVIOR: "Character Behavior",
+    PromptLayerName.SOCIAL_CONTEXT: "Social Context",
     PromptLayerName.MEMORY: "Memory",
     PromptLayerName.SESSION_GOALS: "Session Goals",
 }
@@ -243,7 +249,9 @@ _LAYER_BUDGET_SECTION: dict[PromptLayerName, str] = {
     PromptLayerName.MEMORY: "memory",
     PromptLayerName.ROOM_SCENE: "scene",
     PromptLayerName.MOOD_STATE: "scene",
+    PromptLayerName.EMOTIONAL_ASSOCIATIONS: "memory",
     PromptLayerName.CHARACTER_BEHAVIOR: "persona",
+    PromptLayerName.SOCIAL_CONTEXT: "persona",
     PromptLayerName.SESSION_GOALS: "scene",
 }
 
@@ -305,7 +313,9 @@ def build_prompt_layers(
     relationship_stage: Any = None,
     room_scene: Any = None,
     mood_state: Any = None,
+    emotional_associations: Any = None,
     character_behavior: Any = None,
+    social_context: Any = None,
     memory: Any = None,
     session_goals: Any = None,
     attention_anchors: Any = None,
@@ -378,7 +388,9 @@ def build_prompt_layers(
             make_prompt_layer(PromptLayerName.RELATIONSHIP_STAGE, relationship_stage),
             make_prompt_layer(PromptLayerName.ROOM_SCENE, room_scene),
             make_prompt_layer(PromptLayerName.MOOD_STATE, mood_state),
+            make_prompt_layer(PromptLayerName.EMOTIONAL_ASSOCIATIONS, emotional_associations),
             make_prompt_layer(PromptLayerName.CHARACTER_BEHAVIOR, character_behavior),
+            make_prompt_layer(PromptLayerName.SOCIAL_CONTEXT, social_context),
             memory_layer,
             goals_layer,
         )

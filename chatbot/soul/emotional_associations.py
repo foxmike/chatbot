@@ -94,12 +94,14 @@ MAX_HISTORY_DEPTH = 20
 MAX_CANDIDATES = 60        # rows examined by one reactivation lookup
 MAX_RETRIEVED = 3
 MAX_RETRIEVED_CEILING = 5
+MAX_IMPLICIT_UNRESOLVED = 1
 MAX_CONTEXT_CHARS = 700
 MAX_LINE_CHARS = 220
 
 CONTEXT_HEADER = (
-    "EMOTIONAL ASSOCIATIONS (what these have meant to you before; background, "
-    "not an instruction about how to react now):"
+    "EMOTIONAL ASSOCIATIONS (what these have meant to you before; unresolved items "
+    "may inform current tone when relevant, even when unnamed, but need not become "
+    "the topic or dictate a response):"
 )
 
 _EMOTION_RE = re.compile(r"^[a-z][a-z' -]*$")
@@ -1030,6 +1032,8 @@ async def retrieve_emotional_associations(
     experience_ids: Sequence[str] = (),
     thread_subjects: Sequence[str] = (),
     limit: int = MAX_RETRIEVED,
+    include_unresolved: bool = False,
+    max_unresolved: int = MAX_IMPLICIT_UNRESOLVED,
     now: datetime | None = None,
 ) -> list[EmotionalAssociation]:
     """Associations relevant to this moment, most relevant first (at most ``limit``).
@@ -1038,7 +1042,11 @@ async def retrieve_emotional_associations(
     call. An association is relevant when its subject's words appear in the
     message, when the shared experience it is tied to is being recalled
     (``experience_ids``), or when it is unfinished and one of the companion's
-    open thread subjects (``thread_subjects``) concerns it. Visibility is the
+    open thread subjects (``thread_subjects``) concerns it. When requested,
+    one recent unresolved association may also surface without a lexical match;
+    this implicit reminder expires after two significance half-lives. Direct
+    message, experience and thread matches remain available for older history.
+    Visibility is the
     session's owner/companion/room/session scope, so nothing crosses users,
     companions or rooms. Nothing relevant means an empty list.
     """
@@ -1050,8 +1058,9 @@ async def retrieve_emotional_associations(
     message_stems = _stems(message or "")
     thread_stems = [_stems(subject) for subject in thread_subjects]
     experiences = {str(item) for item in experience_ids}
+    max_unresolved = max(0, min(int(max_unresolved), MAX_IMPLICIT_UNRESOLVED))
 
-    scored: list[tuple[float, str, EmotionalAssociation]] = []
+    scored: list[tuple[float, str, EmotionalAssociation, bool]] = []
     for row in rows:
         data = _assoc(row)
         subject_stems = _stems(str(data.get("subject") or ""))
@@ -1075,12 +1084,30 @@ async def retrieve_emotional_associations(
                     strength = max(strength, 0.8)
                     matched |= overlap
                     break
+        implicit_unresolved = False
+        if not reasons and include_unresolved and max_unresolved and data.get("unresolved"):
+            age_days = max(0.0, (now - _last_at(row)).total_seconds() / 86400.0)
+            significance = str(data.get("significance") or "significant")
+            if age_days <= 2.0 * HALF_LIFE_DAYS.get(significance, HALF_LIFE_DAYS["significant"]):
+                reasons.append("unfinished")
+                strength = 0.35
+                implicit_unresolved = True
         if not reasons:
             continue
         record = _record(row, now=now, matched=tuple(sorted(matched)), reasons=tuple(reasons))
-        scored.append((0.5 * strength + 0.5 * record.weight, str(row.id), record))
+        relevance = 0.3 * strength + 0.5 * record.weight + (0.2 if implicit_unresolved else 0.2 * strength)
+        scored.append((relevance, str(row.id), record, implicit_unresolved))
     scored.sort(key=lambda item: (-item[0], item[1]))
-    return [record for _, _, record in scored[:limit]]
+    selected: list[EmotionalAssociation] = []
+    implicit_count = 0
+    for _, _, record, implicit in scored:
+        if implicit and implicit_count >= max_unresolved:
+            continue
+        selected.append(record)
+        implicit_count += int(implicit)
+        if len(selected) >= limit:
+            break
+    return selected
 
 
 def render_associations(
@@ -1236,6 +1263,7 @@ __all__ = [
     "AssociationObservation",
     "AssociationSource",
     "EmotionalAssociation",
+    "MAX_IMPLICIT_UNRESOLVED",
     "apply_emotional_associations",
     "association_key",
     "effective_weight",

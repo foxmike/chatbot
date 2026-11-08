@@ -27,7 +27,7 @@ from chatbot.db.models import (
     Session,
     SemanticFact,
 )
-from chatbot.memory.autobiography import EXPERIENCE_KIND, link_experience
+from chatbot.memory.autobiography import EXPERIENCE_KIND, link_experience, list_experiences
 from chatbot.memory.extraction import _ROLEPLAY_FRAME, _normalize_quotes
 from chatbot.memory.llm_extraction import (
     LLMMemoryExtractor,
@@ -296,6 +296,10 @@ async def _process_memory_extract_job(
         assistant_msg = next((m for m in messages if m.role == "assistant"), None)
         known_self_items = ""
         known_threads = ""
+        known_associations = ""
+        association_keys: list[str] = []
+        known_experience_ids: list[str] = []
+        known_experiences = ""
         if receipt is None and session_row.companion_id:
             # Existing item keys let the one extraction call continue or challenge them;
             # open thread keys let it continue or resolve unfinished business.
@@ -310,6 +314,24 @@ async def _process_memory_extract_job(
                     check_ownership=False,  # ownership was verified above
                 )
             )
+            from chatbot.soul.emotional_associations import (
+                known_association_keys,
+                known_associations_text,
+                list_associations,
+            )
+
+            associations = await list_associations(
+                db, session_id=job.session_id, include_history=False, limit=12
+            )
+            known_associations = known_associations_text(associations, limit=12)
+            association_keys = sorted(known_association_keys(associations))
+            experiences = await list_experiences(db, session_id=job.session_id, limit=20)
+            known_experience_ids = [record.id for record in experiences]
+            known_experiences = "\n".join(
+                f"- {record.id}: {record.title[:80]} — {record.narrative[:100]}"
+                for record in experiences
+                if record.status == "active"
+            )[:700]
         await db.commit()  # release the read transaction before inference
         if not messages:
             return
@@ -329,10 +351,31 @@ async def _process_memory_extract_job(
                 turn_id=job.turn_id,
                 known_self_items=known_self_items,
                 known_threads=known_threads,
+                known_associations=known_associations,
+                known_association_keys=association_keys,
+                known_experiences=known_experiences,
+                known_experience_ids=known_experience_ids,
             )
             outcome = getattr(extractor, "last_outcome", None)
             self_observations = list(getattr(outcome, "self_observations", None) or [])
             thread_updates = list(getattr(outcome, "thread_updates", None) or [])
+            emotional_observations = list(
+                getattr(outcome, "emotional_observations", None) or []
+            )
+            extraction_status = {
+                "method": getattr(outcome, "method", "unknown"),
+                "model": getattr(outcome, "model", None),
+                "fallback_reason": getattr(outcome, "fallback_reason", None),
+                "output_limit_tokens": int(getattr(outcome, "output_limit_tokens", 700)),
+                "finish_reason": getattr(outcome, "response_finish_reason", None),
+                "truncated": bool(getattr(outcome, "response_truncated", False)),
+                "accepted": {
+                    "memory_entries": len(entries),
+                    "self_observations": len(self_observations),
+                    "thread_updates": len(thread_updates),
+                    "emotional_observations": len(emotional_observations),
+                },
+            }
             locked = await db.scalar(
                 sa.select(BackgroundJob)
                 .where(BackgroundJob.job_id == job.job_id)
@@ -350,6 +393,8 @@ async def _process_memory_extract_job(
                     "entries": entries[:MAX_RECEIPT_ENTRIES],
                     "self_observations": self_observations,
                     "thread_updates": thread_updates,
+                    "emotional_observations": emotional_observations,
+                    "extraction_status": extraction_status,
                 }
                 locked.payload = {**locked.payload, "extraction_result": receipt}
             await db.commit()  # durable replay input, including an empty result
@@ -389,6 +434,9 @@ async def _process_memory_extract_job(
             db, job, session_row, user_msg, assistant_msg, storage, receipt
         )
         await _apply_thread_updates(
+            db, job, session_row, user_msg, assistant_msg, storage, receipt
+        )
+        await _apply_emotional_observations(
             db, job, session_row, user_msg, assistant_msg, storage, receipt
         )
         locked.payload = {**locked.payload, "effects_applied": True}
@@ -526,6 +574,77 @@ async def _apply_thread_updates(
         message_id=str(assistant_msg.id),
         source_at=assistant_msg.created_at,
         relationship_context=relationship_context,
+    )
+
+
+_EMOTIONAL_FIELDS = (
+    "subject", "emotion", "interpretation", "source", "excerpt", "role",
+    "target_kind", "significance", "experience_ref", "unresolved", "revises", "status",
+)
+
+
+async def _apply_emotional_observations(
+    db: Any,
+    job: Any,
+    session_row: Any,
+    user_msg: Any,
+    assistant_msg: Any,
+    storage: TurnMemoryStorage,
+    receipt: dict[str, Any],
+) -> None:
+    """Apply validated emotional associations atomically with the job effects."""
+    raw_items = receipt.get("emotional_observations") or []
+    if not raw_items or not session_row.companion_id or not storage.history_allowed:
+        return
+    reply_owner = getattr(assistant_msg, "companion_id", None)
+    if reply_owner is not None and reply_owner != session_row.companion_id:
+        return
+    from chatbot.soul.emotional_associations import (
+        AssociationObservation,
+        AssociationSource,
+        apply_emotional_associations,
+    )
+
+    observations: list[AssociationObservation] = []
+    for raw in raw_items:
+        if not isinstance(raw, dict):
+            continue
+        try:
+            observations.append(
+                AssociationObservation(**{key: raw[key] for key in _EMOTIONAL_FIELDS if key in raw})
+            )
+        except TypeError:
+            continue
+    if not observations:
+        return
+    source = AssociationSource(
+        turn_id=str(job.turn_id),
+        session_id=str(job.session_id),
+        source_at=assistant_msg.created_at,
+        job_id=str(job.job_id),
+        user_message_id=str(user_msg.id) if user_msg is not None else None,
+        assistant_message_id=str(assistant_msg.id) if assistant_msg is not None else None,
+        in_roleplay=(
+            bool(_ROLEPLAY_FRAME.search(_normalize_quotes(user_msg.content or "")))
+            or str(
+                getattr(
+                    getattr(session_row, "conversation_mode", ""),
+                    "value",
+                    getattr(session_row, "conversation_mode", ""),
+                )
+                or ""
+            ).casefold() == "roleplay"
+        ),
+    )
+    # Ownership, room eligibility, replay detection and supersession are
+    # enforced by the existing writer; this shares the job's transaction.
+    await apply_emotional_associations(
+        db,
+        user_id=session_row.user_id,
+        companion_id=str(session_row.companion_id),
+        session_id=job.session_id,
+        observations=observations,
+        source=source,
     )
 
 
