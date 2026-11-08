@@ -17,10 +17,14 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert
 
 from chatbot.db.models import BackgroundJob, Episode, Message, Room, Session, SemanticFact
+from chatbot.memory.autobiography import EXPERIENCE_KIND, link_experience
 from chatbot.memory.llm_extraction import (
     LLMMemoryExtractor,
     resolve_extraction_model as validate_extraction_configuration,
 )
+
+# Up to 8 facts, 2 shared experiences and the turn episode.
+MAX_RECEIPT_ENTRIES = 11
 
 
 def _source_message_id(source: Any, user_msg: Any, assistant_msg: Any) -> Any | None:
@@ -54,6 +58,7 @@ class TurnMemoryStorage:
         self.vectors = vectors or {}
         self.persistence_error: Exception | None = None
         self._scope = None
+        self._experiences_allowed = True
 
     async def persist(self, session_id: str, entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if str(session_id) != str(self.session_id):
@@ -74,6 +79,9 @@ class TurnMemoryStorage:
                 if room is None or str(room.user_id) != str(self.session_row.user_id):
                     raise PermissionError("Memory room ownership mismatch")
                 level = {"global": "user", "companion": "companion", "room": "room"}.get(room.memory_scope, "session")
+                # Scene rooms are in-character fiction and non-durable rooms do not
+                # keep history: neither produces autobiographical experiences.
+                self._experiences_allowed = room.scene_id is None and bool(room.persist_to_durable)
             if level == "companion" and not self.session_row.companion_id:
                 level = "session"
             self._scope = {"level": level, "user_id": str(self.session_row.user_id)}
@@ -84,7 +92,7 @@ class TurnMemoryStorage:
             if level == "session":
                 self._scope["session_id"] = str(self.session_id)
         slots: dict[str, int] = defaultdict(int)
-        for index, entry in enumerate(entries[:8]):
+        for index, entry in enumerate(entries[:MAX_RECEIPT_ENTRIES]):
             content = str(entry.get("content") or "").strip()
             if not content:
                 continue
@@ -97,6 +105,8 @@ class TurnMemoryStorage:
                 raise ValueError("Extracted fact is missing source-message attribution")
             if kind not in {"fact", "episode"}:
                 raise ValueError("Unsupported extracted memory kind")
+            if metadata.get("kind") == EXPERIENCE_KIND and not self._experiences_allowed:
+                continue
             evidence = metadata.get("evidence") or metadata.get("source_text")
             # Heuristics carry the source wording in content, not evidence.
             evidence = str(evidence or content) if kind == "fact" else "turn_episode"
@@ -166,7 +176,15 @@ class TurnMemoryStorage:
                 )
             if kind == "fact":
                 from chatbot.consolidation.lifecycle import reconcile_fact
-                await reconcile_fact(self.db, row)
+                canonical_id = await reconcile_fact(self.db, row)
+                if metadata.get("kind") == EXPERIENCE_KIND:
+                    await link_experience(
+                        self.db,
+                        canonical_id=canonical_id,
+                        evidence_id=memory_id,
+                        metadata=metadata,
+                        source_at=datetime.fromisoformat(metadata["source_created_at"]),
+                    )
                 written.append(entry)
                 continue
             result = await self.db.execute(
@@ -179,7 +197,7 @@ class TurnMemoryStorage:
 
 class _CaptureStorage:
     async def persist(self, session_id: str, entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        return entries[:8]
+        return entries[:MAX_RECEIPT_ENTRIES]
 
 
 def make_durable_memory_extract_handler(
@@ -271,7 +289,7 @@ async def _process_memory_extract_job(
                 return
             receipt = locked.payload.get("extraction_result")
             if receipt is None:
-                receipt = {"version": 1, "entries": entries[:8]}
+                receipt = {"version": 1, "entries": entries[:MAX_RECEIPT_ENTRIES]}
                 locked.payload = {**locked.payload, "extraction_result": receipt}
             await db.commit()  # durable replay input, including an empty result
         vectors = {}
