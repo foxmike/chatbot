@@ -16,7 +16,7 @@ import pytest
 from starlette.requests import Request
 from starlette.websockets import WebSocketDisconnect
 
-from chatbot.api import streaming
+from chatbot.api import conversation, streaming
 from chatbot.auth.dependencies import CurrentUser
 from chatbot.auth.security import create_access_token
 from chatbot.avatar.coordinator import AvatarBinding, AvatarCoordinator
@@ -293,11 +293,8 @@ def pipeline(monkeypatch):
     provider = Provider()
     steps = [RetrieveStep(loader_cls=None), ContextStep(), CallProviderStep(), RespondStep()]
     monkeypatch.setattr(streaming, "build_default_pipeline", lambda: SimpleNamespace(_steps=steps))
-    monkeypatch.setattr(streaming, "_select_provider", lambda ctx: provider)
-    monkeypatch.setattr(
-        streaming, "_generate_recent_message_embeddings", AsyncMock(), raising=False
-    )
-    monkeypatch.setattr("chatbot.api.chat._generate_recent_message_embeddings", AsyncMock())
+    monkeypatch.setattr("chatbot.core.turn._select_provider", lambda ctx: provider)
+    monkeypatch.setattr(conversation, "generate_recent_message_embeddings", AsyncMock())
     db = AsyncMock()
     db.__aenter__.return_value = db
     session = SimpleNamespace(
@@ -308,11 +305,11 @@ def pipeline(monkeypatch):
     monkeypatch.setattr(router, "async_session_factory", lambda: db)
     monkeypatch.setattr(streaming, "_session_snapshot", lambda _: {})
     monkeypatch.setattr(
-        streaming, "_load_stream_companion_profile", AsyncMock(return_value={"name": "Companion"})
+        conversation, "load_companion_inputs", AsyncMock(return_value=({"name": "Companion"}, None))
     )
-    monkeypatch.setattr(streaming, "_load_stream_session_identity", AsyncMock(return_value=None))
+    monkeypatch.setattr(conversation, "load_session_identity", AsyncMock(return_value=None))
     monkeypatch.setattr(
-        streaming, "_load_db_session_history", AsyncMock(side_effect=lambda *a, **kw: list(history))
+        conversation, "load_db_session_history", AsyncMock(side_effect=lambda *a, **kw: list(history))
     )
 
     async def persist(**kwargs):
@@ -326,7 +323,7 @@ def pipeline(monkeypatch):
     monkeypatch.setattr(streaming, "_persist_messages", persist)
     monkeypatch.setattr(streaming, "_run_post_stream_db_write", AsyncMock())
     title = Mock()
-    monkeypatch.setattr(streaming, "_maybe_schedule_title_generation", title)
+    monkeypatch.setattr(conversation, "schedule_title_generation", title)
     traces = SimpleNamespace(
         start=AsyncMock(return_value="trace"), record=AsyncMock(), complete=AsyncMock()
     )

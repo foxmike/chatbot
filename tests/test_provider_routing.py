@@ -23,6 +23,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from chatbot.api import chat as chat_api
+from chatbot.api import conversation as conversation_api
 from chatbot.api import streaming as streaming_api
 from chatbot.api.streaming import _stream_provider_tokens
 from chatbot.config import Settings
@@ -251,8 +252,10 @@ def test_provider_without_model_does_not_inherit_default_model() -> None:
 
 
 def test_chat_and_streaming_share_one_override_implementation() -> None:
-    assert chat_api.apply_routing_overrides is router.apply_routing_overrides
-    assert streaming_api.apply_routing_overrides is router.apply_routing_overrides
+    # Both adapters build their TurnContext through the shared preparation module.
+    assert conversation_api.apply_routing_overrides is router.apply_routing_overrides
+    assert not hasattr(chat_api, "apply_routing_overrides")
+    assert not hasattr(streaming_api, "apply_routing_overrides")
 
 
 # --------------------------------------------------------------------------

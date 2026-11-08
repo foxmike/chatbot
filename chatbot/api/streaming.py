@@ -6,7 +6,6 @@ import asyncio
 import json
 import logging
 from collections.abc import AsyncIterator, Iterable, Mapping
-from datetime import datetime, timedelta, timezone
 import inspect
 import time
 from time import perf_counter
@@ -16,32 +15,26 @@ import uuid
 import anyio
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import StreamingResponse
 
-from chatbot.api.chat import _prepare_memory_workflow
+from chatbot.api import conversation
 from chatbot.avatar.coordinator import get_coordinator
 from chatbot.auth.dependencies import CurrentUser, get_current_user
 from chatbot.core import StepResult, TurnContext, TurnStep
 from chatbot.core.turn import (
     UpdateIdentityStep,
     _generate_message_embeddings,
-    _provider_config,
-    _provider_history,
-    _render_trace_prompt,
-    _select_provider,
     _store_llm_trace_metadata,
+    prepare_provider_call,
     _start_turn_trace,
     _record_turn_trace_step,
     _complete_turn_trace,
     build_default_pipeline,
 )
 from chatbot.db import streaming_session_factory, get_db
-from chatbot.companions.companion import CompanionManager
-from chatbot.db.models import IdentityStateModel, Message, Session
-from chatbot.providers.base import ProviderConfig, ProviderRegistry, ProviderSelectionError
-from chatbot.providers.router import apply_routing_overrides
+from chatbot.db.models import Session
 
 logger = logging.getLogger(__name__)
 
@@ -104,18 +97,23 @@ async def stream_chat(
             detail="Session not found",
         )
 
-    character_profile = await _load_stream_companion_profile(
+    # Companion, personality and identity: shared with standard chat.
+    character_profile, companion_persona = await conversation.load_companion_inputs(
         db,
         db_session,
         current_user.user_id,
     )
-    identity_state = await _load_stream_session_identity(db, sid)
-    history = await _load_db_session_history(
-        db,
-        db_session.id,
-        room_id=db_session.room_id,
-    )
-    session_snapshot = _session_snapshot(db_session)
+    history = None
+    identity_state = None
+    if get_coordinator(http_request.app).get(str(db_session.id), current_user.user_id) is None:
+        identity_state = await conversation.load_session_identity(db, sid)
+        history = await conversation.load_db_session_history(
+            db,
+            db_session.id,
+            room_id=db_session.room_id,
+        )
+    # else: an avatar-bound turn loads both after it owns the turn
+    # (coordinator.begin), so loading them here would only be discarded.
 
     return ChatStreamingResponse(
         _stream_turn(
@@ -126,10 +124,12 @@ async def stream_chat(
             session_title=db_session.title,
             session_companion_id=db_session.companion_id,
             session_room_id=db_session.room_id,
-            session_snapshot=session_snapshot,
+            session_snapshot=_session_snapshot(db_session),
             character_profile=character_profile,
             identity_state=identity_state,
             history=history,
+            # Streaming's established fallback without a companion is an empty persona.
+            persona=conversation.resolve_persona(companion_persona, {}),
         ),
         media_type="text/event-stream",
     )
@@ -147,7 +147,8 @@ async def _stream_turn(
     session_snapshot: dict[str, Any],
     character_profile: dict[str, Any] | None,
     identity_state: Any,
-    history: list[dict[str, Any]],
+    history: list[dict[str, Any]] | None,
+    persona: dict[str, Any] | None = None,
 ) -> AsyncIterator[str]:
     context_at = time.monotonic()
     stream_db = streaming_session_factory()
@@ -158,6 +159,28 @@ async def _stream_turn(
     ctx = None
     trace_id = None
     persisted = False
+    transaction_released = False
+
+    async def release_preparation_transaction() -> None:
+        """End the preparation transaction once generation is under way.
+
+        No database transaction stays open through the rest of generation or
+        spoken playback. Runs after retrieval, so it changes nothing for this
+        turn, and after the first token, so it costs no first-text latency.
+        """
+        nonlocal transaction_released
+        if transaction_released:
+            return
+        transaction_released = True
+        try:
+            await conversation.end_preparation_transaction(stream_db)
+        except Exception:
+            logger.warning("Ending the preparation transaction failed", exc_info=True)
+            try:
+                await stream_db.rollback()
+            except Exception:
+                pass
+
     try:
         if http_request is not None:
             coordinator = get_coordinator(http_request.app)
@@ -179,56 +202,49 @@ async def _stream_turn(
                     avatar_turn.latency_times["begin_complete"] = time.monotonic()
                 # The previous turn's interrupted persistence must finish BEFORE
                 # loading context for its successor, including typed -> spoken.
-                history = await _load_db_session_history(
+                history = await conversation.load_db_session_history(
                     stream_db, session_id, room_id=session_room_id,
                 )
-                identity_state = await _load_stream_session_identity(stream_db, session_id)
+                identity_state = await conversation.load_session_identity(stream_db, session_id)
                 if avatar_turn.source == "spoken":
                     avatar_turn.latency_times["history_ready"] = time.monotonic()
-        metadata = _stream_metadata(http_request)
-        apply_routing_overrides(metadata, request.provider_override, request.model_override)
-        metadata["thinking"] = request.thinking
-        metadata["turn_id"] = avatar_turn.turn_id if avatar_turn else str(uuid.uuid4())
-        if avatar_turn and avatar_turn.source == "spoken":
-            avatar_turn.latency_times["context_start"] = context_at
-            metadata["avatar_latency_times"] = avatar_turn.latency_times
-            logger.info("avatar_latency turn_id=%s stage=context_start t=%.6f", avatar_turn.turn_id, context_at)
-        metadata["session_id"] = request.session_id
-        metadata["session_record"] = session_snapshot
-        metadata["db_session"] = stream_db
-        metadata["db"] = stream_db
-        metadata["user_id"] = current_user.user_id
-        metadata["companion_id"] = session_companion_id
-        metadata["room_id"] = session_room_id or request.room_id
-
-        _seed_stream_history_metadata(metadata, request.session_id, history)
-
-        retrieval_engine = metadata.get("retrieval_engine") or metadata.get("memory_retriever")
-        if retrieval_engine is not None and not callable(getattr(retrieval_engine, "retrieve", None)):
-            retrieval_engine = None
-
-        ctx = TurnContext(
+        if history is None:
+            # The endpoint expected an avatar-bound turn and skipped these loads,
+            # but no avatar owns the turn after all.
+            history = await conversation.load_db_session_history(
+                stream_db, session_id, room_id=session_room_id,
+            )
+            identity_state = await conversation.load_session_identity(stream_db, session_id)
+        if persona is None:
+            persona = {}
+        ctx = conversation.build_turn_context(
+            http_request,
             session_id=request.session_id,
             user_message=request.message,
             history=history,
-            persona={},
-            retrieved_memories=[],
-            compiled_context=None,
-            provider_response=None,
-            extracted_memories=[],
-            final_response=None,
-            metadata=metadata,
-            retrieval_engine=retrieval_engine,
+            persona=persona,
+            db=stream_db,
+            user_id=current_user.user_id,
+            companion_id=session_companion_id,
+            room_id=session_room_id or request.room_id,
+            character_profile=character_profile,
+            identity_state=identity_state,
+            session_record=session_snapshot,
+            provider_override=request.provider_override,
+            model_override=request.model_override,
+            thinking=request.thinking,
+            turn_id=avatar_turn.turn_id if avatar_turn else str(uuid.uuid4()),
         )
-        if character_profile is not None:
-            ctx.metadata["character_profile"] = character_profile
-        if identity_state is not None:
-            ctx.metadata["identity_state"] = identity_state
+        ctx.metadata["db_session"] = stream_db
+        if avatar_turn and avatar_turn.source == "spoken":
+            avatar_turn.latency_times["context_start"] = context_at
+            ctx.metadata["avatar_latency_times"] = avatar_turn.latency_times
+            logger.info("avatar_latency turn_id=%s stage=context_start t=%.6f", avatar_turn.turn_id, context_at)
 
         if http_request is not None:
             if avatar_turn and avatar_turn.source == "spoken":
                 avatar_turn.latency_times["memory_prepare_start"] = time.monotonic()
-            await _prepare_memory_workflow(http_request, ctx, stream_db, session_id)
+            await conversation.prepare_memory_workflow(http_request, ctx, stream_db, session_id)
             if avatar_turn and avatar_turn.source == "spoken":
                 avatar_turn.latency_times["memory_prepare_complete"] = time.monotonic()
 
@@ -271,6 +287,7 @@ async def _stream_turn(
                             yield _sse_data({"type": "token", "text": token, "turn_id": avatar_turn.turn_id if avatar_turn else None})
                             if avatar_turn:
                                 avatar_turn.text_delivered += token
+                        await release_preparation_transaction()
                     stream_attempted = stream_attempted or bool(
                         ctx.metadata.pop("_stream_provider_attempted", False)
                     )
@@ -296,6 +313,7 @@ async def _stream_turn(
                     StepResult(step_name=step_name, duration_ms=duration_ms, success=True)
                 )
                 await _record_turn_trace_step(ctx, trace_id, step_name, duration_ms, success=True)
+                await release_preparation_transaction()
                 if avatar_turn:
                     coordinator.end(avatar, avatar_turn)
                     if avatar_turn.source == "spoken":
@@ -351,14 +369,17 @@ async def _stream_turn(
         if response is None:
             response = str(ctx.metadata.get("pipeline_error", "No response"))
 
-        try:
-            await stream_db.rollback()
-        except Exception as exc:
-            logger.warning(
-                "Stream DB rollback before post-stream writes failed: %s",
-                exc,
-                exc_info=True,
-            )
+        # Reached without a provider step (no generation to wait for).
+        await release_preparation_transaction()
+
+        # A completed turn's messages and in-turn effects (extracted memories,
+        # emotional state, timeline) are committed as one transaction on the
+        # generation session, exactly as standard chat commits its request
+        # session. A turn whose generation failed is still saved (the error text
+        # is the stored reply) but without its effects.
+        keep_effects = not _generation_failed(ctx)
+        if not keep_effects:
+            await conversation.discard_effects_transaction(stream_db)
 
         persist_kwargs = dict(
             session_id=session_id,
@@ -368,6 +389,7 @@ async def _stream_turn(
             assistant_message=response,
             turn_id=ctx.metadata.get("turn_id"),
             strict=avatar_turn is not None,
+            db=stream_db if keep_effects else None,
         )
         if avatar_turn:
             # A commit can succeed even if its waiter is cancelled. Finish that
@@ -388,12 +410,13 @@ async def _stream_turn(
         if avatar_turn:
             avatar_turn.persisted = True
         else:
-            _maybe_schedule_title_generation(
-                http_request=http_request,
+            conversation.schedule_title_generation(
+                http_request,
                 session_id=session_id,
                 session_title=session_title,
                 user_message=request.message,
                 assistant_message=response,
+                session_factory=streaming_session_factory,
                 provider_override=request.provider_override,
                 model_override=request.model_override,
             )
@@ -494,18 +517,17 @@ async def _stream_turn(
 
 
 async def _stream_provider_tokens(ctx: TurnContext) -> AsyncIterator[str]:
-    try:
-        provider = _select_provider(ctx)
-    except ProviderSelectionError as exc:
+    inputs = prepare_provider_call(ctx)
+    if inputs.error is not None:
         # Same outcome as the non-streaming CallProviderStep: report, never substitute.
-        logger.warning("Explicit provider selection failed: %s", exc)
         ctx.metadata["_stream_provider_attempted"] = True
-        ctx.provider_response = f"Provider error: {exc}"
+        ctx.provider_response = f"Provider error: {inputs.error}"
         _store_llm_trace_metadata(
-            ctx, provider=None, config=_provider_config(ctx), result=None, streaming=True
+            ctx, provider=None, config=inputs.config, result=None, streaming=True
         )
-        yield f"Provider stream error: {exc}"
+        yield f"Provider stream error: {inputs.error}"
         return
+    provider = inputs.provider
     if provider is None:
         return
 
@@ -514,17 +536,14 @@ async def _stream_provider_tokens(ctx: TurnContext) -> AsyncIterator[str]:
         return
     ctx.metadata["_stream_provider_attempted"] = True
 
-    config = _provider_config(ctx)
-    history = _provider_history(ctx)
-    ctx.metadata["llm_history"] = history
-    ctx.metadata["llm_prompt"] = _render_trace_prompt(ctx.user_message, history)
+    config = inputs.config
 
     result_for_metadata: Any | None = None
     streamed_text_parts: list[str] = []
     try:
         stream_result = stream_method(
-            prompt=ctx.user_message,
-            history=history,
+            prompt=inputs.prompt,
+            history=inputs.history,
             config=config,
         )
         async for chunk in _iter_stream_result(stream_result):
@@ -654,95 +673,6 @@ def _provider_text_chunks(ctx: TurnContext) -> list[str]:
     return [text] if text else []
 
 
-def _stream_metadata(http_request: Request | None) -> dict[str, Any]:
-    metadata: dict[str, Any] = {}
-    if http_request is None:
-        return metadata
-
-    for metadata_key, state_names in {
-        "provider_registry": ("provider_registry",),
-        "provider_router": ("provider_router",),
-        "provider_config": ("provider_config",),
-        "provider_policy": ("provider_policy",),
-        "provider_name": ("provider_name", "default_provider"),
-        "default_provider": ("default_provider",),
-        "model": ("model", "default_model"),
-        "default_model": ("default_model",),
-        "retrieval_engine": ("retrieval_engine", "memory_retriever", "vectorstore"),
-        "memory_storage": ("memory_storage", "memory_store", "vectorstore"),
-        "memory_database": ("memory_database", "database", "db"),
-        "database": ("database", "db"),
-        "db": ("db",),
-        "working_memory_store": (
-            "working_memory_store",
-            "working_memory",
-            "memory_store",
-            "histories",
-        ),
-    }.items():
-        value = _first_state_value(http_request, *state_names)
-        if value is not None:
-            metadata[metadata_key] = value
-
-    return metadata
-
-
-def _seed_stream_history_metadata(
-    metadata: dict[str, Any],
-    session_id: str,
-    history: list[dict[str, Any]],
-) -> None:
-    if not history:
-        return
-    if any(
-        metadata.get(key) is not None
-        for key in ("working_memory_store", "working_memory", "memory_store")
-    ):
-        return
-
-    working_memory_store = {session_id: list(reversed(history))}
-    metadata["working_memory_store"] = working_memory_store
-    metadata["working_memory"] = working_memory_store
-
-
-def _first_state_value(http_request: Request, *names: str) -> Any | None:
-    state = getattr(http_request.app, "state", None)
-    if state is None:
-        return None
-
-    for name in names:
-        value = getattr(state, name, None)
-        if value is not None:
-            return value
-    return None
-
-
-async def _load_db_session_history(
-    db: AsyncSession,
-    session_id: uuid.UUID,
-    *,
-    room_id: str | None = None,
-) -> list[dict[str, Any]]:
-    conditions = [Message.session_id == session_id]
-    if room_id is not None:
-        conditions.append(
-            Message.session.has(Session.room_id == room_id)
-        )
-    result = await db.execute(
-        select(Message)
-        .where(*conditions)
-        .where(Message.role.in_(("user", "assistant", "system", "tool")))
-        .order_by(Message.created_at.asc(), Message.id.asc())
-    )
-    return [
-        {
-            "role": message.role,
-            "content": message.content,
-        }
-        for message in result.scalars().all()
-    ]
-
-
 async def _persist_messages(
     *,
     session_id: uuid.UUID,
@@ -753,52 +683,30 @@ async def _persist_messages(
     turn_id: str | None = None,
     interrupted: bool = False,
     strict: bool = False,
+    db: Any | None = None,
 ) -> None:
-    user_uuid = uuid.UUID(current_user.user_id)
-    user_msg_ts = datetime.now(timezone.utc)
-    assistant_msg_ts = max(datetime.now(timezone.utc), user_msg_ts + timedelta(milliseconds=1))
-    db = streaming_session_factory()
+    """Commit a turn's messages, in a session of its own unless the caller passes *db*.
+
+    A separate session keeps the commit independent of the generation session
+    and of cancellation of the SSE task (used for interrupted turns, whose
+    generation session cannot be trusted). A caller-owned *db* is committed or
+    rolled back here, so whatever else it holds (the turn's effects) shares the
+    outcome, and is left open for the caller to close.
+    """
+    owned = db is None
+    if owned:
+        db = streaming_session_factory()
     try:
-        db.add(
-            Message(
-                session_id=session_id,
-                user_id=user_uuid,
-                companion_id=companion_id,
-                role="user",
-                content=user_message,
-                turn_id=turn_id,
-                created_at=user_msg_ts,
-            )
-        )
-        if assistant_message:
-            db.add(
-                Message(
-                    session_id=session_id,
-                    user_id=user_uuid,
-                    companion_id=companion_id,
-                    role="assistant",
-                    content=assistant_message,
-                    turn_id=turn_id,
-                    created_at=assistant_msg_ts,
-                )
-            )
-        if interrupted:
-            db.add(
-                Message(
-                    session_id=session_id,
-                    user_id=user_uuid,
-                    companion_id=companion_id,
-                    role="system",
-                    content=("[Assistant turn interrupted. Only confirmed delivered text "
-                             "is retained; a partially played speech segment may be omitted.]"),
-                    turn_id=turn_id,
-                    created_at=assistant_msg_ts + timedelta(milliseconds=1),
-                )
-            )
-        await db.execute(
-            update(Session)
-            .where(Session.id == session_id)
-            .values(updated_at=datetime.now(timezone.utc))
+        await conversation.add_turn_messages(
+            db,
+            session_id=session_id,
+            user_id=uuid.UUID(current_user.user_id),
+            companion_id=companion_id,
+            user_message=user_message,
+            assistant_message=assistant_message,
+            turn_id=turn_id,
+            interrupted=interrupted,
+            omit_empty_assistant=True,
         )
         await db.commit()
     except Exception as exc:
@@ -819,7 +727,17 @@ async def _persist_messages(
         if strict:
             raise
     finally:
-        await db.close()
+        if owned:
+            await db.close()
+
+
+def _generation_failed(ctx: TurnContext) -> bool:
+    """Whether generation produced a provider error instead of a reply.
+
+    Such a turn is still saved (the error text is the stored reply, as in
+    standard chat) but its in-turn effects are not committed.
+    """
+    return str(ctx.provider_response or "").startswith("Provider error:")
 
 
 async def _run_post_stream_db_write(
@@ -887,209 +805,5 @@ def _step_name(step: TurnStep) -> str:
     return step.__class__.__name__
 
 
-async def _load_stream_companion_profile(
-    db: AsyncSession,
-    db_session: Session,
-    user_id: str,
-) -> dict[str, Any] | None:
-    """Load companion character profile dict from the session-bound companion."""
-    companion_id = db_session.companion_id
-    if companion_id is None:
-        return None
-    try:
-        companion_mgr = CompanionManager(db)
-        companion = await companion_mgr.get(user_id, str(companion_id))
-    except Exception:
-        return None
-    if companion is None:
-        return None
-    return _companion_to_profile_dict(companion)
-
-
-def _companion_to_profile_dict(companion: Any) -> dict[str, Any]:
-    return {
-        "name": getattr(companion, "name", "Companion"),
-        "backstory": getattr(companion, "backstory", None) or "",
-        "personality_sliders": getattr(companion, "personality_sliders", None) or {},
-        "humor_style": getattr(companion, "humor_style", None) or "witty",
-        "communication_style": getattr(companion, "communication_style", None) or "concise",
-        "favorite_topics": getattr(companion, "favorite_topics", None) or [],
-    }
-
-
-async def _load_stream_session_identity(
-    db: AsyncSession,
-    session_id: uuid.UUID,
-) -> dict[str, Any] | None:
-    """Return the most recent IdentityStateModel row for *session_id*, or None."""
-    try:
-        result = await db.execute(
-            select(IdentityStateModel)
-            .where(IdentityStateModel.session_id == session_id)
-            .order_by(IdentityStateModel.last_updated.desc())
-            .limit(1)
-        )
-        identity = result.scalar_one_or_none()
-    except Exception:
-        return None
-    if identity is None:
-        return None
-    return {
-        "id": identity.id,
-        "session_id": identity.session_id,
-        "fixed": identity.fixed,
-        "slow": identity.slow,
-        "mood": identity.mood,
-        "last_updated": identity.last_updated,
-    }
-
-
 def _sse_data(payload: dict) -> str:
     return f"data: {json.dumps(payload)}\n\n"
-
-
-def _maybe_schedule_title_generation(
-    *,
-    http_request: Request | None,
-    session_id: uuid.UUID,
-    session_title: str | None,
-    user_message: str,
-    assistant_message: str,
-    turn_id: str | None = None,
-    provider_override: str | None = None,
-    model_override: str | None = None,
-) -> None:
-    """Schedule background title generation if the session has no title yet."""
-    if session_title is not None:
-        return
-
-    if http_request is None:
-        return
-
-    provider_registry = _first_state_value(
-        http_request,
-        "provider_registry",
-    )
-    if provider_registry is None or not isinstance(provider_registry, ProviderRegistry):
-        logger.debug("No provider registry available; skipping title generation")
-        return
-
-    provider_name = _first_state_value(
-        http_request,
-        "provider_name",
-        "default_provider",
-    )
-    model = _first_state_value(
-        http_request,
-        "model",
-        "default_model",
-    )
-    if provider_override:
-        # The user's explicit selection also governs this background call:
-        # never send their conversation to a different provider or model.
-        provider_name = provider_override
-        model = model_override or ""
-    elif not provider_name and not model:
-        provider_name = "openrouter"
-
-    asyncio.create_task(
-        _generate_conversation_title(
-            provider_registry=provider_registry,
-            provider_name=str(provider_name) if provider_name else "openrouter",
-            model=str(model) if model else None,
-            session_id=session_id,
-            user_message=user_message,
-            assistant_message=assistant_message,
-        )
-    )
-
-
-async def _generate_conversation_title(
-    *,
-    provider_registry: ProviderRegistry,
-    provider_name: str,
-    model: str | None,
-    session_id: uuid.UUID,
-    user_message: str,
-    assistant_message: str,
-    turn_id: str | None = None,
-) -> None:
-    """Generate a short conversation title using the LLM (runs in background)."""
-    try:
-        provider = provider_registry.get(provider_name)
-    except KeyError:
-        logger.debug(
-            "Provider %r not found in registry; skipping title generation",
-            provider_name,
-        )
-        return
-
-    if model is None:
-        model = ""
-
-    title_prompt = (
-        "Generate a short, concise title (2-5 words) for a conversation "
-        "that starts with the following exchange. Return ONLY the title, "
-        "with no quotes, explanations, or extra text.\n\n"
-        f"User: {user_message}\n"
-        f"Assistant: {assistant_message}\n"
-    )
-
-    config = ProviderConfig(
-        model=model,
-        temperature=0.3,
-        max_tokens=16,
-    )
-
-    try:
-        llm_response = await provider.complete(
-            prompt=title_prompt,
-            history=[],
-            config=config,
-        )
-    except Exception:
-        logger.warning(
-            "Title generation LLM call failed for session %s",
-            session_id,
-            exc_info=True,
-        )
-        return
-
-    raw_title = (llm_response.text or "").strip().strip('"').strip("'")
-    if not raw_title:
-        return
-
-    # Enforce 2-5 word range via truncation
-    words = raw_title.split()
-    if len(words) > 5:
-        raw_title = " ".join(words[:5])
-    elif len(words) < 2:
-        # Too short; keep as-is (at least something)
-        pass
-
-    # Persist the title in a fresh DB session
-    try:
-        db = streaming_session_factory()
-        try:
-            from sqlalchemy import update as sa_update
-
-            await db.execute(
-                sa_update(Session)
-                .where(Session.id == session_id, Session.title.is_(None))
-                .values(title=raw_title)
-            )
-            await db.commit()
-        except Exception:
-            await db.rollback()
-            raise
-        finally:
-            await db.close()
-    except Exception:
-        logger.warning(
-            "Failed to persist title for session %s",
-            session_id,
-            exc_info=True,
-        )
-        return
-
-    logger.info("Auto-generated title for session %s: %r", session_id, raw_title)

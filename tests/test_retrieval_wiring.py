@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import MagicMock, AsyncMock
 from chatbot.core.steps import TurnContext
 from chatbot.core.turn import RetrieveStep
-from chatbot.api.chat import _prepare_memory_workflow
+from chatbot.api.conversation import prepare_memory_workflow as _prepare_memory_workflow
 
 def test_turn_context_retrieval_engine_field():
     ctx = TurnContext(
@@ -172,7 +172,7 @@ async def test_stream_turn_wires_retrieval_engine(monkeypatch):
     monkeypatch.setattr("chatbot.api.streaming.streaming_session_factory", lambda: mock_db)
     monkeypatch.setattr("chatbot.api.streaming._persist_messages", AsyncMock())
     monkeypatch.setattr("chatbot.api.streaming._run_post_stream_db_write", AsyncMock())
-    monkeypatch.setattr("chatbot.api.streaming._maybe_schedule_title_generation", MagicMock())
+    monkeypatch.setattr("chatbot.api.conversation.schedule_title_generation", MagicMock())
     
     session_id = uuid.uuid4()
     

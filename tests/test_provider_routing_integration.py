@@ -50,6 +50,7 @@ from test_provider_routing import (  # noqa: E402  (shared network fake)
 )
 
 from chatbot.api import chat as chat_api  # noqa: E402
+from chatbot.api import conversation  # noqa: E402
 from chatbot.api import streaming  # noqa: E402
 from chatbot.auth.dependencies import get_current_user  # noqa: E402
 from chatbot.avatar import router as avatar_router_module  # noqa: E402
@@ -166,12 +167,12 @@ def chat_client(monkeypatch: pytest.MonkeyPatch, captured_ctx: list[Any]) -> Tes
     db = fake_db()
     app.dependency_overrides[get_db] = lambda: db
 
-    monkeypatch.setattr(chat_api, "_build_companion_character_profile", AsyncMock(return_value=None))
-    monkeypatch.setattr(chat_api, "_load_session_identity_state", AsyncMock(return_value=None))
+    monkeypatch.setattr(conversation, "load_companion_inputs", AsyncMock(return_value=(None, None)))
+    monkeypatch.setattr(conversation, "load_session_identity", AsyncMock(return_value=None))
     monkeypatch.setattr(chat_api, "_load_chat_room", AsyncMock(return_value=None))
-    monkeypatch.setattr(chat_api, "_load_db_session_history", AsyncMock(return_value=[]))
-    monkeypatch.setattr(chat_api, "_prepare_memory_workflow", AsyncMock())
-    monkeypatch.setattr(chat_api, "_maybe_schedule_title_generation", Mock())
+    monkeypatch.setattr(conversation, "load_db_session_history", AsyncMock(return_value=[]))
+    monkeypatch.setattr(conversation, "prepare_memory_workflow", AsyncMock())
+    monkeypatch.setattr(conversation, "schedule_title_generation", Mock())
     # The real selection/provider steps; no memory, persona or DB-backed steps.
     monkeypatch.setattr(
         chat_api,
@@ -202,17 +203,16 @@ def patch_stream_internals(
     monkeypatch.setattr(avatar_router_module, "async_session_factory", lambda: db)
     monkeypatch.setattr(streaming, "_session_snapshot", lambda _: {})
     monkeypatch.setattr(
-        streaming,
-        "_load_stream_companion_profile",
-        AsyncMock(return_value={"name": "Companion"} if companion else None),
+        conversation,
+        "load_companion_inputs",
+        AsyncMock(return_value=({"name": "Companion"} if companion else None, None)),
     )
-    monkeypatch.setattr(streaming, "_load_stream_session_identity", AsyncMock(return_value=None))
-    monkeypatch.setattr(streaming, "_load_db_session_history", AsyncMock(return_value=[]))
+    monkeypatch.setattr(conversation, "load_session_identity", AsyncMock(return_value=None))
+    monkeypatch.setattr(conversation, "load_db_session_history", AsyncMock(return_value=[]))
     monkeypatch.setattr(streaming, "_persist_messages", AsyncMock())
     monkeypatch.setattr(streaming, "_run_post_stream_db_write", AsyncMock())
-    monkeypatch.setattr(streaming, "_maybe_schedule_title_generation", Mock())
-    monkeypatch.setattr(streaming, "_generate_recent_message_embeddings", AsyncMock(), raising=False)
-    monkeypatch.setattr("chatbot.api.chat._generate_recent_message_embeddings", AsyncMock())
+    monkeypatch.setattr(conversation, "schedule_title_generation", Mock())
+    monkeypatch.setattr(conversation, "generate_recent_message_embeddings", AsyncMock())
     monkeypatch.setattr(streaming, "_start_turn_trace", AsyncMock(return_value="trace"))
     monkeypatch.setattr(streaming, "_record_turn_trace_step", AsyncMock())
 
