@@ -59,9 +59,10 @@ def _scripts() -> ScriptDirectory:
 
 def test_the_timeline_revision_extends_the_chain_and_is_the_only_head() -> None:
     scripts = _scripts()
-    # The chain head is the durable background-jobs revision (Phase 2 design,
-    # Task 2.2); the timeline revision remains the one below it.
-    assert scripts.get_heads() == ["f3a9d6b1c4e7"]  # the self-model revision (Phase 3.2)
+    # The chain head is the conversational-threads revision (Phase 4.3a); the
+    # self-model revision remains the one below it.
+    assert scripts.get_heads() == ["e5f2a7c9b8d4"]
+    assert scripts.get_revision("e5f2a7c9b8d4").down_revision == "f3a9d6b1c4e7"
     assert scripts.get_revision("f3a9d6b1c4e7").down_revision == "d41e8a7c502b"
     assert scripts.get_revision("d41e8a7c502b").down_revision == "c93a14e2786b"
     assert scripts.get_revision("a12f907bc341").down_revision == REVISION

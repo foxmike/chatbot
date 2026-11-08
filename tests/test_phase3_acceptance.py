@@ -713,7 +713,7 @@ async def test_the_self_model_migration_on_postgres_upgrades_empty_and_refuses_t
         "WHERE table_name = 'companion_identities' AND column_name = 'self_model'"
     )
     assert column and column.startswith("NO:") and "{}" in column
-    assert alembic(database.url, "current").stdout.split()[0] == "f3a9d6b1c4e7"
+    assert alembic(database.url, "current").stdout.split()[0] == "e5f2a7c9b8d4"
 
     async with database.factory() as db:
         user = models.User(id=USER_ID, external_id="x", display_name="U", username="u",
@@ -731,6 +731,10 @@ async def test_the_self_model_migration_on_postgres_upgrades_empty_and_refuses_t
         row = await db.get(models.CompanionIdentityModel, "c1")
         row.self_model = developed_document()
         await db.commit()
+    # Step below the conversational-threads revision (Phase 4.3a) first; the
+    # refusal under test is the self-model revision's own downgrade guard.
+    threads_down = alembic(database.url, "downgrade", "f3a9d6b1c4e7")
+    assert threads_down.returncode == 0, threads_down.stderr[-2000:]
     refused = alembic(database.url, "downgrade", "-1")
     assert refused.returncode != 0 and "Refusing to discard a developed companion self-model" in refused.stderr
 
