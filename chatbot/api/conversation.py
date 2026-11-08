@@ -136,6 +136,18 @@ async def load_companion_inputs(
         durable_state["companion_self_model_version"] = (
             identity.version if identity is not None else 0
         )
+        # Open, non-stale conversational threads of this session's scope
+        # (Phase 4.3a): private threads follow the companion-user pair, room
+        # threads stay in their room. Read-only; ownership was verified above.
+        from chatbot.soul.conversational_threads import load_open_threads
+
+        durable_state["companion_open_threads"] = await load_open_threads(
+            db,
+            user_id=user_id,
+            companion_id=str(companion_id),
+            room_id=db_session.room_id,
+            check_ownership=False,
+        )
         defaults = asdict(RelationshipConfig.defaults())
         durable_state["companion_relationship"] = (
             {key: getattr(relationship, key) for key in defaults}

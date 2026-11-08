@@ -260,6 +260,90 @@ class CompanionRelationshipModel(Base):
     )
 
 
+class ConversationalThread(Base):
+    """Persistent conversational business between one companion and its user (P05/P09/P16).
+
+    One row per thread, scoped to ``(user_id, companion_id, room_id)``: a private
+    thread (``room_id`` NULL) follows the companion-user pair across sessions,
+    while a thread born in a durable room stays inside that room. ``ownership``
+    says whose business it is (the companion's interest, the user's interest or
+    request, or unfinished business the two share); ``source_evidence`` keeps the
+    original conversation referencable. Only ``open`` threads are surfaced as
+    unfinished business; ``resolved`` and ``superseded`` rows are retained as
+    history and never presented again.
+    """
+
+    __tablename__ = "conversational_threads"
+    __table_args__ = (
+        sa.CheckConstraint(
+            "ownership IN ('companion', 'user', 'shared')",
+            name="ck_conversational_threads_ownership",
+        ),
+        sa.CheckConstraint(
+            "kind IN ('interest', 'request', 'subject', 'goal')",
+            name="ck_conversational_threads_kind",
+        ),
+        sa.CheckConstraint(
+            "status IN ('open', 'resolved', 'superseded')",
+            name="ck_conversational_threads_status",
+        ),
+        sa.CheckConstraint(
+            "importance IN ('ordinary', 'significant')",
+            name="ck_conversational_threads_importance",
+        ),
+        sa.Index(
+            "ix_conversational_threads_open",
+            "companion_id",
+            "status",
+            "last_discussed_at",
+        ),
+    )
+
+    thread_id: Mapped[str] = mapped_column(
+        sa.String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    companion_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("companions.companion_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # NULL for private (non-room) sessions; a room's own thread dies with it.
+    room_id: Mapped[str | None] = mapped_column(
+        sa.String(64), sa.ForeignKey("rooms.room_id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    ownership: Mapped[str] = mapped_column(sa.String(16), nullable=False)
+    kind: Mapped[str] = mapped_column(sa.String(16), nullable=False)
+    # Normalized subject used for duplicate detection within the scope.
+    subject_key: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    summary: Mapped[str] = mapped_column(sa.String(240), nullable=False)
+    topic: Mapped[str | None] = mapped_column(sa.String(80), nullable=True)
+    status: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False, default="open", server_default=sa.text("'open'")
+    )
+    importance: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False, default="ordinary", server_default=sa.text("'ordinary'")
+    )
+    # Bounded list of evidence references (job/turn/session/message ids + excerpt).
+    source_evidence: Mapped[list] = mapped_column(
+        sa.JSON, nullable=False, default=list, server_default=sa.text("'[]'")
+    )
+    # Snapshot of the relationship when the thread was last discussed.
+    relationship_context: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
+    last_discussed_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), nullable=False)
+    resolved_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True), nullable=True)
+    superseded_by: Mapped[str | None] = mapped_column(sa.String(36), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=sa.sql.func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=sa.sql.func.now()
+    )
+
+
 class Voice(Base):
     """A saved Voice Library voice: metadata only.
 

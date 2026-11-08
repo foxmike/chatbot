@@ -33,6 +33,12 @@ from chatbot.memory.llm_extraction import (
     LLMMemoryExtractor,
     resolve_extraction_model as validate_extraction_configuration,
 )
+from chatbot.soul.conversational_threads import (
+    ThreadObservation,
+    apply_thread_observations,
+    known_threads_text,
+    load_open_threads,
+)
 from chatbot.soul.self_model import (
     EvidenceSource,
     SelfModelTooLarge,
@@ -289,10 +295,21 @@ async def _process_memory_extract_job(
         user_msg = next((m for m in messages if m.role == "user"), None)
         assistant_msg = next((m for m in messages if m.role == "assistant"), None)
         known_self_items = ""
+        known_threads = ""
         if receipt is None and session_row.companion_id:
-            # Existing item keys let the one extraction call continue or challenge them.
+            # Existing item keys let the one extraction call continue or challenge them;
+            # open thread keys let it continue or resolve unfinished business.
             identity = await db.get(CompanionIdentityModel, session_row.companion_id)
             known_self_items = known_items_text(identity.self_model if identity else None)
+            known_threads = known_threads_text(
+                await load_open_threads(
+                    db,
+                    user_id=session_row.user_id,
+                    companion_id=str(session_row.companion_id),
+                    room_id=session_row.room_id,
+                    check_ownership=False,  # ownership was verified above
+                )
+            )
         await db.commit()  # release the read transaction before inference
         if not messages:
             return
@@ -311,9 +328,11 @@ async def _process_memory_extract_job(
                 provider_response=assistant_msg.content,
                 turn_id=job.turn_id,
                 known_self_items=known_self_items,
+                known_threads=known_threads,
             )
             outcome = getattr(extractor, "last_outcome", None)
             self_observations = list(getattr(outcome, "self_observations", None) or [])
+            thread_updates = list(getattr(outcome, "thread_updates", None) or [])
             locked = await db.scalar(
                 sa.select(BackgroundJob)
                 .where(BackgroundJob.job_id == job.job_id)
@@ -330,6 +349,7 @@ async def _process_memory_extract_job(
                     "version": 1,
                     "entries": entries[:MAX_RECEIPT_ENTRIES],
                     "self_observations": self_observations,
+                    "thread_updates": thread_updates,
                 }
                 locked.payload = {**locked.payload, "extraction_result": receipt}
             await db.commit()  # durable replay input, including an empty result
@@ -366,6 +386,9 @@ async def _process_memory_extract_job(
         )
         await storage.persist(str(job.session_id), receipt["entries"])
         await _apply_self_reflection(
+            db, job, session_row, user_msg, assistant_msg, storage, receipt
+        )
+        await _apply_thread_updates(
             db, job, session_row, user_msg, assistant_msg, storage, receipt
         )
         locked.payload = {**locked.payload, "effects_applied": True}
@@ -433,6 +456,77 @@ async def _apply_self_reflection(
         # A bound violation is deterministic: retrying cannot help and must not
         # block the turn's memory work. The self-model is left unchanged.
         logger.warning("Companion self-model is full; skipped reflection for job %s", job.job_id)
+
+
+_THREAD_FIELDS = (
+    "ownership", "kind", "subject", "status", "topic", "importance",
+    "excerpt", "role", "key", "supersedes",
+)
+
+
+async def _apply_thread_updates(
+    db: Any,
+    job: Any,
+    session_row: Any,
+    user_msg: Any,
+    assistant_msg: Any,
+    storage: TurnMemoryStorage,
+    receipt: dict[str, Any],
+) -> None:
+    """Apply the receipt's validated thread updates in the job's own transaction.
+
+    Runs after the memory and self-model effects and before the job is marked
+    succeeded, so a rollback leaves none of them. Replays are idempotent: new
+    threads carry deterministic ids from the job id and receipt position. Only
+    eligible turns count, with the same rules as self-reflection: the session is
+    companion-bound, the companion's reply is attributed to that companion, the
+    room (if any) is durable and not a scene, and the turn is not a roleplay
+    frame — so roleplay never contaminates real-world threads.
+    """
+    raw_items = receipt.get("thread_updates") or []
+    if not raw_items or not session_row.companion_id or not storage.history_allowed:
+        return
+    reply_owner = getattr(assistant_msg, "companion_id", None)
+    if reply_owner is not None and reply_owner != session_row.companion_id:
+        return  # another companion's reply in a shared room
+    observations = []
+    for raw in raw_items:
+        if isinstance(raw, dict):
+            try:
+                observations.append(
+                    ThreadObservation(**{k: raw[k] for k in _THREAD_FIELDS if k in raw})
+                )
+            except TypeError:
+                continue
+    if not observations:
+        return
+    from chatbot.db.models import CompanionRelationshipModel
+
+    relationship = await db.get(CompanionRelationshipModel, session_row.companion_id)
+    relationship_context = (
+        {
+            "depth": relationship.depth,
+            "completed_turns": relationship.completed_turns,
+        }
+        if relationship is not None
+        else None
+    )
+    # Deterministic problems (ownership, bounds) are impossible here: the job
+    # verified the session's companion, and scope bounds are rejections, not
+    # exceptions. Any storage failure propagates so the job retries cleanly.
+    await apply_thread_observations(
+        db,
+        user_id=session_row.user_id,
+        companion_id=str(session_row.companion_id),
+        room_id=session_row.room_id,
+        observations=observations,
+        job_id=str(job.job_id),
+        turn_id=str(job.turn_id),
+        session_id=str(job.session_id),
+        message_id=str(assistant_msg.id),
+        source_at=assistant_msg.created_at,
+        relationship_context=relationship_context,
+    )
 
 
 __all__ = [
