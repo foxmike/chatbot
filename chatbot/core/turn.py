@@ -8,7 +8,7 @@ import re
 import time
 import uuid
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, is_dataclass, replace
+from dataclasses import asdict, dataclass, is_dataclass, replace
 from urllib.parse import urlsplit, urlunsplit
 from datetime import datetime, timezone
 from enum import Enum
@@ -627,28 +627,65 @@ class CompileContextStep(TurnStep):
         return persona_prompt
 
 
+@dataclass(frozen=True, slots=True)
+class ProviderInputs:
+    """Provider-ready inputs for one turn, shared by complete and stream calls.
+
+    ``error`` holds the message when an explicit provider selection cannot be
+    honoured; it is never replaced by another provider. ``provider`` is ``None`` (without an
+    error) when no provider is configured.
+    """
+
+    provider: Any | None
+    config: ProviderConfig
+    prompt: str
+    history: list[dict[str, Any]]
+    error: str | None = None
+
+
+def prepare_provider_call(ctx: TurnContext) -> ProviderInputs:
+    """Select the provider and build the model-formatted prompt and history.
+
+    The one place provider inputs are prepared. Both ``CallProviderStep`` (one
+    complete response) and the streaming path call it, so equivalent
+    conversation state produces equivalent provider inputs in every delivery
+    mode. It also records the inspected prompt (``llm_history``/``llm_prompt``)
+    from exactly what will be sent.
+    """
+    config = _provider_config(ctx)
+    try:
+        provider = _select_provider(ctx)
+    except ProviderSelectionError as exc:
+        # An explicit selection is never substituted: report the error.
+        logger.warning("Explicit provider selection failed: %s", exc)
+        return ProviderInputs(None, config, ctx.user_message, [], error=str(exc))
+    if provider is None:
+        return ProviderInputs(None, config, ctx.user_message, [])
+
+    history = _provider_history(ctx)
+    prompt, history = _formatted_provider_inputs(ctx, provider, config, history)
+    ctx.metadata["llm_history"] = history
+    ctx.metadata["llm_prompt"] = _render_trace_prompt(prompt, history)
+    return ProviderInputs(provider, config, prompt, history)
+
+
 class CallProviderStep(TurnStep):
     name = "call_provider"
 
     async def run(self, ctx: TurnContext) -> TurnContext:
-        config = _provider_config(ctx)
-        try:
-            provider = _select_provider(ctx)
-        except ProviderSelectionError as exc:
-            # An explicit selection is never substituted: report the error.
-            logger.warning("Explicit provider selection failed: %s", exc)
-            ctx.provider_response = f"Provider error: {exc}"
+        inputs = prepare_provider_call(ctx)
+        config = inputs.config
+        if inputs.error is not None:
+            ctx.provider_response = f"Provider error: {inputs.error}"
             _store_llm_trace_metadata(ctx, provider=None, config=config, result=None)
             return ctx
+        provider = inputs.provider
         if provider is None:
             ctx.provider_response = _fallback_provider_response(ctx)
             _store_llm_trace_metadata(ctx, provider=None, config=config, result=None)
             return ctx
 
-        history = _provider_history(ctx)
-        prompt, history = _formatted_provider_inputs(ctx, provider, config, history)
-        ctx.metadata["llm_history"] = history
-        ctx.metadata["llm_prompt"] = _render_trace_prompt(prompt, history)
+        prompt, history = inputs.prompt, inputs.history
         try:
             result = await provider.complete(
                 prompt=prompt,
@@ -814,6 +851,10 @@ class TimelineUpdateStep(TurnStep):
             return ctx
 
         entry_ids = _metadata_text_list(ctx, "new_timeline_entries")
+        # Entries join the turn's own transaction when it has one, so a milestone
+        # is committed (or discarded) together with the turn's messages and
+        # other effects instead of surviving on its own.
+        turn_db = _db_session(ctx)
         for event in _detect_timeline_events(ctx):
             try:
                 entry = await add_timeline_entry(
@@ -829,6 +870,7 @@ class TimelineUpdateStep(TurnStep):
                         "detected_at": datetime.now(timezone.utc).isoformat(),
                         "signals": event["signals"],
                     },
+                    session=turn_db,
                 )
             except Exception:
                 logger.warning(

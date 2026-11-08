@@ -5,7 +5,7 @@ import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
-from chatbot.api import chat
+from chatbot.api import conversation
 from chatbot.core.steps import TurnContext
 
 
@@ -26,7 +26,7 @@ def test_recent_message_embeddings_use_one_ordered_batch(monkeypatch):
                       retrieved_memories=[], compiled_context=None, provider_response=None,
                       extracted_memories=[], final_response=None)
 
-    asyncio.run(chat._generate_recent_message_embeddings(db, uuid.uuid4(), ctx))
+    asyncio.run(conversation.generate_recent_message_embeddings(db, uuid.uuid4(), ctx))
 
     provider.embed.assert_awaited_once_with(["user: one", "assistant: two"])
     assert [m.embedding for m in messages] == [[1, 2, 3], [4, 5, 6]]

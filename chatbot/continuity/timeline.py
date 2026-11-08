@@ -98,7 +98,7 @@ class RelationshipTimelineEntryModel(Base):
     )
     session_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        sa.ForeignKey("sessions.id"),
+        sa.ForeignKey("sessions.id", ondelete="CASCADE"),
         index=True,
         nullable=False,
     )
@@ -155,7 +155,14 @@ class RelationshipTimeline:
         turn_id: str,
         tags: list[str] | None = None,
         metadata: dict | None = None,
+        session: Any | None = None,
     ) -> TimelineEntry:
+        """Add an entry, in its own transaction unless the caller supplies *session*.
+
+        With *session* the entry joins the caller's transaction (inside a
+        SAVEPOINT, so a failed entry cannot poison it) and is never committed
+        here: it becomes durable only with the turn it belongs to.
+        """
         _validate_entry_type(entry_type)
         entry_id = uuid.uuid4()
         now = _now()
@@ -173,9 +180,20 @@ class RelationshipTimeline:
             metadata_json=dict(metadata or {}),
         )
 
+        if session is not None:
+            begin_nested = getattr(session, "begin_nested", None)
+            if callable(begin_nested):
+                async with begin_nested():
+                    session.add(model)
+                    await _maybe_await(session.flush())
+            else:
+                session.add(model)
+                await _maybe_await(session.flush())
+            return _model_to_entry(model)
+
         async with self._session() as db:
             db.add(model)
-            await _flush_or_commit(db)
+            await _commit_owned_session(db)
         return _model_to_entry(model)
 
     async def update_timeline_entry(self, entry_id: str, **kwargs: Any) -> TimelineEntry:
@@ -219,7 +237,7 @@ class RelationshipTimeline:
                     setattr(model, key, value)
 
             model.updated_at = _now()
-            await _flush_or_commit(db)
+            await _commit_owned_session(db)
             return _model_to_entry(model)
 
     async def get_timeline(
@@ -280,7 +298,7 @@ class RelationshipTimeline:
                 metadata["resolution"] = resolution
             model.metadata_json = metadata
             model.updated_at = _now()
-            await _flush_or_commit(db)
+            await _commit_owned_session(db)
             return _model_to_entry(model)
 
     async def get_recent_milestones(
@@ -343,6 +361,7 @@ async def add_timeline_entry(
     turn_id: str,
     tags: list[str] | None = None,
     metadata: dict | None = None,
+    session: Any | None = None,
 ) -> TimelineEntry:
     return await _default_timeline.add_timeline_entry(
         session_id=session_id,
@@ -353,6 +372,7 @@ async def add_timeline_entry(
         turn_id=turn_id,
         tags=tags,
         metadata=metadata,
+        session=session,
     )
 
 
@@ -474,14 +494,14 @@ def _parse_datetime(value: str) -> datetime:
     return dt
 
 
-async def _flush_or_commit(db: Any) -> None:
-    in_transaction = getattr(db, "in_transaction", None)
-    if callable(in_transaction) and in_transaction():
-        flush = getattr(db, "flush", None)
-        if callable(flush):
-            await _maybe_await(flush())
-        return
+async def _commit_owned_session(db: Any) -> None:
+    """Commit a session this module opened itself (via its session factory).
 
+    The session is closed right after, so anything not committed is lost. Asking
+    ``in_transaction()`` first and flushing instead is wrong here: ``Session.add``
+    already begins a transaction, so that path only flushed and the entry was
+    rolled back when the session closed.
+    """
     commit = getattr(db, "commit", None)
     if callable(commit):
         await _maybe_await(commit())
