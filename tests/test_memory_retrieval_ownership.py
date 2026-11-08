@@ -31,6 +31,6 @@ def test_source_provenance_excludes_other_companions_and_rooms_but_keeps_shared_
     )
     sql = str(stmt.compile(dialect=postgresql.dialect()))
     assert "coalesce(messages.companion_id, sessions.companion_id) IS NOT NULL" in sql
-    assert "coalesce(messages.companion_id, sessions.companion_id) !=" in sql
+    assert "coalesce(messages.companion_id, sessions.companion_id) IS DISTINCT FROM" in sql
     assert "sessions.room_id IS NOT NULL" in sql
-    assert "sessions.room_id !=" in sql
+    assert "sessions.room_id IS DISTINCT FROM" in sql

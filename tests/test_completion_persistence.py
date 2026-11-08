@@ -260,13 +260,14 @@ async def test_completed_streaming_turn_commits_messages_and_every_effect(
     assert frames[-1] == "data: [DONE]\n\n"
     assert await env.roles() == ["user", "assistant"]
     effects = await env.effects()
-    assert effects["facts"] >= 1  # extracted memory (previously rolled back)
+    assert effects["facts"] == 0  # extraction is durable and off-path
+    assert len(await env.jobs()) == 1
     assert effects["mood_logs"] >= 1  # BotMoodLog (previously rolled back)
     assert effects["user_state_logs"] >= 1  # UserStateLog (previously rolled back)
     assert effects["timeline"] >= 1  # milestone, committed with the turn
     row = await env.session_row()
     assert row.mood_state is not None and row.user_state is not None  # session state saved
-    assert await env.count(models.Episode) >= 1
+    assert await env.count(models.Episode) == 0
 
 
 async def test_effects_and_messages_share_the_turn_id_and_ordering(env: Env, provider: FakeProvider) -> None:
@@ -325,7 +326,8 @@ async def test_with_emotional_state_steps_off_a_saved_turn_still_commits_its_fac
     await run_stream(env, MILESTONE)
 
     effects = await env.effects()
-    assert effects["facts"] >= 1 and effects["timeline"] >= 1
+    assert effects["facts"] == 0 and effects["timeline"] >= 1
+    assert len(await env.jobs()) == 1
     assert effects["mood_logs"] == 0 and effects["user_state_logs"] == 0
 
 
@@ -373,7 +375,8 @@ async def test_a_disconnect_after_the_turn_is_saved_keeps_its_effects(env: Env, 
     await generator.aclose()  # the browser closes the SSE connection at the `response` event
 
     assert await env.roles() == ["user", "assistant"]
-    assert (await env.effects())["facts"] >= 1
+    assert (await env.effects())["facts"] == 0
+    assert len(await env.jobs()) == 1
 
 
 # --------------------------------------------------------------------------
@@ -570,7 +573,8 @@ async def test_standard_deep_path_commits_messages_and_effects_in_one_transactio
     assert commits == 1
     assert await env.roles() == ["user", "assistant"]
     assert (await env.messages())[1].content == response.response
-    assert (await env.effects())["facts"] >= 1
+    assert (await env.effects())["facts"] == 0
+    assert len(await env.jobs()) == 1
 
 
 async def test_standard_fast_path_is_intact_and_defers_extraction(env: Env, provider: FakeProvider) -> None:
@@ -583,7 +587,8 @@ async def test_standard_fast_path_is_intact_and_defers_extraction(env: Env, prov
     assert commits == 1
     assert await env.roles() == ["user", "assistant"]
     assert await env.effects() == {"facts": 0, "mood_logs": 0, "user_state_logs": 0, "timeline": 0}
-    assert queue.pending_count == before + 1  # extraction deferred, not run inline
+    assert queue.pending_count == before  # extraction is durable, never volatile
+    assert len(await env.jobs()) == 1
     assert [step["name"] for step in response.step_results] == [
         "receive", "retrieve", "compile_context", "call_provider", "respond", "update_identity",
     ]
@@ -741,7 +746,7 @@ async def test_standard_fast_path_still_schedules_the_durable_job(
 
     assert commits == 1  # the job insert shares the turn's one transaction
     assert await env.count(models.BackgroundJob) == 1
-    assert queue.pending_count == before + 1  # volatile delivery is unchanged
+    assert queue.pending_count == before  # durable worker is the sole extraction path
     assert [step["name"] for step in response.step_results] == [
         "receive", "retrieve", "compile_context", "call_provider", "respond", "update_identity",
     ]

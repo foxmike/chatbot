@@ -775,6 +775,9 @@ class ExtractMemoryStep(TurnStep):
 
     async def run(self, ctx: TurnContext) -> TurnContext:
         ctx.extracted_memories = []
+        if ctx.metadata.get("durable_memory"):
+            # Embedding preparation remains in its existing bounded workflow.
+            return ctx
         if self._extractor_cls is None:
             logger.warning("MemoryExtractor is unavailable; no memories extracted")
             await _generate_message_embeddings(ctx)
@@ -1278,6 +1281,8 @@ class TurnPipeline:
         self._session_turn_counts[session_id] = turn_count
 
         for step_name in DEFERRED_STEPS:
+            if step_name == "extract_memory" and ctx.metadata.get("durable_memory"):
+                continue
             if step_name == "consolidate" and turn_count < self._consolidation_threshold:
                 continue
 

@@ -164,19 +164,22 @@ def resolve_extraction_model(settings: Any | None = None) -> tuple[str, str]:
     model id is the one to send to that provider (an ``openrouter/`` routing
     prefix is removed for OpenRouter, as the visual pipeline does).
     """
-    from chatbot.providers.router import (
-        select_model_for_task,
-        task_class_routing_config_from_settings,
-    )
+    from chatbot.providers.base import ProviderSelectionError
+    from chatbot.providers.router import _KNOWN_MODEL_REGISTRY
 
     if settings is None:
         from chatbot.config import get_settings
-
         settings = get_settings()
-    provider_name, model_id = select_model_for_task(
-        EXTRACTION_TASK_CLASS,
-        task_class_routing_config_from_settings(settings),
-    )
+    # Extraction has its own explicitly configured route. Never accept the
+    # general task router's fallback to a conversation model for invalid IDs.
+    provider_name = str(settings.task_class_extract_provider).strip()
+    model_id = str(settings.task_class_extract_model).strip()
+    local = {"sglang", "vllm", "ollama"}
+    known = _KNOWN_MODEL_REGISTRY.get(provider_name, frozenset())
+    if not model_id or (provider_name not in local and model_id not in known):
+        raise ProviderSelectionError(
+            f"Invalid extraction provider/model: {provider_name}/{model_id}"
+        )
     return provider_name, _provider_model_id(provider_name, model_id)
 
 

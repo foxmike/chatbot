@@ -15,6 +15,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import pytest
 import sqlalchemy as sa
 from sqlalchemy import select
 
@@ -24,6 +25,17 @@ from chatbot.db import models
 from chatbot.db.models import BackgroundJob, Episode, Message, Session, SemanticFact, User
 from chatbot.perf.durable_handlers import make_durable_memory_extract_handler
 from chatbot.perf.durable_worker import DurableJobWorker
+
+@pytest.fixture(autouse=True)
+def no_external_extraction(monkeypatch):
+    from chatbot.perf import durable_handlers
+    original = durable_handlers.LLMMemoryExtractor.from_settings
+    from phase2_helpers import extraction_registry
+    from chatbot.config import Settings
+    registry, _ = extraction_registry()
+    monkeypatch.setattr(durable_handlers.LLMMemoryExtractor, "from_settings",
+                        lambda **kwargs: original(**{**kwargs, "registry": registry, "settings": Settings(_env_file=None)}))
+
 
 # The existing extractor's heuristic facts: "I live in Seattle" / "I got a new job".
 USER_MESSAGE = "I got a new job today! I live in Seattle and I am so thrilled."

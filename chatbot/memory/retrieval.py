@@ -332,7 +332,8 @@ def _vector_store_filter(filters: RetrievalFilter) -> dict | None:
 def _matches_filter(candidate: _Candidate, filters: RetrievalFilter) -> bool:
     turn = candidate.turn
 
-    if filters.session_id is not None and turn.session_id != str(filters.session_id):
+    if (filters.session_id is not None and turn.session_id != str(filters.session_id)
+            and turn.metadata.get("memory_type") != "semantic_fact"):
         return False
 
     if filters.start is not None or filters.end is not None:
@@ -835,6 +836,8 @@ class SessionAwareVectorStore(VectorStore):
     ) -> list[SearchResult]:
         from chatbot.memory.pgvector_store import PgvectorStore
 
+        if self._table is None and (not filter or not filter.get("owner_session_id")):
+            raise PermissionError("Semantic retrieval requires an authenticated session scope")
         async with self._session_factory() as session:
             store = PgvectorStore(session, self._table)
             return await store.search(embedding, top_k, filter)

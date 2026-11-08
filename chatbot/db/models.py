@@ -658,6 +658,7 @@ class Episode(Base):
         server_default=sa.text("gen_random_uuid()"),
     )
     session_id: Mapped[uuid.UUID] = mapped_column(sa.ForeignKey("sessions.id"), nullable=False)
+    extraction_metadata: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
     title: Mapped[str] = mapped_column(sa.String, nullable=False)
     summary: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     start_message_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -699,6 +700,7 @@ class SemanticFact(Base):
         server_default=sa.text("gen_random_uuid()"),
     )
     user_id: Mapped[uuid.UUID] = mapped_column(sa.ForeignKey("users.id"), nullable=False)
+    extraction_metadata: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
     fact_text: Mapped[str] = mapped_column(sa.Text, nullable=False)
     embedding: Mapped[list[float] | None] = mapped_column(_embedding_vector_type(), nullable=True)
     source_message_id: Mapped[uuid.UUID | None] = mapped_column(

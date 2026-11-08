@@ -32,6 +32,9 @@ from chatbot.db import async_session_factory
 from chatbot.perf.background import BackgroundTask
 from chatbot.perf.handlers import consolidate_handler, memory_extract_handler
 from chatbot.perf.worker import BackgroundWorker, start_worker
+from chatbot.perf.durable_worker import start_durable_job_worker
+from chatbot.perf.durable_handlers import make_durable_memory_extract_handler
+from chatbot.perf.durable_handlers import validate_extraction_configuration
 from chatbot.memory.retrieval import build_retrieval_engine
 from chatbot.providers.bootstrap import build_default_registry
 
@@ -49,6 +52,8 @@ async def lifespan(app: FastAPI):
         async_session_factory,
         settings,
     )
+    validate_extraction_configuration(settings)  # fail startup on invalid extraction routing
+    durable_worker = None
     worker: BackgroundWorker | None = None
     scheduler_task: asyncio.Task[None] | None = None
 
@@ -56,18 +61,27 @@ async def lifespan(app: FastAPI):
         worker = await start_worker(
             _background_queue,
             handlers={
-                "memory_extract": _memory_extract_handler,
                 "consolidate": consolidate_handler,
             },
         )
         app.state.background_queue = _background_queue
         app.state.background_worker = worker
 
-    scheduler_task = await _start_scheduler(app)
-
     try:
+        durable_worker = await start_durable_job_worker(
+            async_session_factory,
+            handlers={"memory_extract": make_durable_memory_extract_handler(
+                async_session_factory, registry=app.state.provider_registry, settings=settings,
+                embeddings=app.state.retrieval_engine.embeddings if settings.openrouter_api_key else None,
+            )},
+            batch_size=1,
+        )
+        app.state.durable_memory_worker = durable_worker
+        scheduler_task = await _start_scheduler(app)
         yield
     finally:
+        if durable_worker is not None:
+            await durable_worker.shutdown(timeout_seconds=_WORKER_SHUTDOWN_TIMEOUT_SECONDS)
         await get_coordinator(app).close()
         host = getattr(app.state, "avatar_runtime_host", None)
         if host is not None:

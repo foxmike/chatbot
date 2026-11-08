@@ -494,6 +494,7 @@ def build_turn_context(
     session = sessions_store.get(session_id, {})
     metadata: dict[str, Any] = {
         "session_id": session_id,
+        "durable_memory": True,
         "created_at": session.get("created_at"),
         "message_count": session.get("message_count", len(history)),
         "session": dict(session),

@@ -25,7 +25,7 @@ class DefaultConfidenceScorer:
     """A baseline confidence scorer using the existing retrieval scores.
     
     This scorer computes confidence based on a weighted combination of the
-    retrieval rank score and the vector similarity score.
+    retrieval rank score and relevance derived from vector L2 distance.
     """
     
     def __init__(self, rank_weight: float = 0.5, vector_weight: float = 0.5) -> None:
@@ -34,7 +34,7 @@ class DefaultConfidenceScorer:
         
     def score(self, result: RetrievalResult) -> float:
         """Calculate the confidence score based on rank and vector scores."""
-        return (result.score * self.rank_weight) + (result.vector_score * self.vector_weight)
+        return (result.score * self.rank_weight) + ((1.0 / (1.0 + max(result.vector_score, 0.0))) * self.vector_weight)
 
 
 def filter_low_confidence(
@@ -51,7 +51,7 @@ def filter_low_confidence(
         
     Returns:
         A list of RetrievalResult objects that meet or exceed the threshold,
-        sorted by their confidence score in descending order.
+        in their existing relevance-rank order.
     """
     if scorer is None:
         scorer = DefaultConfidenceScorer()
@@ -62,6 +62,5 @@ def filter_low_confidence(
         if confidence >= threshold:
             scored_results.append((confidence, result))
             
-    # Return filtered results, maintaining sort by confidence (highest first)
-    scored_results.sort(key=lambda x: x[0], reverse=True)
+    # Eligibility must not reorder the relevance/recency ranking.
     return [result for _, result in scored_results]

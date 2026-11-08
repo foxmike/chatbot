@@ -427,8 +427,8 @@ def test_retrieval_engine_filters_ranks_deterministically_and_deduplicates(
 
         # D. Final confidence-filtered results:
         # Full retrieval pipeline applies production confidence threshold (0.50).
-        # "fresh" achieves confidence 0.5172 (>= 0.50), while "same-a" (0.4950),
-        # "same-b" (0.4950), and "dup-best" (0.4272) fall below the 0.50 threshold.
+        # Confidence interprets vector scores as L2 distance, so all four
+        # strong matches pass without changing their relevance-rank order.
         vector_store = FakeVectorStore(items)
         engine = RetrievalEngine(vector_store, fake_embeddings, default_candidate_k=7)
 
@@ -450,7 +450,7 @@ def test_retrieval_engine_filters_ranks_deterministically_and_deduplicates(
                 "filter": {"owner_session_id": "session-a"},
             }
         ]
-        assert [result.turn.id for result in results] == ["fresh"]
+        assert [result.turn.id for result in results] == ["fresh", "same-a", "same-b", "dup-best"]
         assert results[0].rank == 1
         assert results[0].metadata_matches["topic"] == "billing"
         assert results[0].metadata_matches["tags"] == ("urgent", "vip")

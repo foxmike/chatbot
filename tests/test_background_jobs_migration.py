@@ -58,7 +58,8 @@ def _scripts() -> ScriptDirectory:
 
 def test_the_background_jobs_revision_extends_the_chain_and_is_the_only_head() -> None:
     scripts = _scripts()
-    assert scripts.get_heads() == [REVISION]
+    assert scripts.get_heads() == ["c93a14e2786b"]
+    assert scripts.get_revision("c93a14e2786b").down_revision == REVISION
     assert scripts.get_revision(REVISION).down_revision == PREVIOUS_HEAD
     assert scripts.get_revision(PREVIOUS_HEAD).down_revision == "f687a630a8d1"
 

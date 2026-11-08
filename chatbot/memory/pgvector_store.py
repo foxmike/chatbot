@@ -56,7 +56,7 @@ class PgvectorStore(VectorStore):
         if top_k <= 0:
             return []
 
-        distance = self.embedding_column.op("<->")(
+        distance = self.embedding_column.op("<->", return_type=sa.Float)(
             sa.bindparam(
                 "query_embedding",
                 type_=self.embedding_column.type,
@@ -201,7 +201,7 @@ class PgvectorStore(VectorStore):
         session_id_value = self._coerce_column_value(models.Session.id, session_id)
         owner_session = sa.select(models.Session.user_id).where(
             models.Session.id == session_id_value
-        ).scalar_subquery()
+        ).correlate(None).scalar_subquery()
         stmt = stmt.where(models.SemanticFact.user_id == owner_session)
 
         source_message_id = self.table.c.get("source_message_id")
@@ -210,7 +210,7 @@ class PgvectorStore(VectorStore):
 
         current_companion = sa.select(models.Session.companion_id).where(
             models.Session.id == session_id_value
-        ).scalar_subquery()
+        ).correlate(None).scalar_subquery()
         other_companion_source = sa.exists(
             sa.select(1)
             .select_from(models.Message)
@@ -222,14 +222,14 @@ class PgvectorStore(VectorStore):
                 ).is_not(None),
                 sa.func.coalesce(
                     models.Message.companion_id, models.Session.companion_id
-                ) != current_companion,
+                ).is_distinct_from(current_companion),
             )
         )
         stmt = stmt.where(~other_companion_source)
 
         current_room = sa.select(models.Session.room_id).where(
             models.Session.id == session_id_value
-        ).scalar_subquery()
+        ).correlate(None).scalar_subquery()
         other_room_source = sa.exists(
             sa.select(1)
             .select_from(models.Message)
@@ -237,7 +237,7 @@ class PgvectorStore(VectorStore):
             .where(
                 models.Message.id == source_message_id,
                 models.Session.room_id.is_not(None),
-                models.Session.room_id != current_room,
+                models.Session.room_id.is_distinct_from(current_room),
             )
         )
         return stmt.where(~other_room_source)
@@ -309,6 +309,12 @@ class PgvectorStore(VectorStore):
             for column in self._search_metadata_columns()
             if row[column.name] is not None
         }
+        provenance = metadata.get("extraction_metadata") or {}
+        metadata.update({key: value for key, value in provenance.items() if key not in metadata})
+        if self.table.name == models.SemanticFact.__tablename__:
+            metadata["content"] = metadata.get("fact_text", "")
+            metadata["role"] = "user"
+            metadata["memory_type"] = "semantic_fact"
         return metadata or None
 
     @staticmethod

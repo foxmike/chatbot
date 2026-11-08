@@ -1,78 +1,42 @@
-"""Durable memory extraction handler for the durable job worker (Phase 2 design, Task 2.2).
+"""Durable extraction: cache validated output, then atomically apply effects.
 
-Registered with the ``DurableJobWorker`` under ``task_type="memory_extract"``
-during final activation (Task 2.2c.2); it must not run before the completion
-hook started scheduling jobs (Task 2.2c.1). The handler loads only the messages
-belonging to the job's persisted turn using the job's trusted session, user,
-companion and turn identifiers, reuses the existing memory extraction
-implementation (:class:`~chatbot.memory.extraction.MemoryExtractor`), and
-persists extracted memories idempotently through :class:`TurnMemoryStorage`.
-
-Idempotency mechanism: persisted effects are keyed by their provenance — facts
-by ``(source_message_id, fact_text)``, episodes by
-``(start_message_id, end_message_id)`` — so a retried job that runs after an
-earlier attempt already wrote its results (crash between write and success)
-finds those keys and completes without duplicate memories.
-
-The deep conversation path still performs inline memory extraction; this
-handler adds no second pass there because nothing invokes it yet.
+The bounded job receipt fixes the candidate set across retries. Memory identity
+uses owned source messages, evidence, memory kind and a stable receipt slot,
+never generated wording. A job-row lock serializes receipt/effect commits.
 """
 
 from __future__ import annotations
 
-import logging
-from typing import Any, Protocol
+from collections import defaultdict
+from datetime import datetime, timezone
+import json
+import uuid
+from typing import Any
 
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import insert
 
-from chatbot.db.models import Episode, Message, Session, SemanticFact
-from chatbot.memory.extraction import MemoryExtractor
-
-logger = logging.getLogger(__name__)
-
-EPISODE_TITLE_LIMIT = 160
-
-
-class _SessionHolder(Protocol):
-    """Columns of ``Session``/``Message`` rows this module relies on."""
-
-    user_id: Any
-    companion_id: str | None
-    id: Any
-    role: str
-    content: str
-    created_at: Any
-
-
-def _join_messages(messages: list[Any], role: str) -> str:
-    return " ".join(
-        message.content for message in messages if message.role == role and message.content.strip()
-    )
-
-
-def _trim(text: str | None, limit: int) -> str:
-    cleaned = " ".join(str(text or "").split())
-    return cleaned[:limit]
+from chatbot.db.models import BackgroundJob, Episode, Message, Session, SemanticFact
+from chatbot.memory.llm_extraction import (
+    LLMMemoryExtractor,
+    resolve_extraction_model as validate_extraction_configuration,
+)
 
 
 def _source_message_id(source: Any, user_msg: Any, assistant_msg: Any) -> Any | None:
-    """Map the extractor's ``metadata.source`` to that source message's row id."""
-    normalized = str(source or "")
-    if normalized == "user_message":
-        return getattr(user_msg, "id", None)
-    if normalized == "provider_response":
-        return getattr(assistant_msg, "id", None)
-    return None
+    return getattr(
+        user_msg
+        if source == "user_message"
+        else assistant_msg
+        if source == "provider_response"
+        else None,
+        "id",
+        None,
+    )
 
 
 class TurnMemoryStorage:
-    """Idempotent provenance-aware persistence for one turn's extracted memories.
-
-    A closure over the turn's resolved session (ownership already checked), the
-    job's trusted identifiers, and the turn's source-message rows. Implements
-    :class:`~chatbot.memory.extraction.MemoryStorageAdapter`, so it plugs into
-    the existing extraction implementation unchanged.
-    """
+    """Existing storage-adapter interface, with deterministic primary keys."""
 
     def __init__(
         self,
@@ -83,205 +47,249 @@ class TurnMemoryStorage:
         turn_id: str,
         user_msg: Any,
         assistant_msg: Any,
+        vectors: dict[int, list[float]] | None = None,
     ) -> None:
-        self.db = db
-        self.session_row = session_row
-        self.session_id = session_id
-        self.turn_id = turn_id
-        self.user_msg = user_msg
-        self.assistant_msg = assistant_msg
+        self.db, self.session_row, self.session_id = db, session_row, session_id
+        self.turn_id, self.user_msg, self.assistant_msg = turn_id, user_msg, assistant_msg
+        self.vectors = vectors or {}
         self.persistence_error: Exception | None = None
 
     async def persist(self, session_id: str, entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        if str(session_id) != str(self.session_id):
+            raise PermissionError("Extraction storage session mismatch")
         try:
-            return await self._persist(session_id, entries)
+            return await self._persist(entries)
         except Exception as exc:
-            # The legacy extractor catches storage exceptions. Retain the error
-            # so the job handler can fail and roll back instead of acknowledging
-            # partially written effects as a successful extraction.
             self.persistence_error = exc
             raise
 
-    async def _persist(self, session_id: str, entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        fact_rows: list[dict[str, Any]] = []
-        episode_rows: list[dict[str, Any]] = []
-
-        for entry in entries:
+    async def _persist(self, entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        written = []
+        slots: dict[str, int] = defaultdict(int)
+        for index, entry in enumerate(entries[:8]):
             content = str(entry.get("content") or "").strip()
-            metadata = entry.get("metadata")
-            metadata = metadata if isinstance(metadata, dict) else {}
             if not content:
                 continue
-            kind = str(entry.get("type") or "")
-
+            metadata = dict(entry.get("metadata") or {})
+            kind = entry.get("type")
+            source_id = _source_message_id(
+                metadata.get("source"), self.user_msg, self.assistant_msg
+            )
+            if kind == "fact" and source_id is None:
+                raise ValueError("Extracted fact is missing source-message attribution")
+            if kind not in {"fact", "episode"}:
+                raise ValueError("Unsupported extracted memory kind")
+            evidence = metadata.get("evidence") or metadata.get("source_text")
+            # Heuristics carry the source wording in content, not evidence.
+            evidence = str(evidence or content) if kind == "fact" else "turn_episode"
+            identity = json.dumps(
+                [
+                    str(self.session_row.user_id),
+                    self.session_row.companion_id,
+                    str(self.session_id),
+                    self.turn_id,
+                    str(source_id),
+                    kind,
+                    metadata.get("kind", kind),
+                    evidence,
+                ],
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+            slot = slots[identity]
+            slots[identity] += 1
+            memory_id = uuid.uuid5(uuid.NAMESPACE_URL, f"chatbot-memory-v1:{identity}:{slot}")
+            metadata.update(
+                {
+                    "user_id": str(self.session_row.user_id),
+                    "companion_id": self.session_row.companion_id,
+                    "room_id": self.session_row.room_id,
+                    "session_id": str(self.session_id),
+                    "turn_id": self.turn_id,
+                    "source_message_id": str(source_id) if source_id else None,
+                    "evidence": evidence,
+                    "receipt_slot": slot,
+                    "source_created_at": self.user_msg.created_at.isoformat()
+                    if self.user_msg
+                    else None,
+                }
+            )
             if kind == "fact":
-                source_message_id = _source_message_id(
-                    metadata.get("source"), self.user_msg, self.assistant_msg
+                source_type = metadata.get("source_type", "inferred")
+                if source_type not in {"explicit", "inferred"}:
+                    raise ValueError("Invalid source classification")
+                try:
+                    source_turn_id = uuid.UUID(self.turn_id)
+                except ValueError:
+                    source_turn_id = None
+                model = SemanticFact
+                row = dict(
+                    id=memory_id,
+                    user_id=self.session_row.user_id,
+                    fact_text=content,
+                    source_message_id=source_id,
+                    embedding=self.vectors.get(index),
+                    source_turn_id=source_turn_id,
+                    source_type=source_type,
+                    confidence=float(metadata.get("confidence", 1.0)),
+                    extraction_metadata=metadata,
                 )
-                # Provenance is required: without a known source message the
-                # write has no uniqueness key and is skipped rather than written.
-                if source_message_id is None:
-                    logger.warning(
-                        "memory_extract: fact %r from session %s has no source message; skipped",
-                        content[:80],
-                        self.session_id,
-                    )
-                    continue
-                already_persisted = await self.db.scalar(
-                    sa.select(SemanticFact.id).where(
-                        SemanticFact.source_message_id == source_message_id,
-                        SemanticFact.fact_text == content,
-                    )
+            else:
+                model = Episode
+                row = dict(
+                    id=memory_id,
+                    session_id=self.session_id,
+                    title=str(metadata.get("title") or "Conversation turn")[:160],
+                    summary=content,
+                    start_message_id=getattr(self.user_msg, "id", None),
+                    end_message_id=getattr(self.assistant_msg, "id", None),
+                    extraction_metadata=metadata,
                 )
-                if already_persisted is not None:
-                    continue  # retried work whose earlier attempt already wrote this fact
-                fact_rows.append(
-                    {
-                        "user_id": self.session_row.user_id,
-                        "fact_text": content,
-                        "source_message_id": source_message_id,
-                        "confidence": float(metadata.get("confidence", 1.0)),
-                        "source_type": metadata.get("source_type", "inferred"),
-                    }
-                )
-
-            elif kind == "episode":
-                start_message_id = getattr(self.user_msg, "id", None)
-                end_message_id = getattr(self.assistant_msg, "id", None)
-                if start_message_id is None or end_message_id is None:
-                    continue
-                already_persisted = await self.db.scalar(
-                    sa.select(Episode.id).where(
-                        Episode.start_message_id == start_message_id,
-                        Episode.end_message_id == end_message_id,
-                    )
-                )
-                if already_persisted is not None:
-                    continue  # retried work whose earlier attempt already wrote this episode
-                episode_rows.append(
-                    {
-                        "session_id": self.session_id,
-                        "title": _trim(str(metadata.get("title") or "Conversation turn"), EPISODE_TITLE_LIMIT),
-                        "summary": content,
-                        "start_message_id": start_message_id,
-                        "end_message_id": end_message_id,
-                    }
-                )
-
-        written: list[dict[str, Any]] = []
-        if fact_rows:
-            await self.db.execute(sa.insert(SemanticFact), fact_rows)
-            written.extend(e for e in entries if str(e.get("type")) == "fact")
-        if episode_rows:
-            await self.db.execute(sa.insert(Episode), episode_rows)
-            written.extend(e for e in entries if str(e.get("type")) == "episode")
+            result = await self.db.execute(
+                insert(model).values(**row).on_conflict_do_nothing(index_elements=["id"])
+            )
+            if result.rowcount:
+                written.append(entry)
         return written
 
 
+class _CaptureStorage:
+    async def persist(self, session_id: str, entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return entries[:8]
+
+
 def make_durable_memory_extract_handler(
-    session_factory: Any,
+    session_factory: Any, *, registry: Any = None, settings: Any = None, embeddings: Any = None
 ) -> Any:
-    """Build the durable ``memory_extract`` handler bound to a session factory.
-
-    Final activation (Task 2.2c.2) registers the app's session factory with the
-    durable worker; tests bind the factory they control.
-    """
-
     async def handler(job: Any) -> None:
-        await _process_memory_extract_job(session_factory, job)
+        await _process_memory_extract_job(
+            session_factory, job, registry=registry, settings=settings, embeddings=embeddings
+        )
 
     return handler
 
 
 async def durable_memory_extract_handler(job: Any) -> None:
-    """Module-level handler bound to the app's session factory.
-
-    Not activated in the application yet; ``make_durable_memory_extract_handler``
-    is the registration entry point.
-    """
     from chatbot.db.session import async_session_factory
 
     await _process_memory_extract_job(async_session_factory, job)
 
 
-async def _process_memory_extract_job(session_factory: Any, job: Any) -> None:
-    """Resolve the persisted turn from the job's trusted identifiers (the job
-    row's session/user/companion and the row's turn id), enforce ownership
-    against the live session row, load only that turn's messages, reuse
-    :class:`MemoryExtractor` with :class:`TurnMemoryStorage`, and persist
-    idempotently — a crash before success leaves nothing half-committed beyond
-    what a retry dedupes.
-    """
-
-    session_id = job.session_id
-    user_id = job.user_id
-    companion_id = (job.companion_id or "").strip() or None
-    turn_id = str(getattr(job, "turn_id", "") or "").strip()
-    if not all((session_id, user_id, turn_id)):
-        raise ValueError(
-            "memory_extract job is missing required identifiers "
-            f"(session_id={bool(session_id)} user_id={bool(user_id)} turn_id={bool(turn_id)})"
-        )
-
+async def _process_memory_extract_job(
+    session_factory: Any,
+    job: Any,
+    *,
+    registry: Any = None,
+    settings: Any = None,
+    embeddings: Any = None,
+) -> None:
+    if not all((job.session_id, job.user_id, job.turn_id)):
+        raise ValueError("memory_extract job is missing required identifiers")
     async with session_factory() as db:
-        # Ownership: the live session row must match the job's trusted user and
-        # companion. Wrong-user or wrong-companion access is rejected.
-        session_row = await db.get(Session, session_id)
+        session_row = await db.get(Session, job.session_id)
         if session_row is None:
-            raise ValueError(f"memory_extract: session {session_id} does not exist")
-        if session_row.user_id != user_id:
+            raise ValueError("memory_extract session does not exist")
+        if session_row.user_id != job.user_id or session_row.companion_id != job.companion_id:
             raise PermissionError(
-                f"memory_extract: session {session_id} does not belong to the job's user"
+                "memory_extract session does not belong to the job's user/companion"
             )
-        if session_row.companion_id != companion_id:
-            raise PermissionError(
-                f"memory_extract: session {session_id} does not belong to the job's companion"
-            )
-
-        result = await db.execute(
-            sa.select(Message)
-            .where(Message.session_id == session_id, Message.turn_id == turn_id)
-            .order_by(Message.created_at)
-        )
-        messages = list(result.scalars().all())
-        user_message = _join_messages(messages, "user")
-        assistant_message = _join_messages(messages, "assistant")
-        if not user_message and not assistant_message:
-            logger.warning(
-                "memory_extract: no persisted messages for turn %s in session %s; nothing to extract",
-                turn_id,
-                session_id,
-            )
+        stored_job = await db.get(BackgroundJob, job.job_id)
+        if stored_job is None:
+            raise ValueError("memory_extract job no longer exists")
+        if stored_job.status == "succeeded":
             return
-
+        if stored_job.payload.get("effects_applied"):
+            stored_job.status, stored_job.completed_at = "succeeded", datetime.now(timezone.utc)
+            await db.commit()
+            return
+        receipt = stored_job.payload.get("extraction_result")
+        messages = list(
+            (
+                await db.scalars(
+                    sa.select(Message)
+                    .where(
+                        Message.session_id == job.session_id,
+                        Message.turn_id == job.turn_id,
+                    )
+                    .order_by(Message.created_at, Message.id)
+                )
+            ).all()
+        )
         user_msg = next((m for m in messages if m.role == "user"), None)
         assistant_msg = next((m for m in messages if m.role == "assistant"), None)
-
+        await db.commit()  # release the read transaction before inference
+        if not messages:
+            return
+        if not user_msg or not assistant_msg:
+            raise ValueError("memory_extract requires a persisted completed message pair")
+        if receipt is None:
+            extractor = LLMMemoryExtractor.from_settings(
+                storage=_CaptureStorage(),
+                registry=registry,
+                settings=settings,
+                propagate_errors=True,
+            )
+            entries = await extractor.extract(
+                session_id=str(job.session_id),
+                user_message=user_msg.content,
+                provider_response=assistant_msg.content,
+                turn_id=job.turn_id,
+            )
+            locked = await db.scalar(
+                sa.select(BackgroundJob)
+                .where(BackgroundJob.job_id == job.job_id)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
+            if locked is None:
+                raise ValueError("memory_extract job was deleted")
+            if locked.status == "succeeded" or locked.attempt_count != job.attempt_count:
+                return
+            receipt = locked.payload.get("extraction_result")
+            if receipt is None:
+                receipt = {"version": 1, "entries": entries[:8]}
+                locked.payload = {**locked.payload, "extraction_result": receipt}
+            await db.commit()  # durable replay input, including an empty result
+        vectors = {}
+        if embeddings is not None:
+            facts = [
+                (index, entry["content"])
+                for index, entry in enumerate(receipt["entries"])
+                if entry.get("type") == "fact"
+            ]
+            if facts:
+                batch = await embeddings.embed([content for _, content in facts])
+                if len(batch) != len(facts):
+                    raise ValueError("Embedding batch size mismatch")
+                vectors = {index: vector for (index, _), vector in zip(facts, batch, strict=True)}
+        locked = await db.scalar(
+            sa.select(BackgroundJob)
+            .where(BackgroundJob.job_id == job.job_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if locked is None:
+            raise ValueError("memory_extract job was deleted")
+        if locked.status == "succeeded" or locked.attempt_count != job.attempt_count:
+            return
         storage = TurnMemoryStorage(
             db,
             session_row=session_row,
-            session_id=session_id,
-            turn_id=turn_id,
+            session_id=job.session_id,
+            turn_id=job.turn_id,
             user_msg=user_msg,
             assistant_msg=assistant_msg,
+            vectors=vectors,
         )
-        extractor = MemoryExtractor(storage=storage)
-        # Extraction runs outside the claim transaction (the worker claims with
-        # its own session); this handler owns this persistence transaction.
-        written = await extractor.extract(
-            session_id=str(session_id),
-            user_message=user_message,
-            provider_response=assistant_message,
-        )
-        if storage.persistence_error is not None:
-            raise storage.persistence_error
-        await db.commit()
-        logger.info(
-            "memory_extract: %d memories persisted for turn %s (session %s)",
-            len(written),
-            turn_id,
-            session_id,
-        )
+        await storage.persist(str(job.session_id), receipt["entries"])
+        locked.payload = {**locked.payload, "effects_applied": True}
+        locked.status, locked.completed_at = "succeeded", datetime.now(timezone.utc)
+        await db.commit()  # all effects and success are atomic
 
 
-__all__ = ["TurnMemoryStorage", "durable_memory_extract_handler", "make_durable_memory_extract_handler"]
+__all__ = [
+    "TurnMemoryStorage",
+    "durable_memory_extract_handler",
+    "make_durable_memory_extract_handler",
+    "validate_extraction_configuration",
+]

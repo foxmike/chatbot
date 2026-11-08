@@ -39,7 +39,7 @@ from test_completion_persistence import (  # noqa: E402
     SESSION_ID,
     Env,
     app_with_engine,
-    run_stream,
+    run_stream as _run_stream,
     env,  # noqa: F401 (pytest fixture)
     provider,  # noqa: F401 (pytest fixture)
 )
@@ -47,6 +47,21 @@ from chatbot.db import models
 from chatbot.memory.episodic import EpisodicTurn
 from chatbot.memory.retrieval import RetrievalEngine, RoomMemoryContext, RetrievalFilter
 from chatbot.memory.vector_store import SearchResult, VectorStore
+
+
+@pytest.fixture(autouse=True)
+def mocked_conversation(provider):
+    """Every conversation provider is local; no paid models in acceptance."""
+    return provider
+
+
+async def run_stream(env, message, **kwargs):
+    # Completion persists a job, then a separately driven worker performs the
+    # asynchronous memory operation using a mocked provider response.
+    frames = await _run_stream(env, message, **kwargs)
+    from phase2_helpers import drain_memory_jobs
+    await drain_memory_jobs(env)
+    return frames
 
 
 def _is_postgres_ready() -> bool:
@@ -464,6 +479,10 @@ async def test_scenario_7b_companion_specific_facts_isolated_in_durable_storage(
     await _add_companion(env, cid_a, "Mercury")
     await _add_companion(env, cid_b, "Athena")
 
+    async with env.factory() as db:
+        session = await db.get(models.Session, SESSION_ID)
+        session.companion_id = cid_a
+        await db.commit()
     # Run turn with Companion A
     await run_stream(
         env,
@@ -482,7 +501,7 @@ async def test_scenario_7b_companion_specific_facts_isolated_in_durable_storage(
 
     assert fact is not None, "Fact should be persisted"
     # Phase 2 requirement: Durable fact must track companion attribution to prevent cross-companion leakage
-    companion_id_attr = getattr(fact, "companion_id", None)
+    companion_id_attr = (fact.extraction_metadata or {}).get("companion_id")
     assert companion_id_attr == cid_a, (
         f"Expected SemanticFact to have companion_id={cid_a!r} for companion-specific interaction, "
         f"got {companion_id_attr!r} (missing companion isolation in durable facts)"
@@ -511,6 +530,10 @@ async def test_scenario_8_intentionally_shared_user_memories_accessible_across_c
     await _add_companion(env, cid_a, "Alpha")
     await _add_companion(env, cid_b, "Beta")
 
+    async with env.factory() as db:
+        session = await db.get(models.Session, SESSION_ID)
+        session.companion_id = cid_a
+        await db.commit()
     # User establishes preference in session with Companion A
     await run_stream(env, "I prefer vegetarian food.", session_companion_id=cid_a)
 

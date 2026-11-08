@@ -140,23 +140,34 @@ class DurableJobWorker:
             )
             jobs = list(result.scalars().all())
             recovered = sum(1 for job in jobs if job.status == "running")
+            eligible = []
             for job in jobs:
+                if job.attempt_count >= self.max_attempts:
+                    job.status = "failed"
+                    job.completed_at = now
+                    job.last_error = "Lease expired after maximum attempts"
+                    continue
+                eligible.append(job)
                 job.status = "running"
                 job.claimed_at = now
                 job.attempt_count += 1
             await session.commit()
         self._jobs_recovered += recovered
-        return jobs
+        return eligible
 
     # ------------------------------------------------------------------
     # Terminal status operations
     # ------------------------------------------------------------------
 
-    async def _mark_succeeded(self, job_id: Any) -> None:
+    async def _mark_succeeded(self, claimed: BackgroundJob) -> None:
         now = datetime.now(timezone.utc)
         async with self.session_factory() as session:
-            job = await session.get(BackgroundJob, job_id)
-            if job is None:
+            job = await session.scalar(
+                sa.select(BackgroundJob)
+                .where(BackgroundJob.job_id == claimed.job_id)
+                .with_for_update()
+            )
+            if job is None or job.status != "running" or job.attempt_count != claimed.attempt_count:
                 return
             job.status = "succeeded"
             job.completed_at = now
@@ -173,8 +184,10 @@ class DurableJobWorker:
         now = datetime.now(timezone.utc)
         bounded = error[: BackgroundJob.__table__.c.last_error.type.length]
         async with self.session_factory() as session:
-            row = await session.get(BackgroundJob, job.job_id)
-            if row is None:
+            row = await session.scalar(
+                sa.select(BackgroundJob).where(BackgroundJob.job_id == job.job_id).with_for_update()
+            )
+            if row is None or row.status != "running" or row.attempt_count != job.attempt_count:
                 return
             if row.attempt_count < self.max_attempts:
                 row.status = "pending"
@@ -223,7 +236,7 @@ class DurableJobWorker:
             await self._mark_failure(job, str(exc))
             self._jobs_failed += 1
         else:
-            await self._mark_succeeded(job.job_id)
+            await self._mark_succeeded(job)
             self._jobs_processed += 1
 
     async def run(self) -> None:
@@ -239,12 +252,27 @@ class DurableJobWorker:
 
         try:
             while not self.stop_event.is_set():
-                claimed = await self.claim_due_jobs()
+                try:
+                    claimed = await self.claim_due_jobs()
+                except Exception:
+                    logger.exception("Durable memory polling failed; pending rows remain durable")
+                    await asyncio.sleep(self.poll_interval_seconds)
+                    continue
                 if not claimed:
                     await asyncio.sleep(self.poll_interval_seconds)
                     continue
                 for job in claimed:
-                    await self._run_one(job)
+                    if self.stop_event.is_set():
+                        break
+                    try:
+                        await self._run_one(job)
+                    except Exception:
+                        # A failed status transaction must not kill polling.
+                        # The committed claim remains recoverable by its lease.
+                        logger.exception(
+                            "Durable job status write failed; lease will recover the claim"
+                        )
+                        await asyncio.sleep(self.poll_interval_seconds)
         finally:
             self._stopped_at = _iso_timestamp()
             logger.info(
