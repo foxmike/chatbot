@@ -148,6 +148,8 @@ class Rituals:
         schedule_description: str,
         trigger_prompt: str | None = None,
         metadata: dict | None = None,
+        *,
+        session: AsyncSession | None = None,
     ) -> Ritual:
         _validate_ritual_type(ritual_type)
         ritual_id = uuid.uuid4()
@@ -167,9 +169,9 @@ class Rituals:
             metadata_json=dict(metadata or {}),
         )
 
-        async with self._session() as db:
+        async with self._session(session) as db:
             db.add(model)
-            await _flush_or_commit(db)
+            await _flush_or_commit(db, owned=session is None)
         return _model_to_ritual(model)
 
     async def get_rituals(
@@ -218,16 +220,16 @@ class Rituals:
 
         return [_model_to_ritual(model) for model in models if _ritual_is_due(model, now)]
 
-    async def trigger_ritual(self, ritual_id: str) -> str:
+    async def trigger_ritual(self, ritual_id: str, *, session: AsyncSession | None = None) -> str:
         now = _now()
-        async with self._session() as db:
+        async with self._session(session) as db:
             model = await self._get_model(db, ritual_id)
             if model is None:
                 raise ValueError(f"Ritual {ritual_id} not found")
 
             model.last_triggered_at = now
             model.next_trigger_at = _next_trigger_at(model.schedule_description, now)
-            await _flush_or_commit(db)
+            await _flush_or_commit(db, owned=session is None)
             return model.trigger_prompt or ""
 
     async def add_inside_joke(
@@ -236,6 +238,8 @@ class Rituals:
         name: str,
         joke_text: str,
         context: str,
+        *,
+        session: AsyncSession | None = None,
     ) -> Ritual:
         return await self.create_ritual(
             session_id=session_id,
@@ -245,16 +249,17 @@ class Rituals:
             schedule_description="when context is relevant",
             trigger_prompt=joke_text,
             metadata={"context": context, "joke_text": joke_text},
+            session=session,
         )
 
-    async def deactivate_ritual(self, ritual_id: str) -> None:
-        async with self._session() as db:
+    async def deactivate_ritual(self, ritual_id: str, *, session: AsyncSession | None = None) -> None:
+        async with self._session(session) as db:
             model = await self._get_model(db, ritual_id)
             if model is None:
                 raise ValueError(f"Ritual {ritual_id} not found")
 
             model.is_active = False
-            await _flush_or_commit(db)
+            await _flush_or_commit(db, owned=session is None)
 
     async def _get_model(
         self,
@@ -269,7 +274,11 @@ class Rituals:
         return result.scalar_one_or_none()
 
     @asynccontextmanager
-    async def _session(self) -> Any:
+    async def _session(self, session: AsyncSession | None = None) -> Any:
+        if session is not None:
+            # The caller retains transaction and session lifetime ownership.
+            yield session
+            return
         session = self._session_factory()
         if hasattr(session, "__aenter__"):
             async with session as active_session:
@@ -293,6 +302,8 @@ async def create_ritual(
     schedule_description: str,
     trigger_prompt: str | None = None,
     metadata: dict | None = None,
+    *,
+    session: AsyncSession | None = None,
 ) -> Ritual:
     return await _default_rituals.create_ritual(
         session_id=session_id,
@@ -302,6 +313,7 @@ async def create_ritual(
         schedule_description=schedule_description,
         trigger_prompt=trigger_prompt,
         metadata=metadata,
+        session=session,
     )
 
 
@@ -317,8 +329,8 @@ async def get_due_rituals(session_id: str) -> list[Ritual]:
     return await _default_rituals.get_due_rituals(session_id)
 
 
-async def trigger_ritual(ritual_id: str) -> str:
-    return await _default_rituals.trigger_ritual(ritual_id)
+async def trigger_ritual(ritual_id: str, *, session: AsyncSession | None = None) -> str:
+    return await _default_rituals.trigger_ritual(ritual_id, session=session)
 
 
 async def add_inside_joke(
@@ -326,12 +338,14 @@ async def add_inside_joke(
     name: str,
     joke_text: str,
     context: str,
+    *,
+    session: AsyncSession | None = None,
 ) -> Ritual:
-    return await _default_rituals.add_inside_joke(session_id, name, joke_text, context)
+    return await _default_rituals.add_inside_joke(session_id, name, joke_text, context, session=session)
 
 
-async def deactivate_ritual(ritual_id: str) -> None:
-    await _default_rituals.deactivate_ritual(ritual_id)
+async def deactivate_ritual(ritual_id: str, *, session: AsyncSession | None = None) -> None:
+    await _default_rituals.deactivate_ritual(ritual_id, session=session)
 
 
 def _ritual_is_due(model: CompanionRitualModel, now: datetime) -> bool:
@@ -443,9 +457,13 @@ def _dt_iso(dt: datetime | None) -> str | None:
     return _ensure_timezone(dt).isoformat()
 
 
-async def _flush_or_commit(db: Any) -> None:
-    in_transaction = getattr(db, "in_transaction", None)
-    if callable(in_transaction) and in_transaction():
+async def _flush_or_commit(db: Any, *, owned: bool) -> None:
+    """Commit factory-owned writes, including autobegun transactions.
+
+    Only an explicitly supplied session belongs to a caller; its writes are
+    flushed without committing. Owned context managers roll back on failure.
+    """
+    if not owned:
         flush = getattr(db, "flush", None)
         if callable(flush):
             await _maybe_await(flush())
