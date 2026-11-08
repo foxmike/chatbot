@@ -65,6 +65,16 @@ def assertion(text: str, metadata: dict[str, Any], source_at: datetime) -> Asser
     historical = metadata.get("temporal") == "past" or bool(
         re.search(r"\b(?:used to|previously|in the past|lived|worked)\b", clean)
     )
+    if metadata.get("kind") == "shared_experience":
+        # An event, not a property: never a slot, so it cannot supersede a fact.
+        # Its date keeps the same wording on another day a different event.
+        return Assertion(
+            _digest([clean, str(metadata.get("context") or ""), historical, source_at.date().isoformat()]),
+            None,
+            clean,
+            False,
+            historical,
+        )
     state_change = bool(re.search(r"\bnow\b", clean))
     clean = re.sub(r"\b(i|user) (?:now|currently) ", r"\1 ", clean)
     clean = re.sub(r" now$", "", clean)
