@@ -33,6 +33,8 @@ class PromptLayerName(str, Enum):
     SOCIAL_CONTEXT = "social_context"
     MEMORY = "memory"
     SESSION_GOALS = "session_goals"
+    EXPRESSION = "expression"
+    PERFORMANCE_OUTPUT = "performance_output"
 
 
 PROMPT_LAYER_ORDER: tuple[PromptLayerName, ...] = (
@@ -48,6 +50,8 @@ PROMPT_LAYER_ORDER: tuple[PromptLayerName, ...] = (
     PromptLayerName.SOCIAL_CONTEXT,
     PromptLayerName.MEMORY,
     PromptLayerName.SESSION_GOALS,
+    PromptLayerName.EXPRESSION,
+    PromptLayerName.PERFORMANCE_OUTPUT,
 )
 
 MEMORY_REALISM_DIRECTIVES: dict[MemoryTimescale, str] = {
@@ -116,6 +120,8 @@ PROMPT_LAYER_TITLES: dict[PromptLayerName, str] = {
     PromptLayerName.SOCIAL_CONTEXT: "Social Context",
     PromptLayerName.MEMORY: "Memory",
     PromptLayerName.SESSION_GOALS: "Session Goals",
+    PromptLayerName.EXPRESSION: "Character Expression",
+    PromptLayerName.PERFORMANCE_OUTPUT: "Performance Output",
 }
 
 _PROMPT_LAYER_ALIASES: dict[str, PromptLayerName] = {

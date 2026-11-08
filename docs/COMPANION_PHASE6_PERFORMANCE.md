@@ -1,7 +1,9 @@
 # Companion Evolution — Phase 6.2 Expressive Dialogue and Performance Contract
 
-**Status:** DESIGN, awaiting approval of §12. No production code. Implemented by a later task.
+**Status:** IMPLEMENTED in Phase 6 integration. Owner decisions D1–D8 in the integration assignment approve the contract with the overrides below.
 **Requirements:** P03, P06, A12, A13, A15 (A10 as constraint). Baseline: `main` at `59e52f7`.
+
+**Approved implementation overrides:** performance is spoken-only and disabled by default; verified Chatbot-side pauses can open the capability gate when explicitly enabled. Debug mode may request the full canonical schema while unsupported controls are ignored. D7 preserves visible paragraph breaks rather than flattening dialogue; synthesis receives clean segment text. Six trailers, 240 characters per trailer, 64 retained dialogue segments, 8,192 characters per active dialogue segment, a 300 ms grace, and a 900-character protocol prompt bound processing. A slow plain line can be released without metadata at the deadline; late trailers are recorded and ignored. Bare line-start `@@ {` / `@@ [` is reserved; quoted and inline markers remain literal. The existing Prompt Inspector carries bounded samples and validation/fallback diagnostics.
 
 ## 0. What was verified (and what that means)
 

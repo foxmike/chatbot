@@ -484,13 +484,11 @@ def _assemble_fingerprint(
             for key, value in voice_characteristics.items()
         )
         guidance = (
-            f"Configured voice anchors: {anchors}. Let them shape word choice, "
-            "sentence shape, rhythm, storytelling, humor, imagery, directness "
-            "and register when the moment invites it. Vary naturally; use any "
-            "configured imperfections subtly, do not force humor or repeat "
-            "signature phrases, and never manufacture errors."
+            f"Configured voice anchors: {anchors[:220]}. Let them shape diction, syntax, "
+            "rhythm, humor, imagery, directness and register when apt. Vary naturally; "
+            "do not force humor, repeat signature phrases or manufacture errors. "
+            "Use configured quirks subtly."
         )
-        guidance = _bound_text(guidance, 360)
     influence_text = ""
     if influences:
         influence_text = (

@@ -75,6 +75,7 @@ class SpeechChunk:
     at: float
     started_at: float = 0.0  # first character of this chunk arrived from the LLM
     ready_at: float = 0.0    # last character of this chunk arrived from the LLM
+    pause_seconds: float | None = None
 
 
 class AdaptiveChunker:

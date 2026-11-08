@@ -116,6 +116,8 @@ class _Turn:
     text_changed: asyncio.Event = field(default_factory=asyncio.Event)
     pcm_queue: asyncio.Queue = field(default_factory=lambda: asyncio.Queue(maxsize=MAX_AUDIO_CHUNKS))
     playback_slots: asyncio.Semaphore = field(default_factory=lambda: asyncio.Semaphore(MAX_AUDIO_CHUNKS))
+    performance_mode: bool = False
+    performance_chunks: list = field(default_factory=list)
     response_text: str = ""
     alive: bool = True            # False once cancelled or finished: feed_text becomes a no-op
     input_closed: bool = False
@@ -710,6 +712,21 @@ class AvatarMediaEngine:
             await asyncio.sleep(0.05)   # bounded: TTS drains text as it frees up
         return turn.alive
 
+    async def feed_performance_segment(self, turn_id: str, text: str, pause: float | None = None) -> None:
+        turn = self._live_turn(turn_id)
+        if turn is None or turn.input_closed:
+            return
+        if sum(len(c.pending) for c, _ in turn.performance_chunks) + len(text) > 32768:
+            raise MediaError("Performance speech queue exceeded its bound")
+        turn.performance_mode = True
+        visible = turn.visible.feed(text + " ")
+        chunker = AdaptiveChunker()
+        chunker.feed(visible, time.monotonic())
+        chunker.finish()
+        turn.performance_chunks.append((chunker, pause))
+        turn.response_text += visible
+        turn.text_changed.set()
+
     async def end_response(self, turn_id: str) -> None:
         """No more text is coming: speak what remains and finish the turn."""
         turn = self._live_turn(turn_id)
@@ -868,7 +885,18 @@ class AvatarMediaEngine:
                 continue
             budget = planner.budget(now, number)
             urgent = (chunker.age(now) >= FIRST_CHUNK_WAIT) if not number else lead < URGENT_LEAD
+            if turn.performance_mode:
+                if not turn.performance_chunks:
+                    if turn.input_closed:
+                        return None
+                    await turn.text_changed.wait()
+                    continue
+                chunker, performance_pause = turn.performance_chunks[0]
             chunk = chunker.take(now, budget, urgent)
+            if chunk and turn.performance_mode and chunker.done:
+                from dataclasses import replace
+                chunk = replace(chunk, pause_seconds=performance_pause)
+                turn.performance_chunks.pop(0)
             if chunk:
                 metrics.setdefault("first_speech_chunk", chunk.at)
                 if chunk.reason in ("first sentence", "sentence", "paragraph"):
@@ -942,8 +970,8 @@ class AvatarMediaEngine:
                 if not turn.alive:
                     return   # interrupted while Qwen was busy: drop the stale waveform
                 info = self.timeline.get(segment_id, {})
-                if _SENTENCE_TAIL.search(chunk.text):
-                    pause = planner.extra_pause(time.monotonic())
+                if chunk.pause_seconds is not None or _SENTENCE_TAIL.search(chunk.text):
+                    pause = chunk.pause_seconds if chunk.pause_seconds is not None else planner.extra_pause(time.monotonic())
                     audio_chunk = np.concatenate((audio_chunk, np.zeros(int(pause * sr), "<f4")))
                     self.mark(segment_id, extra_pause=pause)
                 lead_sil, trail_sil = edge_silence(audio_chunk, sr)

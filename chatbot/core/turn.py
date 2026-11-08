@@ -656,6 +656,15 @@ class CompileContextStep(TurnStep):
         scene_prompt = _roleplay_scene_prompt(ctx)
         phase4 = _phase4_prompt_sections(ctx)
         phase5 = await _phase5_prompt_sections(ctx)
+        from chatbot.soul.expression_context import expression_context
+        from chatbot.core.performance import PerformanceCapabilities, performance_prompt_block
+        expression, expression_meta = expression_context(ctx)
+        ctx.metadata.setdefault("identity_sources", {})["expression"] = expression_meta
+        performance_output = performance_prompt_block(
+            PerformanceCapabilities(tuple(ctx.metadata.get("performance_caps") or ())),
+            debug=bool(ctx.metadata.get("performance_debug")),
+        ) if ctx.metadata.get("performance_enabled") else ""
+        ctx.metadata["performance"] = {"enabled": bool(performance_output)}
         if compose_prompt_layers is not None:
             persona_prompt = compose_prompt_layers({
                 "companion_identity": persona_prompt,
@@ -664,6 +673,8 @@ class CompileContextStep(TurnStep):
                 "emotional_associations": phase5["emotional_associations"],
                 "character_behavior": phase4["character_behavior"],
                 "social_context": phase5["social_context"],
+                "expression": expression,
+                "performance_output": performance_output,
             })
             if scene_prompt:
                 ctx.metadata["roleplay_scene_prompt"] = scene_prompt
@@ -672,7 +683,7 @@ class CompileContextStep(TurnStep):
                 part for part in (
                     persona_prompt.strip(), phase4["open_threads"], scene_prompt,
                     phase5["emotional_associations"], phase4["character_behavior"],
-                    phase5["social_context"],
+                    phase5["social_context"], expression, performance_output,
                 ) if part
             )
             if scene_prompt:
@@ -809,6 +820,9 @@ class CallProviderStep(TurnStep):
                 config=config,
             )
             ctx.provider_response = result.text
+            if ctx.metadata.get("performance_enabled"):
+                from chatbot.core.performance_runtime import parse_completed_response
+                ctx.provider_response = parse_completed_response(ctx, result.text)
             _store_llm_trace_metadata(ctx, provider=provider, config=config, result=result)
         except Exception as exc:
             logger.warning("Provider call failed: %s", exc, exc_info=True)
@@ -1787,6 +1801,7 @@ def _trace_step_metadata(
         if isinstance(identity_sources, Mapping):
             metadata["identity_sources"] = dict(identity_sources)
     elif normalized_name == "call_provider":
+        metadata["performance"] = ctx.metadata.get("performance", {"enabled": False})
         metadata["thinking"] = ctx.metadata.get("thinking", False)
         metadata["model_provider"] = _trace_model_provider(ctx)
         metadata["model_id"] = _trace_model_id(ctx)
@@ -3710,12 +3725,14 @@ def _assemble_persona_prompt(
         return "You are a helpful, neutral assistant. Respond clearly and accurately."
 
     relationship_kwargs: dict[str, Any] = {}
+    if PersonaPromptAssembler is not None and isinstance(assembler, PersonaPromptAssembler):
+        relationship_kwargs["include_expression"] = False
     if relationship_config is not None:
-        relationship_kwargs = {
+        relationship_kwargs.update({
             "relationship_config": relationship_config,
             "relationship_stage_known": relationship_stage_known,
             "relationship_history": relationship_history,
-        }
+        })
     if developed_self:
         relationship_kwargs["developed_self"] = developed_self
     try:

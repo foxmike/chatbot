@@ -11,6 +11,7 @@ import uuid
 import time
 
 from chatbot.avatar.protocol import DEFAULT_SPEECH_MODE
+from chatbot.core.performance import DialogueSegment
 
 
 logger = logging.getLogger(__name__)
@@ -42,7 +43,7 @@ class AvatarTurn:
     source: str
     task: asyncio.Task[Any] | None
     latency_times: dict[str, float] = field(default_factory=dict)
-    queue: asyncio.Queue[str | None] = field(default_factory=lambda: asyncio.Queue(128))
+    queue: asyncio.Queue[str | DialogueSegment | None] = field(default_factory=lambda: asyncio.Queue(128))
     queued_chars: int = 0
     generated_chars: int = 0
     text_delivered: str = ""
@@ -225,6 +226,18 @@ class AvatarCoordinator:
         except asyncio.QueueFull:
             self._speech_failure(binding, turn)
 
+    def publish_segment(self, binding: AvatarBinding, turn: AvatarTurn, segment) -> None:
+        if turn.interrupted or turn.speech_failed or turn.speech_skipped or binding.turn is not turn:
+            return
+        if turn.queued_chars + len(segment.text) > 32768:
+            self._speech_failure(binding, turn)
+            return
+        try:
+            turn.queue.put_nowait(segment)
+            turn.queued_chars += len(segment.text)
+        except asyncio.QueueFull:
+            self._speech_failure(binding, turn)
+
     def end(self, binding: AvatarBinding, turn: AvatarTurn) -> None:
         if turn.interrupted or turn.speech_failed or turn.speech_skipped:
             return
@@ -261,8 +274,16 @@ class AvatarCoordinator:
                     if text is None:
                         await binding.runtime.end_turn(turn.turn_id)
                         return
-                    turn.queued_chars -= len(text)
-                    await binding.runtime.feed_text(turn.turn_id, text)
+                    if isinstance(text, str):
+                        turn.queued_chars -= len(text)
+                        await binding.runtime.feed_text(turn.turn_id, text)
+                    else:
+                        turn.queued_chars -= len(text.text)
+                        feed = getattr(binding.runtime, "feed_segment", None)
+                        if feed:
+                            await feed(turn.turn_id, text)
+                        else:
+                            await binding.runtime.feed_text(turn.turn_id, text.text + " ")
         except asyncio.CancelledError:
             raise
         except Exception:

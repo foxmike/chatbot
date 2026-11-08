@@ -124,6 +124,7 @@ class PersonaPromptAssembler:
         relationship_stage_known: bool = True,
         relationship_history: str | None = None,
         developed_self: str | None = None,
+        include_expression: bool = True,
     ) -> str:
         """``developed_self`` is the companion's established, evidence-backed views
         (``chatbot.soul.self_model.developed_self_text``); it is rendered after the
@@ -148,6 +149,9 @@ class PersonaPromptAssembler:
             slang_profile=sp,
         )
 
+        if not include_expression:
+            fingerprint_text = ""
+
         # Resolve Pacing variables
         resolved_scene = scene_type or persona_data.get("scene_type")
         if not resolved_scene and mode is not None:
@@ -161,7 +165,7 @@ class PersonaPromptAssembler:
             msg_len = user_message_length if user_message_length is not None else persona_data.get("user_message_length")
             resolved_momentum = calculate_momentum(res_time, msg_len)
 
-        pacing_directive = get_pacing_directive(resolved_scene, resolved_momentum)
+        pacing_directive = get_pacing_directive(resolved_scene, resolved_momentum) if include_expression else ""
 
         if not persona_data:
             return self._with_prompt_modifiers(

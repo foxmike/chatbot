@@ -72,6 +72,8 @@ class Settings(BaseSettings):
     avatar_sync_buffer_ms: int = 60
     avatar_portrait: str | None = None
     avatar_gpu_sampling: bool = False
+    avatar_performance_enabled: bool = False
+    avatar_performance_debug: bool = False
     avatar_worker_start_timeout: float = 120.0
     # Voice Library: Base speaks every saved voice; VoiceDesign is loaded only to design one
     # and released after this many idle seconds.

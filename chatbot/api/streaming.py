@@ -242,6 +242,14 @@ async def _stream_turn(
         )
         ctx.metadata["db_session"] = stream_db
         if avatar_turn and avatar_turn.source == "spoken":
+            from chatbot.config import get_settings
+            settings = get_settings()
+            caps = getattr(avatar.runtime, "performance_capabilities", ())
+            debug = settings.avatar_performance_debug
+            ctx.metadata.update(performance_enabled=bool((settings.avatar_performance_enabled and caps) or debug),
+                                performance_caps=tuple(caps), performance_debug=debug)
+            ctx.metadata["_performance_segment_sink"] = lambda segment: coordinator.publish_segment(avatar, avatar_turn, segment)
+        if avatar_turn and avatar_turn.source == "spoken":
             avatar_turn.latency_times["context_start"] = context_at
             ctx.metadata["avatar_latency_times"] = avatar_turn.latency_times
             logger.info("avatar_latency turn_id=%s stage=context_start t=%.6f", avatar_turn.turn_id, context_at)
@@ -287,7 +295,7 @@ async def _stream_turn(
                         if token.startswith("Provider stream error:"):
                             yield _sse_data({"type": "error", "error": token})
                         else:
-                            if avatar_turn:
+                            if avatar_turn and not ctx.metadata.get("performance_enabled"):
                                 coordinator.publish(avatar, avatar_turn, token)
                             yield _sse_data({"type": "token", "text": token, "turn_id": avatar_turn.turn_id if avatar_turn else None})
                             if avatar_turn:
@@ -300,14 +308,14 @@ async def _stream_turn(
                 if not stream_attempted:
                     ctx = await step.run(ctx)
                     for token in _provider_text_chunks(ctx):
-                        if avatar_turn:
+                        if avatar_turn and not ctx.metadata.get("performance_enabled"):
                             coordinator.publish(avatar, avatar_turn, token)
                         yield _sse_data({"type": "token", "text": token})
                         if avatar_turn:
                             avatar_turn.text_delivered += token
                 elif not token_emitted:
                     for token in _provider_text_chunks(ctx):
-                        if avatar_turn:
+                        if avatar_turn and not ctx.metadata.get("performance_enabled"):
                             coordinator.publish(avatar, avatar_turn, token)
                         yield _sse_data({"type": "token", "text": token})
                         if avatar_turn:
@@ -523,6 +531,16 @@ async def _stream_turn(
 
 
 async def _stream_provider_tokens(ctx: TurnContext) -> AsyncIterator[str]:
+    from chatbot.core.performance_runtime import filter_performance_stream
+    filtered = filter_performance_stream(_raw_stream_provider_tokens(ctx), ctx)
+    try:
+        async for text in filtered:
+            yield text
+    finally:
+        await filtered.aclose()
+
+
+async def _raw_stream_provider_tokens(ctx: TurnContext) -> AsyncIterator[str]:
     inputs = prepare_provider_call(ctx)
     if inputs.error is not None:
         # Same outcome as the non-streaming CallProviderStep: report, never substitute.

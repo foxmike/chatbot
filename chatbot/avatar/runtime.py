@@ -135,6 +135,21 @@ class MediaAdapter:
             self._engine_turns[engine_turn] = turn_id
             self._coordinator_turns[turn_id] = engine_turn
 
+    @property
+    def performance_capabilities(self):
+        return ("pause",)
+
+    async def feed_segment(self, turn_id: str, segment) -> None:
+        if self.engine.sink != self._on_event:
+            return
+        engine_turn = self._coordinator_turns.get(turn_id)
+        if engine_turn is not None:
+            from chatbot.avatar.performance_mapping import SpeechDeliveryMapper, map_delivery
+            controls, ignored = map_delivery(segment.performance, SpeechDeliveryMapper())
+            await self.engine.feed_performance_segment(engine_turn, segment.text, controls.pause_seconds)
+            if ignored:
+                await self.emit({"type": "diagnostic", "name": "performance_ignored", "turn_id": turn_id, "controls": ignored})
+
     async def feed_text(self, turn_id: str, text: str) -> None:
         if self.engine.sink != self._on_event:
             return
