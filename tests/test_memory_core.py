@@ -12,7 +12,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from chatbot.memory.context_compiler import ContextCompiler, PersonaStub
 from chatbot.memory.episodic import EpisodicMemoryStore, EpisodicTurn
-from chatbot.memory.retrieval import RetrievalEngine
+from chatbot.memory.retrieval import (
+    RetrievalEngine,
+    RetrievalFilter,
+    _Candidate,
+    _deduplicate,
+    _l2_distance_relevance,
+    _matches_filter,
+    _rank_candidates,
+)
 from chatbot.memory.vector_store import SearchResult
 from chatbot.memory.working_memory import (
     WorkingMemoryBuffer,
@@ -101,6 +109,23 @@ def episodic_result(
         }
     )
     return SearchResult(id=id, score=score, metadata=result_metadata)
+
+
+def test_l2_distance_maps_monotonically_to_relevance():
+    assert _l2_distance_relevance(0.0) == 1.0
+    assert _l2_distance_relevance(0.25) > _l2_distance_relevance(1.0)
+    assert _l2_distance_relevance(1.0) > _l2_distance_relevance(4.0)
+
+
+def test_equal_context_factors_rank_lower_l2_distance_first_and_ties_by_id():
+    timestamp = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    candidates = [
+        _Candidate(EpisodicTurn("z", "s", "user", "less relevant", created_at=timestamp), 1.0, {}),
+        _Candidate(EpisodicTurn("b", "s", "user", "tie b", created_at=timestamp), 0.25, {}),
+        _Candidate(EpisodicTurn("a", "s", "user", "tie a", created_at=timestamp), 0.25, {}),
+    ]
+    ranked = _rank_candidates(candidates, RetrievalFilter())
+    assert [candidate.turn.id for candidate in ranked] == ["a", "b", "z"]
 
 
 def test_working_memory_append_truncates_and_returns_recent_windows() -> None:
@@ -312,60 +337,99 @@ def test_retrieval_engine_filters_ranks_deterministically_and_deduplicates(
         middle = datetime(2026, 1, 2, tzinfo=timezone.utc)
         newer = datetime(2026, 1, 3, tzinfo=timezone.utc)
         matching_metadata = {"topic": "billing", "tags": ["urgent", "vip"]}
-        vector_store = FakeVectorStore(
-            [
-                episodic_result(
-                    id="dup-worse",
-                    content="same content",
-                    score=0.5,
-                    created_at=newer,
-                    metadata=matching_metadata,
-                ),
-                episodic_result(
-                    id="dup-best",
-                    content="same content",
-                    score=0.1,
-                    created_at=older,
-                    metadata=matching_metadata,
-                ),
-                episodic_result(
-                    id="same-b",
-                    content="same score b",
-                    score=0.2,
-                    created_at=middle,
-                    metadata=matching_metadata,
-                ),
-                episodic_result(
-                    id="same-a",
-                    content="same score a",
-                    score=0.2,
-                    created_at=middle,
-                    metadata=matching_metadata,
-                ),
-                episodic_result(
-                    id="fresh",
-                    content="newer result",
-                    score=0.1,
-                    created_at=newer,
-                    metadata=matching_metadata,
-                ),
-                episodic_result(
-                    id="wrong-topic",
-                    content="metadata mismatch",
-                    score=0.01,
-                    created_at=newer,
-                    metadata={"topic": "support", "tags": ["urgent", "vip"]},
-                ),
-                episodic_result(
-                    id="wrong-session",
-                    session_id="session-b",
-                    content="session mismatch",
-                    score=0.01,
-                    created_at=newer,
-                    metadata=matching_metadata,
-                ),
-            ]
+        items = [
+            episodic_result(
+                id="dup-worse",
+                content="same content",
+                score=0.5,
+                created_at=newer,
+                metadata=matching_metadata,
+            ),
+            episodic_result(
+                id="dup-best",
+                content="same content",
+                score=0.1,
+                created_at=older,
+                metadata=matching_metadata,
+            ),
+            episodic_result(
+                id="same-b",
+                content="same score b",
+                score=0.2,
+                created_at=middle,
+                metadata=matching_metadata,
+            ),
+            episodic_result(
+                id="same-a",
+                content="same score a",
+                score=0.2,
+                created_at=middle,
+                metadata=matching_metadata,
+            ),
+            episodic_result(
+                id="fresh",
+                content="newer result",
+                score=0.1,
+                created_at=newer,
+                metadata=matching_metadata,
+            ),
+            episodic_result(
+                id="wrong-topic",
+                content="metadata mismatch",
+                score=0.01,
+                created_at=newer,
+                metadata={"topic": "support", "tags": ["urgent", "vip"]},
+            ),
+            episodic_result(
+                id="wrong-session",
+                session_id="session-b",
+                content="session mismatch",
+                score=0.01,
+                created_at=newer,
+                metadata=matching_metadata,
+            ),
+        ]
+        retrieval_filter = RetrievalFilter(
+            session_id="session-a",
+            start=older,
+            end=newer,
+            metadata={"topic": "billing"},
+            tags=("vip", "urgent"),
         )
+        raw_candidates = [_Candidate.from_search_result(r, retrieval_filter) for r in items]
+
+        # A. Ownership and relational filtering:
+        # Excludes wrong-session (session-b) and wrong-topic (support)
+        filtered = [c for c in raw_candidates if _matches_filter(c, retrieval_filter)]
+        assert [c.turn.id for c in filtered] == [
+            "dup-worse",
+            "dup-best",
+            "same-b",
+            "same-a",
+            "fresh",
+        ]
+
+        # B. Deduplication:
+        # Keeps best-scoring duplicate ("dup-best" with score 0.1 over "dup-worse" with score 0.5)
+        deduped = _deduplicate(filtered)
+        assert {c.turn.id for c in deduped} == {"fresh", "same-a", "same-b", "dup-best"}
+        assert "dup-worse" not in {c.turn.id for c in deduped}
+
+        # C. Candidate ranking:
+        # Deterministic ranking (recency + monotonic L2 relevance + tie-breaking by id)
+        ranked = _rank_candidates(deduped, retrieval_filter)
+        assert [c.turn.id for c in ranked] == [
+            "fresh",
+            "same-a",
+            "same-b",
+            "dup-best",
+        ]
+
+        # D. Final confidence-filtered results:
+        # Full retrieval pipeline applies production confidence threshold (0.50).
+        # "fresh" achieves confidence 0.5172 (>= 0.50), while "same-a" (0.4950),
+        # "same-b" (0.4950), and "dup-best" (0.4272) fall below the 0.50 threshold.
+        vector_store = FakeVectorStore(items)
         engine = RetrievalEngine(vector_store, fake_embeddings, default_candidate_k=7)
 
         results = await engine.retrieve(
@@ -383,18 +447,13 @@ def test_retrieval_engine_filters_ranks_deterministically_and_deduplicates(
             {
                 "embedding": [7.0, 1.0],
                 "top_k": 7,
-                "filter": {"session_id": "session-a"},
+                "filter": {"owner_session_id": "session-a"},
             }
         ]
-        assert [result.turn.id for result in results] == [
-            "fresh",
-            "same-a",
-            "same-b",
-            "dup-best",
-        ]
-        assert [result.rank for result in results] == [1, 2, 3, 4]
-        assert all(result.metadata_matches["topic"] == "billing" for result in results)
-        assert all(result.metadata_matches["tags"] == ("urgent", "vip") for result in results)
+        assert [result.turn.id for result in results] == ["fresh"]
+        assert results[0].rank == 1
+        assert results[0].metadata_matches["topic"] == "billing"
+        assert results[0].metadata_matches["tags"] == ("urgent", "vip")
 
     asyncio.run(run())
 

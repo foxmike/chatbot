@@ -49,6 +49,10 @@ Interpret persisted conversation evidence into distinct user facts, stable prefe
 
 Inspect `chatbot/memory/retrieval.py`, current embedding/index schema, ownership joins, and room/scene filters. Specify separate eligibility and ranking for facts, episodes and other approved memory types; enforce user and companion ownership and room/scene isolation at query and persistence boundaries. Confirm pgvector operator semantics and index compatibility against the actual query before proposing changes. Set a bounded growth policy only after the explicit forgetting decision. Acceptance compares retrieval relevance to baseline, verifies cross-user/companion/room isolation, and demonstrates bounded growth without unapproved data deletion.
 
+### Task 2.4a integration limitation (2026-11-08)
+
+Semantic-fact retrieval can enforce user ownership by deriving `user_id` from the persisted requesting session. When a fact has `source_message_id`, its message's `companion_id` and source session's `room_id` can exclude explicitly different scopes while retaining user-level facts. However, `semantic_facts` has no companion or room scope columns, no explicit shared-vs-scoped marker, and `episodes` are not part of the current semantic-fact vector query. Facts without source-message provenance cannot be conclusively classified as companion/room scoped. Do not claim comprehensive companion/room isolation for those rows; the memory-storage integration task must add durable scope/provenance representation before such guarantees are possible. No migration is included in 2.4a.
+
 ## Preserved requirements and boundaries
 
 No new dependencies or orchestration framework; no speculative monitoring subsystem; no additional synchronous inference or first-token-path work; preserve existing embeddings batching, provider routing, message/memory/identity/relationship/timeline/ritual data and transaction ownership. Do not begin Phase 3 work or promote inferred experience into fabricated user history. Each task uses focused tests and isolated PostgreSQL for database-specific behavior; do not run the full suite or modify development/production data.

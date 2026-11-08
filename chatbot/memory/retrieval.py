@@ -324,7 +324,9 @@ def _merge_filters(
 def _vector_store_filter(filters: RetrievalFilter) -> dict | None:
     if filters.session_id is None:
         return None
-    return {"session_id": str(filters.session_id)}
+    # Resolve ownership from the persisted session row in PgvectorStore. The
+    # request never supplies an authoritative user id for memory retrieval.
+    return {"owner_session_id": str(filters.session_id)}
 
 
 def _matches_filter(candidate: _Candidate, filters: RetrievalFilter) -> bool:
@@ -418,7 +420,10 @@ def _ranking_score(
     min_timestamp: float | None,
     max_timestamp: float | None,
 ) -> float:
-    vector_component = 1.0 / (1.0 + max(candidate.vector_score, 0.0))
+    # PgvectorStore supplies Euclidean L2 distance (<->), where zero is exact
+    # and larger values are less relevant. This bounded transform preserves
+    # that ordering while keeping vector scores on the existing 0..1 scale.
+    vector_component = _l2_distance_relevance(candidate.vector_score)
     recency_component = _recency_score(
         candidate.turn.created_at,
         min_timestamp=min_timestamp,
@@ -429,6 +434,10 @@ def _ranking_score(
     return (0.72 * vector_component) + (0.18 * recency_component) + (
         0.10 * relational_component
     )
+
+
+def _l2_distance_relevance(distance: float) -> float:
+    return 1.0 / (1.0 + max(distance, 0.0))
 
 
 def _relational_score(candidate: _Candidate, filters: RetrievalFilter) -> float:
