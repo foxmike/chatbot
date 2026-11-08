@@ -62,6 +62,7 @@ _TABLES = [
     models.BotMoodLog, models.UserStateLog, models.IdentityStateModel,
     models.CharacterProfileModel, models.Room, RelationshipTimelineEntryModel,
     models.CompanionIdentityModel, models.CompanionRelationshipModel, models.BackgroundJob,
+    models.MemoryEvidence, models.MemoryRelation,
 ]
 
 

@@ -137,12 +137,20 @@ Tasks **1.1, 1.2 and 1.3 are ACCEPTED** by the owner for final integration, comm
 
 | Task | Status | Scope | Requirements | Acceptance evidence |
 |---|---|---|---|---|
-| **2.1** | DESIGN | Select durable background dispatch mechanism in existing PostgreSQL environment; idempotency, retries, concurrency, cost limits; no new framework. Choose extraction provider/model via explicit approval. | A05, A06, A10, A16 | Restart/retry behavior and failure model defined; bounded budget; no extra TTFT model call. |
-| **2.2** | PLANNED | Implement durable completed-turn work dispatch and recovery; all chat modes contribute exactly once. | A01, A06, A09 | Restart loses no committed work; retries do not duplicate memories; cancellation excluded appropriately. |
-| **2.3** | PLANNED | Replace regex-only fact extraction with batched semantic extraction and provenance-aware consolidation across fact/episode scopes. | A05, A07, A08, P10 | Realistic corpus precision/recall, corrections, temporal changes, conflicting facts tested; no blocking inference. |
-| **2.4** | DESIGN | Memory weighting, indexing/retrieval and selective forgetting: decide query eligibility/compaction vs hard deletion; verify pgvector `<->` vs `<=>` and index configuration explicitly. | P11, A07, A08, A10 | Relevant retrieval beats baseline; no cross-room leaks; long-run growth bounded without unapproved deletion. |
+| **2.1** | IMPLEMENTED — design and configured extraction routing | Select durable background dispatch mechanism in existing PostgreSQL environment; idempotency, retries, concurrency, cost limits; no new framework. Choose extraction provider/model via explicit approval. | A05, A06, A10, A16 | Restart/retry behavior and failure model defined; bounded budget; no extra TTFT model call. |
+| **2.2** | IMPLEMENTED — durable runtime integrated | Implement durable completed-turn work dispatch and recovery; all chat modes contribute exactly once. | A01, A06, A09 | Restart loses no committed work; retries do not duplicate memories; cancellation excluded appropriately. |
+| **2.3** | IMPLEMENTED — extraction, canonical facts, evidence and reconciliation | Replace regex-only fact extraction with batched semantic extraction and provenance-aware consolidation across fact/episode scopes. | A05, A07, A08, P10 | Realistic corpus precision/recall, corrections, temporal changes, conflicting facts tested; no blocking inference. |
+| **2.4** | IMPLEMENTED — isolated retrieval and reversible prominence; P11 erasure decision remains REVIEW | Memory weighting, indexing/retrieval and selective forgetting: decide query eligibility/compaction vs hard deletion; verify pgvector `<->` vs `<=>` and index configuration explicitly. | P11, A07, A08, A10 | Relevant retrieval beats baseline; no cross-room leaks; long-run growth bounded without unapproved deletion. |
 
 **Do not:** add one LLM call per message, default to synchronous consolidation, or retain the unused regex extractor as a second competing authority.
+
+### Phase 2 completion evidence
+
+Runtime integration `5a00036` is extended by the Phase 2 completion commit on `feature/companion-phase2-integration`, incorporating lifecycle checkpoint `e1c5761`. `ConsolidationWorker`'s destructive prune adapter is disabled; deterministic reconciliation runs in the durable extraction transaction, without another model call or queue. Canonical facts keep immutable evidence from every contributing turn; corrections and temporal changes create explicit historical links; unresolved conflicts remain distinct. Retrieval enforces persisted current/history eligibility and trusted ownership scopes. Memory controls preserve correction history and authenticate ownership.
+
+Additive migration `d41e8a7c502b` extends `c93a14e2786b`: lifecycle fields/indexes, `memory_evidence`, and `memory_relations`. Existing rows are retained with active defaults; no historical scope/evidence backfill is performed. Historical facts without reliable scope are not guessed into new consolidated scopes. Source evidence blocks a destructive downgrade.
+
+Acceptance A–L: **59 passed, 1 skipped after targeted corrections**, using mocked providers and a new isolated PostgreSQL/pgvector fixture. The initial single pass had 58 passes and one failure; only the failed test was rerun while correcting reinforcement precision and async pin persistence. The skipped default-server characterization is redundant with the executed real fixture-backed vector/isolation tests. The previously failing independent cross-turn assertion now passes unchanged. No full suite, paid inference, deployment or main modification. **P11 remains REVIEW**: only reversible prominence/eligibility, compaction and existing explicit deletion semantics are implemented; no automatic physical erasure or irreversible retention policy.
 
 ## 6. Phase 3 — Autobiographical continuity and experience-driven evolution
 

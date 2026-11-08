@@ -683,6 +683,9 @@ class Episode(Base):
 class SemanticFact(Base):
     __tablename__ = "semantic_facts"
     __table_args__ = (
+        sa.Index("ix_memory_scope_assertion", "user_id", "scope_key", "assertion_key"),
+        sa.Index("ix_memory_scope_slot", "user_id", "scope_key", "slot_key"),
+        sa.CheckConstraint("lifecycle_status IN ('active', 'superseded', 'historical', 'suppressed')", name="ck_memory_lifecycle_status"),
         sa.CheckConstraint(
             "source_type IN ('explicit', 'inferred')",
             name="ck_semantic_facts_source_type",
@@ -701,6 +704,14 @@ class SemanticFact(Base):
     )
     user_id: Mapped[uuid.UUID] = mapped_column(sa.ForeignKey("users.id"), nullable=False)
     extraction_metadata: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
+    lifecycle_status: Mapped[str] = mapped_column(sa.String(24), nullable=False, default="active", server_default="active")
+    scope_key: Mapped[str | None] = mapped_column(sa.String(64), nullable=True, index=True)
+    assertion_key: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    slot_key: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    reinforcement_count: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=1, server_default="1")
+    last_reinforced_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True), nullable=True)
+    superseded_by: Mapped[uuid.UUID | None] = mapped_column(sa.ForeignKey("semantic_facts.id", ondelete="SET NULL"), nullable=True)
+    superseded_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True), nullable=True)
     fact_text: Mapped[str] = mapped_column(sa.Text, nullable=False)
     embedding: Mapped[list[float] | None] = mapped_column(_embedding_vector_type(), nullable=True)
     source_message_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -1262,3 +1273,33 @@ __all__ = [
     "UserSession",
     "UserStateLog",
 ]
+
+
+class MemoryEvidence(Base):
+    """Immutable extraction evidence; many source turns can support one fact."""
+    __tablename__ = "memory_evidence"
+    evidence_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    memory_id: Mapped[uuid.UUID] = mapped_column(sa.ForeignKey("semantic_facts.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(sa.ForeignKey("users.id"), nullable=False, index=True)
+    source_message_id: Mapped[uuid.UUID | None] = mapped_column(sa.ForeignKey("messages.id", ondelete="SET NULL"), nullable=True)
+    session_id: Mapped[uuid.UUID | None] = mapped_column(sa.ForeignKey("sessions.id", ondelete="SET NULL"), nullable=True)
+    turn_id: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    assertion_text: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    evidence: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    provenance: Mapped[dict[str, object]] = mapped_column(sa.JSON, nullable=False)
+    source_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), nullable=False)
+
+
+class MemoryRelation(Base):
+    __tablename__ = "memory_relations"
+    __table_args__ = (
+        sa.UniqueConstraint("source_id", "target_id", "relation", name="uq_memory_relation"),
+        sa.CheckConstraint("source_id <> target_id", name="ck_memory_relation_distinct"),
+        sa.CheckConstraint("relation IN ('supersedes', 'changed_from', 'conflicts_with')", name="ck_memory_relation_kind"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    source_id: Mapped[uuid.UUID] = mapped_column(sa.ForeignKey("semantic_facts.id", ondelete="CASCADE"), nullable=False, index=True)
+    target_id: Mapped[uuid.UUID] = mapped_column(sa.ForeignKey("semantic_facts.id", ondelete="CASCADE"), nullable=False, index=True)
+    relation: Mapped[str] = mapped_column(sa.String(24), nullable=False)
+    evidence_id: Mapped[uuid.UUID] = mapped_column(sa.ForeignKey("memory_evidence.evidence_id", ondelete="CASCADE"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now())

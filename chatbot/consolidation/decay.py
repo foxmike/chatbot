@@ -45,6 +45,29 @@ class MemoryDecayEngine:
         self.relevance_threshold = float(relevance_threshold)
         self.reference_time = _datetime_value(reference_time) or datetime.now(timezone.utc)
 
+    def retrieval_weight(self, entry: Mapping[str, Any], *, reference_time: datetime | None = None) -> float:
+        """Reversible prominence reduction; unknown importance remains neutral.
+
+        No retention deadline, deletion, or manufactured importance is implied.
+        Reinforcement is the actual count of distinct persisted source events.
+        """
+        meta = entry.get("metadata") or {}
+        if entry.get("pinned") or entry.get("privacy_level") == "permanent" or meta.get("explicit_request"):
+            return 1.0
+        importance = meta.get("importance")
+        if isinstance(importance, bool) or not isinstance(importance, (int, float)) or not math.isfinite(importance):
+            return 1.0
+        if not 0 <= importance < 0.75:
+            return 1.0
+        count = max(0, int(entry.get("reinforcement_count") or 1) - 1)
+        source = {"created_at": entry.get("last_reinforced_at") or entry.get("created_at"),
+                  "metadata": {"importance": importance, "access_count": count}}
+        score = self.decay_score(source, reference_time=reference_time)
+        # Preserve an observable reinforcement contribution even when an old
+        # age component is smaller than floating-point precision at the floor.
+        reinforcement = importance * self.access_count_weight * (count / (1 + count))
+        return 0.75 + 0.25 * min(1.0, score + reinforcement)
+
     def prune(self, entries: list) -> list:
         if not entries:
             return []

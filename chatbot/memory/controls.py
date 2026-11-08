@@ -136,6 +136,11 @@ async def pin_memory(
     if fact is None:
         return _build_record(memory_id=str(memory_id), pinned=True, deleted=False)
 
+    fact.pinned = True
+    fact.updated_at = datetime.now(timezone.utc)
+    if fact.confidence > 0 and fact.lifecycle_status == "suppressed":
+        fact.lifecycle_status = "active"
+    await db.flush()
     record = _fact_to_record(fact)
     record["pinned"] = True
     return record
@@ -149,6 +154,9 @@ async def unpin_memory(
     if fact is None:
         return _build_record(memory_id=str(memory_id), pinned=False, deleted=False)
 
+    fact.pinned = False
+    fact.updated_at = datetime.now(timezone.utc)
+    await db.flush()
     record = _fact_to_record(fact)
     record["pinned"] = False
     return record
@@ -178,6 +186,7 @@ async def delete_memory(
         record["confidence"] = _CONFIDENCE_SOFT_DELETED
         return record
 
+    fact.lifecycle_status = "suppressed"
     fact.confidence = _CONFIDENCE_SOFT_DELETED
     fact.updated_at = datetime.now(timezone.utc)
     await db.flush()
@@ -199,12 +208,17 @@ async def edit_memory(
         return _build_record(memory_id=str(memory_id), deleted=False)
 
     if content is not None:
-        fact.fact_text = content
-        fact.updated_at = datetime.now(timezone.utc)
+        from chatbot.consolidation.lifecycle import correct_memory
+        fact = await correct_memory(db, fact, content)
 
     if metadata is not None:
-        if fact.fact_text and metadata:
-            pass
+        if "importance" in metadata:
+            import math
+            value = metadata["importance"]
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= 1:
+                raise ValueError("importance must be a finite number between 0 and 1")
+            fact.extraction_metadata = {**(fact.extraction_metadata or {}), "importance": value}
+            fact.updated_at = datetime.now(timezone.utc)
 
     await db.flush()
     record = _fact_to_record(fact)
@@ -230,6 +244,9 @@ async def set_privacy_level(
             memory_id=str(memory_id), privacy_level=level, deleted=False
         )
 
+    fact.privacy_level = level
+    fact.updated_at = datetime.now(timezone.utc)
+    await db.flush()
     record = _fact_to_record(fact)
     record["privacy_level"] = level
     return record
@@ -271,6 +288,10 @@ async def remember_forever(
             memory_id=str(memory_id), retention="forever", deleted=False
         )
 
+    fact.pinned = True
+    fact.updated_at = datetime.now(timezone.utc)
+    fact.privacy_level = "permanent"
+    await db.flush()
     record = _fact_to_record(fact)
     record["retention"] = "forever"
     return record
@@ -294,16 +315,14 @@ async def correct_misunderstanding(
             deleted=False,
         )
 
+    from chatbot.consolidation.lifecycle import correct_memory
     original_text = fact.fact_text
-    fact.fact_text = correction
-    fact.confidence = max(fact.confidence * 0.5, 0.1)
-    fact.updated_at = datetime.now(timezone.utc)
-    await db.flush()
-
-    record = _fact_to_record(fact)
+    replacement = await correct_memory(db, fact, correction.strip())
+    record = _fact_to_record(replacement)
     record["correction"] = correction
     record["original_text"] = original_text
     return record
+
 
 
 __all__ = [

@@ -1281,7 +1281,7 @@ class TurnPipeline:
         self._session_turn_counts[session_id] = turn_count
 
         for step_name in DEFERRED_STEPS:
-            if step_name == "extract_memory" and ctx.metadata.get("durable_memory"):
+            if step_name in {"extract_memory", "consolidate"} and ctx.metadata.get("durable_memory"):
                 continue
             if step_name == "consolidate" and turn_count < self._consolidation_threshold:
                 continue

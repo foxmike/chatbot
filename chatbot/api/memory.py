@@ -4,12 +4,13 @@ from datetime import datetime, timezone
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from chatbot.auth.dependencies import CurrentUser, get_current_user
 from chatbot.db import get_db
 from chatbot.db import models
 from chatbot.memory import controls as memory_controls
@@ -18,6 +19,45 @@ from chatbot.memory import search as memory_search
 
 
 memory_router = APIRouter(prefix="/memories", tags=["memory"])
+
+
+async def _memory_db(request: Request, current_user: CurrentUser = Depends(get_current_user),
+                     db: AsyncSession = Depends(get_db)):
+    """Use authenticated ownership for reads and writes, with one request transaction."""
+    owner = uuid.UUID(current_user.user_id)
+    supplied_user = request.query_params.get("user_id")
+    if supplied_user and supplied_user != current_user.user_id:
+        raise HTTPException(403, "Memory user scope does not match authentication")
+    session_id = request.query_params.get("session_id")
+    if session_id:
+        try:
+            session = await db.get(models.Session, uuid.UUID(session_id))
+        except ValueError:
+            session = None
+        if session is None or session.user_id != owner:
+            raise HTTPException(404, "Session not found")
+    memory_id = request.path_params.get("memory_id")
+    if memory_id:
+        try:
+            key = uuid.UUID(memory_id)
+        except ValueError:
+            raise HTTPException(404, "Memory not found")
+        if request.url.path.endswith("/do-not-remember"):
+            row = await db.get(models.Message, key)
+            session = await db.get(models.Session, row.session_id) if row else None
+            owned = session is not None and session.user_id == owner
+        else:
+            row = await db.get(models.SemanticFact, key)
+            owned = row is not None and row.user_id == owner
+        if not owned:
+            raise HTTPException(404, "Memory not found")
+    try:
+        yield db
+        if request.method not in {"GET", "HEAD"}:
+            await db.commit()
+    except BaseException:
+        await db.rollback()
+        raise
 
 
 class PinRequest(BaseModel):
@@ -55,6 +95,10 @@ class ProvenanceResponse(BaseModel):
     source_turn_id: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
+    lifecycle_status: str = "active"
+    superseded_by: str | None = None
+    evidence: list[dict[str, Any]] = Field(default_factory=list)
+    relations: list[dict[str, Any]] = Field(default_factory=list)
 
 
 def _to_iso(dt: datetime | None) -> str | None:
@@ -76,11 +120,13 @@ async def list_memories(
     privacy: str | None = Query(default=None),
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(_memory_db),
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     page = await memory_search.search(
         db,
         domain="semantic_facts",
+        user_id=current_user.user_id,
         offset=offset,
         limit=limit,
     )
@@ -108,6 +154,7 @@ async def list_memories(
 @memory_router.get("/search")
 async def search_memories(
     query: str | None = Query(default=None),
+    include_history: bool = Query(default=False),
     start: str | None = Query(default=None),
     end: str | None = Query(default=None),
     topics: list[str] = Query(default_factory=list),
@@ -117,19 +164,21 @@ async def search_memories(
     domain: memory_search.SearchDomain | None = Query(default=None),
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(_memory_db),
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     start_dt = _parse_iso(start)
     end_dt = _parse_iso(end)
     page = await memory_search.search(
         db,
+        filters=memory_search.SearchFilter(include_history=include_history),
         query=query,
         start=start_dt,
         end=end_dt,
         topics=tuple(topics) if topics else None,
         tags=tuple(tags) if tags else None,
         session_id=session_id,
-        user_id=user_id,
+        user_id=current_user.user_id,
         domain=domain,
         offset=offset,
         limit=limit,
@@ -164,7 +213,8 @@ async def export_memories(
     user_id: str | None = Query(default=None),
     include_turns: bool = Query(default=True),
     include_memories: bool = Query(default=True),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(_memory_db),
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> Any:
     start_dt = _parse_iso(start)
     end_dt = _parse_iso(end)
@@ -175,7 +225,7 @@ async def export_memories(
         topics=tuple(topics) if topics else None,
         privacy_level=privacy_level,
         session_id=session_id,
-        user_id=user_id,
+        user_id=current_user.user_id,
         include_turns=include_turns,
         include_memories=include_memories,
     )
@@ -187,7 +237,9 @@ async def export_memories(
 @memory_router.get("/{memory_id}/provenance", response_model=ProvenanceResponse)
 async def get_provenance(
     memory_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(_memory_db),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=500),
 ) -> ProvenanceResponse:
     try:
         fact_id = uuid.UUID(memory_id)
@@ -205,8 +257,16 @@ async def get_provenance(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Memory {memory_id} not found",
         )
+    evidence_rows = list((await db.scalars(sa.select(models.MemoryEvidence).where(models.MemoryEvidence.memory_id == fact.id).order_by(models.MemoryEvidence.source_at, models.MemoryEvidence.evidence_id).offset(offset).limit(limit))).all())
+    relation_rows = list((await db.scalars(sa.select(models.MemoryRelation).where(sa.or_(models.MemoryRelation.source_id == fact.id, models.MemoryRelation.target_id == fact.id)).order_by(models.MemoryRelation.id).offset(offset).limit(limit))).all())
     return ProvenanceResponse(
         memory_id=str(fact.id),
+        lifecycle_status=fact.lifecycle_status,
+        superseded_by=str(fact.superseded_by) if fact.superseded_by else None,
+        evidence=[{"source_message_id": str(e.source_message_id) if e.source_message_id else None,
+                   "turn_id": e.turn_id, "assertion": e.assertion_text, "evidence": e.evidence,
+                   "provenance": e.provenance} for e in evidence_rows],
+        relations=[{"source_id": str(r.source_id), "target_id": str(r.target_id), "relation": r.relation} for r in relation_rows],
         origin=fact.source_type,
         confidence=fact.confidence,
         source_message_id=str(fact.source_message_id) if fact.source_message_id else None,
@@ -220,7 +280,7 @@ async def get_provenance(
 async def pin_toggle(
     memory_id: str,
     body: PinRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(_memory_db),
 ) -> dict[str, Any]:
     if body.pinned:
         return await memory_controls.pin_memory(db, memory_id)
@@ -231,7 +291,7 @@ async def pin_toggle(
 async def delete_memory(
     memory_id: str,
     hard: bool = Query(default=False),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(_memory_db),
 ) -> dict[str, Any]:
     return await memory_controls.delete_memory(db, memory_id, hard=hard)
 
@@ -240,18 +300,21 @@ async def delete_memory(
 async def edit_memory(
     memory_id: str,
     body: EditMemoryRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(_memory_db),
 ) -> dict[str, Any]:
-    return await memory_controls.edit_memory(
-        db, memory_id, content=body.content, metadata=body.metadata
-    )
+    try:
+        return await memory_controls.edit_memory(
+            db, memory_id, content=body.content, metadata=body.metadata
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @memory_router.patch("/{memory_id}/privacy")
 async def set_privacy(
     memory_id: str,
     body: PrivacyLevelRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(_memory_db),
 ) -> dict[str, Any]:
     try:
         return await memory_controls.set_privacy_level(db, memory_id, body.level)
@@ -263,7 +326,7 @@ async def set_privacy(
 async def do_not_remember(
     memory_id: str,
     session_id: str | None = Query(default=None),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(_memory_db),
 ) -> dict[str, Any]:
     return await memory_controls.do_not_remember(db, memory_id, session_id=session_id)
 
@@ -271,7 +334,7 @@ async def do_not_remember(
 @memory_router.post("/{memory_id}/remember-forever")
 async def remember_forever(
     memory_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(_memory_db),
 ) -> dict[str, Any]:
     return await memory_controls.remember_forever(db, memory_id)
 
@@ -280,7 +343,7 @@ async def remember_forever(
 async def correct_misunderstanding(
     memory_id: str,
     body: CorrectMemoryRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(_memory_db),
 ) -> dict[str, Any]:
     try:
         return await memory_controls.correct_misunderstanding(

@@ -256,13 +256,9 @@ async def test_additive_provenance_migration_preserves_legacy_memory(fresh_datab
     db = await fresh_database(upgrade_to="b8d5e3f7a9c1")
     uid, _, _ = await seed(db)
     async with db.factory() as session:
-        await session.execute(
-            sa.insert(models.SemanticFact.__table__).values(
-                user_id=uid,
-                fact_text="Existing fact",
-                confidence=1.0,
-            )
-        )
+        await session.execute(sa.text(
+            "INSERT INTO semantic_facts (id, user_id, fact_text, confidence) VALUES (:id, :uid, 'Existing fact', 1.0)"
+        ), {"id": uuid.uuid4(), "uid": uid})
         await session.commit()
     upgraded = alembic(db.url, "upgrade", "head")
     assert upgraded.returncode == 0, upgraded.stderr

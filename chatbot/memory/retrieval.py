@@ -14,7 +14,7 @@ from chatbot.memory.embeddings import EmbeddingProvider
 from chatbot.memory.episodic import EpisodicTurn
 from chatbot.memory.vector_store import SearchResult, VectorStore
 from chatbot.memory.timescale import classify_memory
-from chatbot.consolidation.contradiction import ContradictionResolver
+from chatbot.consolidation.decay import MemoryDecayEngine
 
 if TYPE_CHECKING:
     from chatbot.config import Settings
@@ -46,6 +46,7 @@ class RoomMemoryContext:
 
 @dataclass(frozen=True, slots=True)
 class RetrievalFilter:
+    include_history: bool = False
     session_id: str | uuid.UUID | None = None
     start: datetime | None = None
     end: datetime | None = None
@@ -115,6 +116,7 @@ class RetrievalEngine:
         tags: Iterable[str] | None = None,
         candidate_k: int | None = None,
         room_context: RoomMemoryContext | None = None,
+        include_history: bool = False,
     ) -> list[RetrievalResult]:
         return await retrieve(
             self.vector_store,
@@ -129,6 +131,7 @@ class RetrievalEngine:
             tags=tags,
             candidate_k=candidate_k if candidate_k is not None else self.default_candidate_k,
             room_context=room_context,
+            include_history=include_history,
         )
 
 
@@ -146,6 +149,7 @@ async def retrieve(
     tags: Iterable[str] | None = None,
     candidate_k: int | None = None,
     room_context: RoomMemoryContext | None = None,
+    include_history: bool = False,
 ) -> list[RetrievalResult]:
     """Retrieve episodic turns with deterministic relational filtering and ranking.
 
@@ -166,6 +170,9 @@ async def retrieve(
         tags=tags,
     )
 
+    if include_history:
+        from dataclasses import replace
+        retrieval_filter = replace(retrieval_filter, include_history=True)
     if room_context is not None:
         retrieval_filter = _apply_room_context_metadata(retrieval_filter, room_context)
 
@@ -201,25 +208,12 @@ async def retrieve(
 
     deduped = _deduplicate(filtered)
 
-    # Contradiction-aware recency tagging & timescale structuring
-    deduped_sorted = sorted(deduped, key=lambda c: _datetime_timestamp(c.turn.created_at) or 0.0, reverse=True)
-    resolver = ContradictionResolver(provider=None)
+    # Supersession is a durable, evidence-backed transition. Retrieval never
+    # chooses a winner by re-interpreting an unresolved conflict.
     structured_candidates = []
-
-    for candidate in deduped_sorted:
+    for candidate in deduped:
         classification = classify_memory(candidate.turn)
-        candidate = candidate.with_timescale(classification.timescale, classification.confidence)
-
-        is_superseded = False
-        for newer in structured_candidates:
-            result = await resolver.resolve(newer.turn, candidate.turn)
-            if result.has_contradiction:
-                is_superseded = True
-                candidate.metadata_matches["superseded_by"] = newer.turn.id
-                break
-
-        if not is_superseded:
-            structured_candidates.append(candidate)
+        structured_candidates.append(candidate.with_timescale(classification.timescale, classification.confidence))
 
     ranked = _rank_candidates(structured_candidates, retrieval_filter)
 
@@ -311,6 +305,7 @@ def _merge_filters(
         base_tags.extend(str(tag) for tag in tags)
 
     return RetrievalFilter(
+        include_history=filters.include_history if filters else False,
         session_id=session_id
         if session_id is not None
         else (filters.session_id if filters else None),
@@ -326,7 +321,10 @@ def _vector_store_filter(filters: RetrievalFilter) -> dict | None:
         return None
     # Resolve ownership from the persisted session row in PgvectorStore. The
     # request never supplies an authoritative user id for memory retrieval.
-    return {"owner_session_id": str(filters.session_id)}
+    result = {"owner_session_id": str(filters.session_id)}
+    if filters.include_history:
+        result["include_history"] = True
+    return result
 
 
 def _matches_filter(candidate: _Candidate, filters: RetrievalFilter) -> bool:
@@ -432,9 +430,15 @@ def _ranking_score(
     )
     relational_component = _relational_score(candidate, filters)
 
-    return (0.72 * vector_component) + (0.18 * recency_component) + (
+    prominence = MemoryDecayEngine().retrieval_weight({
+        "created_at": candidate.turn.created_at,
+        "metadata": candidate.turn.metadata,
+        **{key: candidate.turn.metadata.get(key) for key in
+           ("pinned", "privacy_level", "last_reinforced_at", "reinforcement_count")},
+    })
+    return prominence * ((0.72 * vector_component) + (0.18 * recency_component) + (
         0.10 * relational_component
-    )
+    ))
 
 
 def _l2_distance_relevance(distance: float) -> float:
@@ -616,6 +620,7 @@ def _apply_room_context_metadata(
         extra_metadata.setdefault('companion_id', room_context.companion_id)
 
     return RetrievalFilter(
+        include_history=retrieval_filter.include_history,
         session_id=retrieval_filter.session_id,
         start=retrieval_filter.start,
         end=retrieval_filter.end,

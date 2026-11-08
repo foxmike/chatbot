@@ -70,9 +70,12 @@ class PgvectorStore(VectorStore):
                 *metadata_columns,
             )
             .where(self.embedding_column.is_not(None))
-            .order_by(distance)
+            .order_by(distance, self.id_column)
             .limit(top_k)
         )
+        if self.table.name == models.SemanticFact.__tablename__:
+            states = ["active", "superseded", "historical"] if (filter or {}).get("include_history") else ["active"]
+            stmt = stmt.where(models.SemanticFact.lifecycle_status.in_(states), models.SemanticFact.confidence > 0)
         stmt = self._apply_filter(stmt, filter)
 
         result = await self.session.execute(stmt, {"query_embedding": embedding})
@@ -177,6 +180,8 @@ class PgvectorStore(VectorStore):
             return stmt
 
         for name, value in filter.items():
+            if name == "include_history":
+                continue
             column = self.table.c.get(name)
             if name == "owner_session_id":
                 stmt = self._apply_owner_session_filter(stmt, value)
@@ -225,7 +230,6 @@ class PgvectorStore(VectorStore):
                 ).is_distinct_from(current_companion),
             )
         )
-        stmt = stmt.where(~other_companion_source)
 
         current_room = sa.select(models.Session.room_id).where(
             models.Session.id == session_id_value
@@ -240,7 +244,19 @@ class PgvectorStore(VectorStore):
                 models.Session.room_id.is_distinct_from(current_room),
             )
         )
-        return stmt.where(~other_room_source)
+        scope = self.table.c.extraction_metadata["scope"]
+        level = scope["level"].as_string()
+        scoped = sa.or_(
+            level == "user",
+            sa.and_(level == "companion", scope["companion_id"].as_string() == current_companion),
+            sa.and_(level == "room", scope["room_id"].as_string() == current_room,
+                    scope["companion_id"].as_string().is_not_distinct_from(current_companion)),
+            sa.and_(level == "session", scope["session_id"].as_string() == str(session_id)),
+        )
+        return stmt.where(sa.or_(
+            sa.and_(self.table.c.scope_key.is_not(None), scoped),
+            sa.and_(self.table.c.scope_key.is_(None), ~other_companion_source, ~other_room_source),
+        ))
 
     def _apply_session_filter(
         self,

@@ -33,6 +33,7 @@ def _normalize_datetime(value: datetime | None) -> datetime | None:
 
 @dataclass(frozen=True, slots=True)
 class SearchFilter:
+    include_history: bool = False
     query: str | None = None
     start: datetime | None = None
     end: datetime | None = None
@@ -152,6 +153,7 @@ def _merge_filters(
     resolved_semantic = filters.semantic if filters is not None else False
 
     return SearchFilter(
+        include_history=filters.include_history if filters else False,
         query=resolved_query,
         start=resolved_start,
         end=resolved_end,
@@ -178,6 +180,9 @@ def _build_message_query(filters: SearchFilter) -> sa.sql.Select[tuple[Any, ...]
     stmt = sa.select(*columns)
 
     stmt = _apply_common_filters(stmt, models.Message, filters)
+    if filters.user_id is not None:
+        owned_sessions = sa.select(models.Session.id).where(models.Session.user_id == _to_uuid(filters.user_id))
+        stmt = stmt.where(models.Message.session_id.in_(owned_sessions))
 
     if filters.query and _has_content(filters.query):
         stmt = _apply_text_match(stmt, models.Message.content, filters.query)
@@ -220,6 +225,8 @@ def _build_fact_query(filters: SearchFilter) -> sa.sql.Select[tuple[Any, ...]]:
         stmt = stmt.where(sa.false())
 
     stmt = stmt.where(models.SemanticFact.confidence > 0.0)
+    if not filters.include_history:
+        stmt = stmt.where(models.SemanticFact.lifecycle_status == "active")
 
     return stmt
 

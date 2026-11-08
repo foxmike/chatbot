@@ -587,43 +587,14 @@ class ConsolidationWorker:
             return 0
 
         result = await self._call_store_method(
-            (
-                "persist_pruned_set",
-                "persist_pruned_entries",
-                "save_pruned_set",
-                "replace_memory_entries",
-            ),
-            session_id,
-            kept_entries,
-            pruned_entries,
-            session_id=session_id,
-            kept_entries=list(kept_entries),
-            pruned_entries=pruned_entries,
-            pruned_entry_ids=_entry_ids(pruned_entries),
-        )
-        if result is not _MISSING:
-            return _count_result(result, len(pruned_entries))
-
-        result = await self._call_store_method(
-            (
-                "delete_memory_entries",
-                "delete_entries",
-                "prune_entries",
-            ),
-            _entry_ids(pruned_entries),
+            ("suppress_memory_entries",),
             session_id=session_id,
             entry_ids=_entry_ids(pruned_entries),
-            entries=pruned_entries,
         )
-        if result is not _MISSING:
-            return _count_result(result, len(pruned_entries))
-
-        delete = getattr(self.memory_store, "delete", None)
-        if callable(delete):
-            result = await _maybe_await(delete(_entry_ids(pruned_entries)))
-            return _count_result(result, len(pruned_entries))
-
-        return 0
+        if result is _MISSING:
+            logger.info("Skipping legacy physical pruning; source memories are preserved")
+            return 0
+        return _count_result(result, 0)
 
     async def _get_last_consolidation_run(self, session_id: str) -> datetime | None:
         timestamp = await self._call_store_method(

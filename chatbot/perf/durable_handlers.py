@@ -16,7 +16,7 @@ from typing import Any
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert
 
-from chatbot.db.models import BackgroundJob, Episode, Message, Session, SemanticFact
+from chatbot.db.models import BackgroundJob, Episode, Message, Room, Session, SemanticFact
 from chatbot.memory.llm_extraction import (
     LLMMemoryExtractor,
     resolve_extraction_model as validate_extraction_configuration,
@@ -53,6 +53,7 @@ class TurnMemoryStorage:
         self.turn_id, self.user_msg, self.assistant_msg = turn_id, user_msg, assistant_msg
         self.vectors = vectors or {}
         self.persistence_error: Exception | None = None
+        self._scope = None
 
     async def persist(self, session_id: str, entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if str(session_id) != str(self.session_id):
@@ -65,6 +66,23 @@ class TurnMemoryStorage:
 
     async def _persist(self, entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
         written = []
+        if self._scope is None:
+            level = "companion" if self.session_row.companion_id else "user"
+            room_id = self.session_row.room_id
+            if room_id:
+                room = await self.db.get(Room, room_id)
+                if room is None or str(room.user_id) != str(self.session_row.user_id):
+                    raise PermissionError("Memory room ownership mismatch")
+                level = {"global": "user", "companion": "companion", "room": "room"}.get(room.memory_scope, "session")
+            if level == "companion" and not self.session_row.companion_id:
+                level = "session"
+            self._scope = {"level": level, "user_id": str(self.session_row.user_id)}
+            if level in {"companion", "room", "session"}:
+                self._scope["companion_id"] = self.session_row.companion_id
+            if level in {"room", "session"}:
+                self._scope["room_id"] = room_id
+            if level == "session":
+                self._scope["session_id"] = str(self.session_id)
         slots: dict[str, int] = defaultdict(int)
         for index, entry in enumerate(entries[:8]):
             content = str(entry.get("content") or "").strip()
@@ -109,6 +127,7 @@ class TurnMemoryStorage:
                     "source_message_id": str(source_id) if source_id else None,
                     "evidence": evidence,
                     "receipt_slot": slot,
+                    "scope": self._scope,
                     "source_created_at": self.user_msg.created_at.isoformat()
                     if self.user_msg
                     else None,
@@ -145,6 +164,11 @@ class TurnMemoryStorage:
                     end_message_id=getattr(self.assistant_msg, "id", None),
                     extraction_metadata=metadata,
                 )
+            if kind == "fact":
+                from chatbot.consolidation.lifecycle import reconcile_fact
+                await reconcile_fact(self.db, row)
+                written.append(entry)
+                continue
             result = await self.db.execute(
                 insert(model).values(**row).on_conflict_do_nothing(index_elements=["id"])
             )
