@@ -24,9 +24,11 @@ class PromptLayerName(str, Enum):
     SAFETY_FLOOR = "safety_floor"
     PLATFORM_BEHAVIOR = "platform_behavior"
     COMPANION_IDENTITY = "companion_identity"
+    OPEN_THREADS = "open_threads"
     RELATIONSHIP_STAGE = "relationship_stage"
     ROOM_SCENE = "room_scene"
     MOOD_STATE = "mood_state"
+    CHARACTER_BEHAVIOR = "character_behavior"
     MEMORY = "memory"
     SESSION_GOALS = "session_goals"
 
@@ -35,9 +37,11 @@ PROMPT_LAYER_ORDER: tuple[PromptLayerName, ...] = (
     PromptLayerName.SAFETY_FLOOR,
     PromptLayerName.PLATFORM_BEHAVIOR,
     PromptLayerName.COMPANION_IDENTITY,
+    PromptLayerName.OPEN_THREADS,
     PromptLayerName.RELATIONSHIP_STAGE,
     PromptLayerName.ROOM_SCENE,
     PromptLayerName.MOOD_STATE,
+    PromptLayerName.CHARACTER_BEHAVIOR,
     PromptLayerName.MEMORY,
     PromptLayerName.SESSION_GOALS,
 )
@@ -99,9 +103,11 @@ PROMPT_LAYER_TITLES: dict[PromptLayerName, str] = {
     PromptLayerName.SAFETY_FLOOR: "Safety Floor",
     PromptLayerName.PLATFORM_BEHAVIOR: "Platform Behavior",
     PromptLayerName.COMPANION_IDENTITY: "Companion Identity",
+    PromptLayerName.OPEN_THREADS: "Open Threads",
     PromptLayerName.RELATIONSHIP_STAGE: "Relationship Stage",
     PromptLayerName.ROOM_SCENE: "Room/Scene",
     PromptLayerName.MOOD_STATE: "Mood/State",
+    PromptLayerName.CHARACTER_BEHAVIOR: "Character Behavior",
     PromptLayerName.MEMORY: "Memory",
     PromptLayerName.SESSION_GOALS: "Session Goals",
 }
@@ -118,6 +124,8 @@ _PROMPT_LAYER_ALIASES.update(
         "companion": PromptLayerName.COMPANION_IDENTITY,
         "companion identity": PromptLayerName.COMPANION_IDENTITY,
         "identity": PromptLayerName.COMPANION_IDENTITY,
+        "open threads": PromptLayerName.OPEN_THREADS,
+        "open_threads": PromptLayerName.OPEN_THREADS,
         "relationship": PromptLayerName.RELATIONSHIP_STAGE,
         "relationship stage": PromptLayerName.RELATIONSHIP_STAGE,
         "room": PromptLayerName.ROOM_SCENE,
@@ -230,10 +238,12 @@ _LAYER_BUDGET_SECTION: dict[PromptLayerName, str] = {
     PromptLayerName.SAFETY_FLOOR: "persona",
     PromptLayerName.PLATFORM_BEHAVIOR: "persona",
     PromptLayerName.COMPANION_IDENTITY: "persona",
+    PromptLayerName.OPEN_THREADS: "memory",
     PromptLayerName.RELATIONSHIP_STAGE: "persona",
     PromptLayerName.MEMORY: "memory",
     PromptLayerName.ROOM_SCENE: "scene",
     PromptLayerName.MOOD_STATE: "scene",
+    PromptLayerName.CHARACTER_BEHAVIOR: "persona",
     PromptLayerName.SESSION_GOALS: "scene",
 }
 
@@ -291,9 +301,11 @@ def build_prompt_layers(
     safety_floor: Any = None,
     platform_behavior: Any = None,
     companion_identity: Any = None,
+    open_threads: Any = None,
     relationship_stage: Any = None,
     room_scene: Any = None,
     mood_state: Any = None,
+    character_behavior: Any = None,
     memory: Any = None,
     session_goals: Any = None,
     attention_anchors: Any = None,
@@ -362,9 +374,11 @@ def build_prompt_layers(
             make_prompt_layer(PromptLayerName.SAFETY_FLOOR, safety_floor),
             make_prompt_layer(PromptLayerName.PLATFORM_BEHAVIOR, platform_behavior),
             identity_layer,
+            make_prompt_layer(PromptLayerName.OPEN_THREADS, open_threads),
             make_prompt_layer(PromptLayerName.RELATIONSHIP_STAGE, relationship_stage),
             make_prompt_layer(PromptLayerName.ROOM_SCENE, room_scene),
             make_prompt_layer(PromptLayerName.MOOD_STATE, mood_state),
+            make_prompt_layer(PromptLayerName.CHARACTER_BEHAVIOR, character_behavior),
             memory_layer,
             goals_layer,
         )

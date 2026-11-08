@@ -63,6 +63,7 @@ _TABLES = [
     models.CharacterProfileModel, models.Room, RelationshipTimelineEntryModel,
     models.CompanionIdentityModel, models.CompanionRelationshipModel, models.BackgroundJob,
     models.MemoryEvidence, models.MemoryRelation,
+    models.ConversationalThread,
 ]
 
 

@@ -148,6 +148,12 @@ except ImportError:
     ConversationMode = None  # type: ignore[assignment]
 
 try:
+    from chatbot.soul.behavior import build_character_behavior, build_open_thread_context
+except ImportError:
+    build_character_behavior = None  # type: ignore[assignment]
+    build_open_thread_context = None  # type: ignore[assignment]
+
+try:
     from chatbot.rooms.room import get_room
 except ImportError:
     get_room = None  # type: ignore[assignment]
@@ -551,18 +557,24 @@ class CompileContextStep(TurnStep):
         mode = _current_conversation_mode(ctx) if _emotional_intelligence_ready(ctx) else None
         persona_prompt = await self._persona_prompt(ctx, mood=mood_state, mode=mode)
         scene_prompt = _roleplay_scene_prompt(ctx)
+        phase4 = _phase4_prompt_sections(ctx)
         if compose_prompt_layers is not None:
             persona_prompt = compose_prompt_layers({
                 "companion_identity": persona_prompt,
+                "open_threads": phase4["open_threads"],
                 "room_scene": scene_prompt,
+                "character_behavior": phase4["character_behavior"],
             })
             if scene_prompt:
                 ctx.metadata["roleplay_scene_prompt"] = scene_prompt
         else:
+            persona_prompt = "\n\n".join(
+                part for part in (
+                    persona_prompt.strip(), phase4["open_threads"], scene_prompt,
+                    phase4["character_behavior"],
+                ) if part
+            )
             if scene_prompt:
-                persona_prompt = "\n\n".join(
-                    part for part in (persona_prompt.strip(), scene_prompt) if part
-                )
                 ctx.metadata["roleplay_scene_prompt"] = scene_prompt
         ctx.compiled_context = _compile_context_text(
             persona_prompt=persona_prompt,
@@ -2821,6 +2833,119 @@ def _effective_identity_inputs(
         "relationship_history": history,
         "developed_self": developed_self,
     }
+
+
+def _phase4_prompt_sections(ctx: TurnContext) -> dict[str, str | None]:
+    """Build Phase 4 prompt additions from state already loaded for this turn."""
+    identity_sources = ctx.metadata.get("identity_sources")
+    if not isinstance(identity_sources, dict):
+        identity_sources = {}
+        ctx.metadata["identity_sources"] = identity_sources
+    behavior_meta: dict[str, Any] = {
+        "version": 1, "chars": 0, "est_tokens": 0, "pulls": [], "noticed": [],
+        "excluded": 0, "dropped": 0, "omitted": None,
+    }
+    thread_meta: dict[str, Any] = {"considered": 0, "included": 0, "excluded": 0, "omitted": None}
+    empty = {"open_threads": None, "character_behavior": None}
+    companion = ctx.metadata.get("companion_identity")
+    if companion is None:
+        behavior_meta["omitted"] = "no_companion"
+        thread_meta["omitted"] = "no_companion"
+        identity_sources["behavior"] = behavior_meta
+        identity_sources["open_threads"] = thread_meta
+        return empty
+
+    mode = _current_conversation_mode(ctx)
+    mode_name = str(getattr(mode, "value", mode) or "").casefold()
+    intent = str(ctx.metadata.get("intent") or _intent_value(ctx)).casefold()
+    is_scene = bool(
+        ctx.metadata.get("scene_memory_isolation")
+        or ctx.metadata.get("active_scene")
+        or ctx.metadata.get("scene_id")
+    )
+    if is_scene or mode_name == "roleplay" or intent == "roleplay":
+        omitted = "scene" if is_scene else "roleplay"
+        behavior_meta["omitted"] = omitted
+        thread_meta["omitted"] = omitted
+        thread_meta["considered"] = len(ctx.metadata.get("companion_open_threads") or [])
+        thread_meta["excluded"] = thread_meta["considered"]
+        identity_sources["behavior"] = behavior_meta
+        identity_sources["open_threads"] = thread_meta
+        return empty
+
+    profile = ctx.metadata.get("character_profile")
+    if profile is None:
+        profile = ctx.persona
+    relationship = ctx.metadata.get("companion_relationship")
+    mood = ctx.metadata.get("mood_state")
+    memories = list(ctx.retrieved_memories or [])
+    experiences: list[dict[str, Any]] = []
+    user_preferences: list[dict[str, Any]] = []
+    for memory in memories:
+        if not isinstance(memory, Mapping):
+            continue
+        provenance = memory.get("extraction_metadata") or {}
+        if not isinstance(provenance, Mapping):
+            provenance = {}
+        kind = str(provenance.get("kind") or memory.get("kind") or "")
+        content = str(memory.get("fact_text") or memory.get("content") or "")
+        if kind == "shared_experience":
+            detail = provenance.get("experience") or {}
+            if not isinstance(detail, Mapping):
+                detail = {}
+            experiences.append({
+                "id": memory.get("id"),
+                "title": detail.get("title"),
+                "narrative": content,
+                "topics": detail.get("topics") or memory.get("topics") or [],
+                "source_message_id": memory.get("source_message_id"),
+                "session_id": memory.get("session_id"),
+                "turn_id": provenance.get("turn_id"),
+            })
+        elif kind in {"preference", "user_preference"}:
+            user_preferences.append({"id": memory.get("id"), "preference": content})
+
+    if build_character_behavior is None:
+        behavior_meta["omitted"] = "error"
+        logger.warning("Behavior context module is unavailable")
+    else:
+        try:
+            behavior_text, behavior_meta = build_character_behavior(
+                personality=profile,
+                conversation_context=ctx.user_message,
+                effective_traits=companion if isinstance(companion, Mapping) else {},
+                self_model=ctx.metadata.get("companion_self_model"),
+                experiences=experiences,
+                relationship=relationship,
+                mood=mood,
+                user_preferences=user_preferences,
+                retrieved_memories=memories,
+            )
+            empty["character_behavior"] = behavior_text
+        except Exception:
+            behavior_meta["omitted"] = "error"
+            logger.warning("Behavior context assembly failed", exc_info=True)
+
+    threads = ctx.metadata.get("companion_open_threads") or []
+    if build_open_thread_context is None:
+        thread_meta["omitted"] = "error"
+    else:
+        try:
+            thread_text, thread_meta = build_open_thread_context(
+                threads,
+                conversation_context=ctx.user_message,
+                intent=ctx.metadata.get("intent") or mode,
+            )
+            empty["open_threads"] = thread_text
+        except Exception:
+            thread_meta["omitted"] = "error"
+            thread_meta["considered"] = len(threads)
+            thread_meta["excluded"] = len(threads)
+            logger.warning("Open thread context assembly failed", exc_info=True)
+
+    identity_sources["behavior"] = behavior_meta
+    identity_sources["open_threads"] = thread_meta
+    return empty
 
 
 def _current_character_profile(ctx: TurnContext) -> Any | None:

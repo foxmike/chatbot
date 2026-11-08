@@ -61,6 +61,7 @@ class BehavioralSignal:
     reason: str | None = None
     opposing_statement: str | None = None
     opposing_reason: str | None = None
+    ref: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,7 +160,7 @@ def assemble_behavioral_context(
             signal = BehavioralSignal(
                 kind=str(kind), subject=subject, statement=statement,
                 source="developed_self_model", relevance=relevance,
-                strength=strength, reason=_optional_text(raw.get("reason")),
+                strength=strength, reason=_optional_text(raw.get("reason")), ref=str(key),
                 opposing_statement=(
                     _clean(challenge.get("statement"))[:MAX_ITEM_CHARS]
                     if isinstance(challenge, Mapping) and challenge.get("statement") else None
