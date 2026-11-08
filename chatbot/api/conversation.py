@@ -128,6 +128,14 @@ async def load_companion_inputs(
         durable_state["companion_identity_adjustments"] = dict(
             (identity.trait_adjustments if identity is not None else None) or {}
         )
+        # Same joined row: the developed self-model reaches every chat mode
+        # through this one load, with no extra query.
+        durable_state["companion_self_model"] = dict(
+            (identity.self_model if identity is not None else None) or {}
+        )
+        durable_state["companion_self_model_version"] = (
+            identity.version if identity is not None else 0
+        )
         defaults = asdict(RelationshipConfig.defaults())
         durable_state["companion_relationship"] = (
             {key: getattr(relationship, key) for key in defaults}

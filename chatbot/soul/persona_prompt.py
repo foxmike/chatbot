@@ -123,8 +123,12 @@ class PersonaPromptAssembler:
         user_message_length: Optional[int] = None,
         relationship_stage_known: bool = True,
         relationship_history: str | None = None,
+        developed_self: str | None = None,
     ) -> str:
-        """``relationship_stage_known=False`` omits the relationship stage, depth
+        """``developed_self`` is the companion's established, evidence-backed views
+        (``chatbot.soul.self_model.developed_self_text``); it is rendered after the
+        configured identity, which stays authoritative.
+        ``relationship_stage_known=False`` omits the relationship stage, depth
         and stage guidance (use it whenever ``depth`` is not evidence-based);
         ``relationship_history`` adds a factual history line."""
         persona_data = _persona_mapping(persona)
@@ -172,6 +176,7 @@ class PersonaPromptAssembler:
                 pacing_directive=pacing_directive,
                 relationship_stage_known=relationship_stage_known,
                 relationship_history=relationship_history,
+                developed_self=developed_self,
             )
 
         style_name = _first_text(
@@ -197,6 +202,7 @@ class PersonaPromptAssembler:
             fingerprint_text=fingerprint_text,
             relationship_stage_known=relationship_stage_known,
             relationship_history=relationship_history,
+            developed_self=developed_self,
         )
         if not sections:
             separator = str(style.get("section_separator", "\n"))
@@ -212,6 +218,7 @@ class PersonaPromptAssembler:
                 pacing_directive=pacing_directive,
                 relationship_stage_known=relationship_stage_known,
                 relationship_history=relationship_history,
+                developed_self=developed_self,
             )
 
         heading = _format_template(
@@ -249,6 +256,7 @@ class PersonaPromptAssembler:
         pacing_directive: str | None = None,
         relationship_stage_known: bool = True,
         relationship_history: str | None = None,
+        developed_self: str | None = None,
     ) -> str:
         style = _default_modifier_style(self._config)
         parts = [prompt]
@@ -261,6 +269,7 @@ class PersonaPromptAssembler:
                 fingerprint_text=fingerprint_text,
                 relationship_stage_known=relationship_stage_known,
                 relationship_history=relationship_history,
+                developed_self=developed_self,
             )
         )
         modifier_section = _render_prompt_modifiers(
@@ -540,6 +549,7 @@ def _render_identity_sections(
     fingerprint_text: str | None = None,
     relationship_stage_known: bool = True,
     relationship_history: str | None = None,
+    developed_self: str | None = None,
 ) -> list[str]:
     sections: list[str] = []
 
@@ -560,6 +570,10 @@ def _render_identity_sections(
                 character_profile.to_prompt_fragment(),
             )
         )
+
+    if developed_self:
+        # Established, evidence-backed views; the configured identity above wins.
+        sections.append(_render_labeled_section(style, "DEVELOPED SELF", developed_self))
 
     if identity_state is not None:
         tier_labels = {"fixed": "FIXED IDENTITY", "slow": "CURRENT DRIFT TRAITS", "mood": "MOOD"}

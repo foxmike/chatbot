@@ -586,6 +586,7 @@ class CompileContextStep(TurnStep):
             character_profile is not None
             or identity_state is not None
             or identity_inputs["relationship_config"] is not None
+            or identity_inputs["developed_self"] is not None
         )
 
         if self._persona_cache is None:
@@ -2734,6 +2735,7 @@ def _effective_identity_inputs(
     ``identity_sources`` for prompt inspection.
     """
     from chatbot.soul.persistent_identity import prompt_identity_view, relationship_history_line
+    from chatbot.soul.self_model import developed_self_view
 
     companion_bound = ctx.metadata.get("companion_identity") is not None
     relationship_config = None
@@ -2747,6 +2749,12 @@ def _effective_identity_inputs(
             logger.warning("Durable relationship could not be used", exc_info=True)
     history_values = ctx.metadata.get("companion_relationship_history")
     history = relationship_history_line(history_values) if relationship_config else None
+
+    # Established views only (tentative ones never appear); an empty self-model
+    # adds nothing, so the prompt is unchanged until evidence has accumulated.
+    developed_self, developed_keys = (
+        developed_self_view(ctx.metadata.get("companion_self_model")) if companion_bound else (None, [])
+    )
 
     prompt_identity = identity_state
     if IdentityState is not None and isinstance(identity_state, IdentityState):
@@ -2779,6 +2787,14 @@ def _effective_identity_inputs(
                 if companion_bound
                 else None
             ),
+            "self_model": (
+                {
+                    "version": ctx.metadata.get("companion_self_model_version"),
+                    "shown": list(developed_keys),
+                }
+                if companion_bound
+                else None
+            ),
             "relationship": (
                 {
                     "settings": dict(relationship_values),
@@ -2803,6 +2819,7 @@ def _effective_identity_inputs(
         # No evidence-based depth exists yet (D7): never present a stage as fact.
         "relationship_stage_known": False,
         "relationship_history": history,
+        "developed_self": developed_self,
     }
 
 
@@ -3220,6 +3237,7 @@ def _assemble_persona_prompt(
     relationship_config: Any | None = None,
     relationship_stage_known: bool = True,
     relationship_history: str | None = None,
+    developed_self: str | None = None,
 ) -> str:
     if assembler is None:
         logger.warning("Persona prompt assembler is unavailable; using fallback persona")
@@ -3232,6 +3250,8 @@ def _assemble_persona_prompt(
             "relationship_stage_known": relationship_stage_known,
             "relationship_history": relationship_history,
         }
+    if developed_self:
+        relationship_kwargs["developed_self"] = developed_self
     try:
         return str(
             assembler.assemble(

@@ -101,7 +101,14 @@ class IdentityState:
         )
 
     def apply_evolution(self, context: dict[str, Any]) -> "IdentityState":
-        """Apply one bounded turn update while preserving fixed identity values."""
+        """Apply one bounded turn update to the session's mood.
+
+        Fixed identity and the slow trait tier are never changed here. Slow traits
+        used to take a random-walk step every few turns; that mutation had no
+        connection to experience and is retired. Lasting development now comes
+        only from evidence (``chatbot.soul.self_model``), and automatic numeric
+        trait changes are deferred.
+        """
 
         signal_text = _flatten_text(context)
         sentiment = _sentiment_score(context, signal_text)
@@ -146,14 +153,6 @@ class IdentityState:
         self.mood = _clamp_numeric_mapping(updated_mood)
         self.interaction_count += 1
 
-        drift_interval = _context_int(context, "drift_interval", self.drift_interval)
-        if self.interaction_count % max(1, drift_interval) == 0:
-            self.slow = bounded_drift(
-                self.slow,
-                self.slow_baseline,
-                rate=_context_float(context, "drift_rate", DEFAULT_DRIFT_RATE),
-            )
-
         return self
 
     def prompt_tiers(self) -> list[tuple[str, str]]:
@@ -187,7 +186,11 @@ def bounded_drift(
     baseline: dict[str, Any],
     rate: float = DEFAULT_DRIFT_RATE,
 ) -> dict[str, Any]:
-    """Return slow traits with numeric fields randomly drifted within baseline bounds."""
+    """Return slow traits with numeric fields randomly drifted within baseline bounds.
+
+    Retired from the live pipeline: nothing calls this any more (see
+    ``IdentityState.apply_evolution``). Kept only as a pure utility.
+    """
 
     drift_rate = max(0.0, float(rate))
     updated: dict[str, Any] = deepcopy(current)
@@ -376,14 +379,6 @@ def _context_int(context: Mapping[str, Any], key: str, default: int) -> int:
     value = context.get(key, default)
     try:
         return max(1, int(value))
-    except (TypeError, ValueError):
-        return default
-
-
-def _context_float(context: Mapping[str, Any], key: str, default: float) -> float:
-    value = context.get(key, default)
-    try:
-        return max(0.0, float(value))
     except (TypeError, ValueError):
         return default
 

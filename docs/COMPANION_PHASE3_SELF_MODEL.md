@@ -236,3 +236,9 @@ async def apply_self_observations(
 - Behavioural interpretation (Phase 4).
 - Contradiction and imperfection modelling (P12 review).
 - Any new worker, queue, framework, governance or censorship component.
+
+---
+
+## 12. Implementation notes (Tasks 3.2 and 3.3)
+
+Implemented as specified except where the owner decided otherwise: **automatic numeric trait adjustment is deferred** (no `traits` section, no `trait_signal`; `trait_adjustments` is never written by evolution), and values remain configuration-only. Observations arrive in the existing extraction response as a `self` list (fields `kind`, `key`, `subject`, `statement`, `reason`, `evidence`, `status`, `significance`, `relation`, `change_of_mind`); `chatbot/memory/self_observation.py` validates them and the self-model applies them in the durable job transaction. The output bound stays at 700 tokens. Evidence ids derive from the job id and receipt position (`uuid5`), which is what makes replays idempotent.

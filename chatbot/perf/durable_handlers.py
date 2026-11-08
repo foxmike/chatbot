@@ -16,12 +16,32 @@ from typing import Any
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert
 
-from chatbot.db.models import BackgroundJob, Episode, Message, Room, Session, SemanticFact
+import logging
+
+from chatbot.db.models import (
+    BackgroundJob,
+    CompanionIdentityModel,
+    Episode,
+    Message,
+    Room,
+    Session,
+    SemanticFact,
+)
 from chatbot.memory.autobiography import EXPERIENCE_KIND, link_experience
+from chatbot.memory.extraction import _ROLEPLAY_FRAME, _normalize_quotes
 from chatbot.memory.llm_extraction import (
     LLMMemoryExtractor,
     resolve_extraction_model as validate_extraction_configuration,
 )
+from chatbot.soul.self_model import (
+    EvidenceSource,
+    SelfModelTooLarge,
+    SelfObservation,
+    apply_self_observations,
+    known_items_text,
+)
+
+logger = logging.getLogger(__name__)
 
 # Up to 8 facts, 2 shared experiences and the turn episode.
 MAX_RECEIPT_ENTRIES = 11
@@ -59,6 +79,15 @@ class TurnMemoryStorage:
         self.persistence_error: Exception | None = None
         self._scope = None
         self._experiences_allowed = True
+
+    @property
+    def history_allowed(self) -> bool:
+        """Whether this session may build durable autobiography and self-development.
+
+        False for scene rooms (in-character fiction) and non-durable rooms; only
+        known once ``persist`` has resolved the session's room.
+        """
+        return self._experiences_allowed
 
     async def persist(self, session_id: str, entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if str(session_id) != str(self.session_id):
@@ -259,6 +288,11 @@ async def _process_memory_extract_job(
         )
         user_msg = next((m for m in messages if m.role == "user"), None)
         assistant_msg = next((m for m in messages if m.role == "assistant"), None)
+        known_self_items = ""
+        if receipt is None and session_row.companion_id:
+            # Existing item keys let the one extraction call continue or challenge them.
+            identity = await db.get(CompanionIdentityModel, session_row.companion_id)
+            known_self_items = known_items_text(identity.self_model if identity else None)
         await db.commit()  # release the read transaction before inference
         if not messages:
             return
@@ -276,7 +310,10 @@ async def _process_memory_extract_job(
                 user_message=user_msg.content,
                 provider_response=assistant_msg.content,
                 turn_id=job.turn_id,
+                known_self_items=known_self_items,
             )
+            outcome = getattr(extractor, "last_outcome", None)
+            self_observations = list(getattr(outcome, "self_observations", None) or [])
             locked = await db.scalar(
                 sa.select(BackgroundJob)
                 .where(BackgroundJob.job_id == job.job_id)
@@ -289,7 +326,11 @@ async def _process_memory_extract_job(
                 return
             receipt = locked.payload.get("extraction_result")
             if receipt is None:
-                receipt = {"version": 1, "entries": entries[:MAX_RECEIPT_ENTRIES]}
+                receipt = {
+                    "version": 1,
+                    "entries": entries[:MAX_RECEIPT_ENTRIES],
+                    "self_observations": self_observations,
+                }
                 locked.payload = {**locked.payload, "extraction_result": receipt}
             await db.commit()  # durable replay input, including an empty result
         vectors = {}
@@ -324,9 +365,74 @@ async def _process_memory_extract_job(
             vectors=vectors,
         )
         await storage.persist(str(job.session_id), receipt["entries"])
+        await _apply_self_reflection(
+            db, job, session_row, user_msg, assistant_msg, storage, receipt
+        )
         locked.payload = {**locked.payload, "effects_applied": True}
         locked.status, locked.completed_at = "succeeded", datetime.now(timezone.utc)
         await db.commit()  # all effects and success are atomic
+
+
+_OBSERVATION_FIELDS = (
+    "kind", "subject", "statement", "excerpt", "reason", "significance", "status",
+    "relation", "change_of_mind",
+)
+
+
+async def _apply_self_reflection(
+    db: Any,
+    job: Any,
+    session_row: Any,
+    user_msg: Any,
+    assistant_msg: Any,
+    storage: TurnMemoryStorage,
+    receipt: dict[str, Any],
+) -> None:
+    """Apply the receipt's validated self-observations in the job's own transaction.
+
+    Runs after the memory effects and before the job is marked succeeded, so a
+    rollback leaves neither. Replays are idempotent (evidence ids derive from the
+    job id and the receipt position). Only eligible turns count: the session is
+    companion-bound, the companion's reply is attributed to that companion, the
+    room (if any) is durable and not a scene, and the turn is not a roleplay frame.
+    """
+    raw_items = receipt.get("self_observations") or []
+    if not raw_items or not session_row.companion_id or not storage.history_allowed:
+        return
+    reply_owner = getattr(assistant_msg, "companion_id", None)
+    if reply_owner is not None and reply_owner != session_row.companion_id:
+        return  # another companion's reply in a shared room
+    observations = []
+    for raw in raw_items:
+        if isinstance(raw, dict):
+            try:
+                observations.append(
+                    SelfObservation(**{k: raw[k] for k in _OBSERVATION_FIELDS if k in raw})
+                )
+            except TypeError:
+                continue
+    if not observations:
+        return
+    source = EvidenceSource(
+        job_id=str(job.job_id),
+        turn_id=str(job.turn_id),
+        session_id=str(job.session_id),
+        message_id=str(assistant_msg.id),
+        source_at=assistant_msg.created_at,
+        in_roleplay=bool(_ROLEPLAY_FRAME.search(_normalize_quotes(user_msg.content or ""))),
+    )
+    try:
+        await apply_self_observations(
+            db,
+            companion_id=session_row.companion_id,
+            user_id=session_row.user_id,
+            observations=observations,
+            source=source,
+        )
+    except SelfModelTooLarge:
+        # A bound violation is deterministic: retrying cannot help and must not
+        # block the turn's memory work. The self-model is left unchanged.
+        logger.warning("Companion self-model is full; skipped reflection for job %s", job.job_id)
 
 
 __all__ = [

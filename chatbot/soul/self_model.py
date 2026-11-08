@@ -472,33 +472,37 @@ def developed_self_text(document: Mapping[str, Any] | None) -> str | None:
     items per kind and in total characters; the output depends only on the
     document, so equal state gives an identical prompt.
     """
+    return developed_self_view(document)[0]
+
+
+def developed_self_view(document: Mapping[str, Any] | None) -> tuple[str | None, list[str]]:
+    """``(prompt text, item keys shown)``; the keys feed Prompt Inspector."""
     counts = dict.fromkeys(KINDS, 0)
     labels = {
         "opinion": "Opinion", "preference": "Preference", "interest": "Interest",
         "self_understanding": "About yourself",
     }
-    lines: list[str] = []
+    candidates: list[tuple[str, str]] = []
     for item in held_items(document):
         if counts[item["kind"]] >= PROMPT_LIMITS[item["kind"]]:
             continue
         line = f"- {labels[item['kind']]} — {item['subject']}: {item['statement']}"
         if item.get("reason"):
             line += f" (because {item['reason']})"
-        lines.append(line)
+        candidates.append((item["key"], line))
         counts[item["kind"]] += 1
-    if not lines:
-        return None
     header = (
         "Views and interests you have developed through your own experiences. Your configured "
         "identity above takes precedence; you may still change your mind for good reasons."
     )
-    text, size = [header], len(header)
-    for line in lines:
+    text, shown, size = [header], [], len(header)
+    for key, line in candidates:
         if size + len(line) + 1 > MAX_PROMPT_CHARS:
             break
         text.append(line)
+        shown.append(key)
         size += len(line) + 1
-    return "\n".join(text) if len(text) > 1 else None
+    return ("\n".join(text), shown) if shown else (None, [])
 
 
 def known_items_text(document: Mapping[str, Any] | None) -> str:
@@ -597,6 +601,7 @@ __all__ = [
     "SelfObservation",
     "apply_self_observations",
     "developed_self_text",
+    "developed_self_view",
     "empty_self_model",
     "held_items",
     "known_items_text",

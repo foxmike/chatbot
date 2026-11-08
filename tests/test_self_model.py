@@ -381,13 +381,20 @@ _TABLES = [models.User, models.Voice, models.Companion, models.CompanionIdentity
 
 @pytest.fixture
 async def factory(tmp_path):
+    """SQLite by default. With PHASE0_PG_URL the Alembic-built schema is used as it is
+    (never created or dropped here); rows are cleared before and after each test."""
     engine = create_async_engine(PG_URL if PG_URL else f"sqlite+aiosqlite:///{tmp_path / 'sm.db'}")
-    async with engine.begin() as connection:
-        if PG_URL:
-            for model in reversed(_TABLES):
-                await connection.execute(sa.text(f'DROP TABLE IF EXISTS "{model.__tablename__}" CASCADE'))
-        for model in _TABLES:
-            await connection.run_sync(lambda sync, m=model: m.__table__.create(sync))
+
+    async def clear():
+        async with engine.begin() as connection:
+            await connection.execute(sa.text("TRUNCATE TABLE users CASCADE"))
+
+    if PG_URL:
+        await clear()
+    else:
+        async with engine.begin() as connection:
+            for model in _TABLES:
+                await connection.run_sync(lambda sync, m=model: m.__table__.create(sync))
     session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     async with session_factory() as db:
         for user_id, tag in ((USER_A, "a"), (USER_B, "b")):
@@ -396,9 +403,7 @@ async def factory(tmp_path):
         await db.commit()
     yield session_factory
     if PG_URL:
-        async with engine.begin() as connection:
-            for model in reversed(_TABLES):
-                await connection.execute(sa.text(f'DROP TABLE IF EXISTS "{model.__tablename__}" CASCADE'))
+        await clear()
     await engine.dispose()
 
 
