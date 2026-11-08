@@ -581,7 +581,12 @@ class CompileContextStep(TurnStep):
         mode: Any | None = None,
     ) -> str:
         character_profile, identity_state = await _persona_identity_inputs(ctx)
-        uses_identity_inputs = character_profile is not None or identity_state is not None
+        identity_inputs = _effective_identity_inputs(ctx, character_profile, identity_state)
+        uses_identity_inputs = (
+            character_profile is not None
+            or identity_state is not None
+            or identity_inputs["relationship_config"] is not None
+        )
 
         if self._persona_cache is None:
             return _assemble_persona_prompt(
@@ -589,8 +594,7 @@ class CompileContextStep(TurnStep):
                 ctx.persona,
                 mood=mood,
                 mode=mode,
-                character_profile=character_profile,
-                identity_state=identity_state,
+                **identity_inputs,
             )
 
         user_id = _persona_cache_user_id(ctx)
@@ -601,8 +605,7 @@ class CompileContextStep(TurnStep):
                 ctx.persona,
                 mood=mood,
                 mode=mode,
-                character_profile=character_profile,
-                identity_state=identity_state,
+                **identity_inputs,
             )
 
         if not uses_identity_inputs:
@@ -616,8 +619,7 @@ class CompileContextStep(TurnStep):
             ctx.persona,
             mood=mood,
             mode=mode,
-            character_profile=character_profile,
-            identity_state=identity_state,
+            **identity_inputs,
         )
         if uses_identity_inputs:
             ctx.metadata["persona_prompt_cache_hit"] = False
@@ -1641,6 +1643,9 @@ def _trace_step_metadata(
     elif normalized_name == "compile_context":
         metadata["compiled_context_chars"] = len(str(ctx.compiled_context or ""))
         metadata["snippet_count"] = len(_trace_retrieval_snippets(ctx))
+        identity_sources = ctx.metadata.get("identity_sources")
+        if isinstance(identity_sources, Mapping):
+            metadata["identity_sources"] = dict(identity_sources)
     elif normalized_name == "call_provider":
         metadata["thinking"] = ctx.metadata.get("thinking", False)
         metadata["model_provider"] = _trace_model_provider(ctx)
@@ -2689,11 +2694,111 @@ async def _persona_identity_inputs(ctx: TurnContext) -> tuple[Any | None, Any | 
         if identity_state is None:
             identity_state = await _load_identity_state(db_session, session_id)
 
+    if (
+        identity_state is None
+        and character_profile is not None
+        and ctx.metadata.get("companion_identity") is not None
+    ):
+        # A companion session that was never seeded (e.g. one created with a room)
+        # starts from this companion's identity, not from generic defaults.
+        # UpdateIdentityStep persists it as the session's working copy.
+        from chatbot.soul.persistent_identity import session_identity_seed
+
+        identity_state = session_identity_seed(
+            character_profile, ctx.metadata["companion_identity"]
+        )
+        ctx.metadata["identity_state_seeded_from_companion"] = True
+
     if character_profile is not None:
         ctx.metadata["character_profile"] = character_profile
     if identity_state is not None:
         ctx.metadata["identity_state"] = identity_state
     return character_profile, identity_state
+
+
+def _effective_identity_inputs(
+    ctx: TurnContext,
+    character_profile: Any | None,
+    identity_state: Any | None,
+) -> dict[str, Any]:
+    """Compose the identity and relationship the prompt receives (Phase 1 precedence).
+
+    Configuration supplies the configured identity (``character_profile``); the
+    durable relationship is the only relationship authority; the session working
+    copy contributes what configuration does not already say. Records
+    ``identity_sources`` for prompt inspection.
+    """
+    from chatbot.soul.persistent_identity import prompt_identity_view, relationship_history_line
+
+    companion_bound = ctx.metadata.get("companion_identity") is not None
+    relationship_config = None
+    relationship_values = ctx.metadata.get("companion_relationship") if companion_bound else None
+    if isinstance(relationship_values, Mapping):
+        try:
+            from chatbot.soul.relationship import RelationshipConfig
+
+            relationship_config = RelationshipConfig(**dict(relationship_values))
+        except Exception:
+            logger.warning("Durable relationship could not be used", exc_info=True)
+    history_values = ctx.metadata.get("companion_relationship_history")
+    history = relationship_history_line(history_values) if relationship_config else None
+
+    prompt_identity = identity_state
+    if IdentityState is not None and isinstance(identity_state, IdentityState):
+        prompt_identity = prompt_identity_view(
+            identity_state,
+            companion_bound=companion_bound,
+            relationship_bound=relationship_config is not None,
+        )
+
+    tiers = getattr(prompt_identity, "prompt_tiers", None)
+    ctx.metadata["identity_sources"] = _json_safe(
+        {
+            "configured": (
+                {
+                    "name": getattr(character_profile, "name", None),
+                    "personality_sliders": dict(
+                        getattr(character_profile, "personality_sliders", {}) or {}
+                    ),
+                }
+                if companion_bound and character_profile is not None
+                else None
+            ),
+            "evolved": (
+                {
+                    "trait_adjustments": dict(
+                        ctx.metadata.get("companion_identity_adjustments") or {}
+                    ),
+                    "effective_traits": dict(ctx.metadata.get("companion_identity") or {}),
+                }
+                if companion_bound
+                else None
+            ),
+            "relationship": (
+                {
+                    "settings": dict(relationship_values),
+                    "history": dict(history_values or {}),
+                    "stage_shown": False,
+                }
+                if relationship_config is not None
+                else None
+            ),
+            "session": {
+                "identity_tiers": [tier for tier, _ in tiers()] if callable(tiers) else [],
+                "seeded_from_companion": bool(
+                    ctx.metadata.get("identity_state_seeded_from_companion")
+                ),
+            },
+        }
+    )
+    return {
+        "character_profile": character_profile,
+        "identity_state": prompt_identity,
+        "relationship_config": relationship_config,
+        # No evidence-based depth exists yet (D7): never present a stage as fact.
+        "relationship_stage_known": False,
+        "relationship_history": history,
+    }
 
 
 def _current_character_profile(ctx: TurnContext) -> Any | None:
@@ -3107,11 +3212,21 @@ def _assemble_persona_prompt(
     mode: Any | None = None,
     character_profile: Any | None = None,
     identity_state: Any | None = None,
+    relationship_config: Any | None = None,
+    relationship_stage_known: bool = True,
+    relationship_history: str | None = None,
 ) -> str:
     if assembler is None:
         logger.warning("Persona prompt assembler is unavailable; using fallback persona")
         return "You are a helpful, neutral assistant. Respond clearly and accurately."
 
+    relationship_kwargs: dict[str, Any] = {}
+    if relationship_config is not None:
+        relationship_kwargs = {
+            "relationship_config": relationship_config,
+            "relationship_stage_known": relationship_stage_known,
+            "relationship_history": relationship_history,
+        }
     try:
         return str(
             assembler.assemble(
@@ -3120,6 +3235,7 @@ def _assemble_persona_prompt(
                 mode=mode,
                 character_profile=character_profile,
                 identity_state=identity_state,
+                **relationship_kwargs,
             )
         )
     except TypeError:

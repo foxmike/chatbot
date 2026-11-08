@@ -56,14 +56,11 @@ class IdentityState:
         character = CharacterProfile.defaults()
         relationship = RelationshipConfig.defaults()
 
+        # No generic core values: a companion's values come from its own
+        # configuration, not from a list applied identically to every companion.
         fixed = {
             "name": character.name,
             "backstory": character.backstory,
-            "core_values": [
-                "careful listening",
-                "practical support",
-                "clear conversation",
-            ],
             "humor_style": character.humor_style,
             "relationship_type": relationship.type,
         }
@@ -158,6 +155,20 @@ class IdentityState:
             )
 
         return self
+
+    def prompt_tiers(self) -> list[tuple[str, str]]:
+        """``(tier, fragment)`` for each non-empty tier: ``fixed``, ``slow``, ``mood``."""
+
+        tiers = (
+            ("fixed", "Stable identity", self.fixed),
+            ("slow", "Drift-adjusted traits", self.slow),
+            ("mood", "Current mood for this turn", self.mood),
+        )
+        return [
+            (tier, f"{heading}:\n" + _render_mapping(values))
+            for tier, heading, values in tiers
+            if values
+        ]
 
     def to_prompt_fragment(self) -> str:
         """Render prompt guidance for stable, slow-drift, and current mood tiers."""

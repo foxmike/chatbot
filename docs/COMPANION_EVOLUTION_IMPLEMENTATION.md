@@ -66,15 +66,68 @@ Accepted by the owner for integration from `feature/companion-phase0-preparation
 
 **Important:** The research described regex extraction as skipped in streaming/spoken mode. Phase 0 establishes a single consistent hook; replacement of regex and reliable async memory processing is a **separate Phase 2 deliverable**, not a hidden part of Phase 0.
 
-## 4. Phase 1 — Persistent identity and relationship foundations
+## 4. Phase 1 — Persistent identity and relationship foundations — ACCEPTED
 
 **Goal:** retain a minimal configured starting persona and persist evolved companion self and relationship across sessions/restarts, without changing who owns companions or requiring detailed manual configuration.
 
 | Task | Status | Scope | Requirements | Acceptance evidence |
 |---|---|---|---|---|
-| **1.1** | DESIGN | Approve identity vs relationship scope, lifecycle, schema/migration, existing-state compatibility and deletion behavior. Prefer reuse of existing data fields; new tables only if needed. | P01, P08, A03, A04, A07, A15 | ER diagram + migration and backfill policy approved; user-owned isolation unchanged. |
-| **1.2** | PLANNED | Migrate/store durable evolved identity and relationship; load correctly across sessions; keep transient mood separately. | P01, P08, A03, A04, A16 | New session and restart retain evolved state; old saved companions continue to load; deletion leaves no orphans. |
-| **1.3** | PLANNED | Hook effective evolved identity/relationship into shared prompt assembly and prompt inspector. Initial seed remains legible, not overwritten. | P01, P08, A11, A13 | Equivalent context across modes; no extra blocking model calls; explicit conflict precedence. |
+| **1.1** | **ACCEPTED** — architecture and decisions complete; recorded in `COMPANION_PHASE1_DESIGN.md` | Approve identity vs relationship scope, lifecycle, schema/migration, existing-state compatibility and deletion behavior. Prefer reuse of existing data fields; new tables only if needed. | P01, P08, A03, A04, A07, A15 | ER diagram + migration and backfill policy approved; user-owned isolation unchanged. |
+| **1.2** | **ACCEPTED** — implementation and successful acceptance evidence recorded below | Migrate/store durable evolved identity and relationship; load correctly across sessions; keep transient mood separately. | P01, P08, A03, A04, A16 | New session and restart retain evolved state; old saved companions continue to load; deletion leaves no orphans. |
+| **1.3** | **ACCEPTED** — implementation and successful acceptance evidence recorded below | Hook effective evolved identity/relationship into shared prompt assembly and prompt inspector. Initial seed remains legible, not overwritten. | P01, P08, A11, A13 | Equivalent context across modes; no extra blocking model calls; explicit conflict precedence. |
+
+### Phase 1 final acceptance
+
+Tasks **1.1, 1.2 and 1.3 are ACCEPTED** by the owner for final integration, commit and push. D1–D12 are recorded in `COMPANION_PHASE1_DESIGN.md`, including approved D7/D8 and deferred `self_model` (modified D11). Acceptance relies on the completed validation below: Task 1.2 PostgreSQL 50 passed / focused regressions 241 passed; Task 1.3 PostgreSQL 62 passed / default backend 237 passed / frontend 79 passed / TypeScript clean, with unchanged wider baseline failures and expected mutation detections. These validations are not repeated for Git finalization. Known limitations below remain applicable. Phase 2 is not started.
+
+### Task 1.2 implementation evidence (2026-11-07)
+
+- **Scope:** P01/P08 and A03/A04/A07/A09/A15/A16 storage and lifecycle foundation implemented. No claim of experience-driven personality development: identity evolution remains Phase 3, relationship depth development remains Phase 5.
+- **Models/migration:** `CompanionIdentityModel` and `CompanionRelationshipModel`, one row per owned companion; Alembic **`a12f907bc341`** extends `f687a630a8d1` as the single head. **No `self_model` column**, per modified D11. Configuration and legacy session working identity/mood stay intact.
+- **Lifecycle:** companion creation inserts both rows atomically; shared preparation reads them with the companion in one joined query, without read-side inserts or new prompt text. New sessions seed from configuration plus approved stored adjustments. Existing relationship API/response/UI contract targets companion state; companion-less sessions retain legacy storage. Session deletion preserves durable state; deleting a companion with conversations returns 409; new owned rows cascade only when their companion is deleted.
+- **Compatibility:** migration keeps all original records, copies deterministic latest-owned-session relationship settings, logs conflicts and chosen source IDs, backfills factual interaction timestamps/counts excluding interrupted assistant turns, and never promotes session drift. Read defaults support companions missing durable rows.
+- **Concurrency:** SQL atomic count/version increments occur last before existing completion commits; failed/interrupted turns do not increment. Identity ORM versions reject stale writes. Settings creation serializes on that companion's parent row, preventing duplicate relationship records; settings updates retain last-writer-wins behavior. Unrelated companion updates are verified to proceed while another companion is locked.
+- **Acceptance:** isolated RAM-backed PostgreSQL 16 + pgvector, built only with Alembic. Storage/migration acceptance 11 passed; timeline migration 9 passed; completion persistence 19 passed; PostgreSQL lifecycle 11 passed. Tests cover schema/default comparison, backfill, downgrade/re-upgrade, existing-table refusal, restart/new-session reload, ownership, room isolation, atomic rollback, concurrent sessions, duplicate prevention, deletion, and a frozen pre-1.2 seed/prompt golden fixture.
+- **Default regressions:** 241 passed, 1 PostgreSQL skip, 1 known config test deselected, covering Phase 0, soul/identity, ritual/timeline continuity, provider routing, retrieval, batching and avatar backend. The initial full requested run reproduced 1 config-auth failure and 41 auth-fixture event-loop errors; an untouched `6c2f019` archive reproduced exactly the same set. `test_config_integration.py` also has a preexisting collection error importing absent `chatbot.config.Config`, reproduced on that archive. No assertions weakened or unrelated failures repaired.
+- **Performance:** one statement per companion load, unchanged. Local median over 30 alternating loads was approximately 0.216 ms old lookup / 0.308 ms joined lookup in one acceptance run; measurements vary slightly between runs. No additional inference/embedding requests. Actual avatar latency was **not** revalidated.
+- **Historical Task 1.2 boundary (superseded by completed Task 1.3 below):** Task 1.3 was then PLANNED: relationship prompt integration, removal of copied relationship/core-values defaults, room identity fallback changes and inspector precedence are deferred. No commit or push performed. Development/production databases and existing volumes were not used.
+
+### Task 1.3 implementation evidence (2026-11-07)
+
+- **Decisions:**
+  - **D7 approved with clarification:** stored, evidence-based depth only; interaction counts are factual history, not intimacy; no invented stage.
+  - **D8 approved:** generic core values removed.
+  - Both are recorded in `COMPANION_PHASE1_DESIGN.md`.
+- **Scope:** P01, P08, A11 and A13 prompt integration through the shared `CompileContextStep` used by standard chat (fast and full path), SSE and spoken chat. No Phase 2–6 behavior; no evolution algorithm; random drift and mood stay session-scoped.
+- **Behavior:**
+  - The configured personality reaches the prompt unchanged.
+  - Durable trait adjustments seed each new session's working traits.
+  - The durable relationship reaches the prompt as the user's configured preferences, plus a factual history line once turns exist. It has no stage, depth or stage guidance.
+  - The generic `core_values` are gone, including from stored legacy session rows, via a read-only prompt view.
+  - Configuration copies and copied relationship defaults are no longer repeated in companion sessions.
+  - Unseeded room sessions resolve the actual companion.
+  - Companion-less sessions are unchanged (D9).
+- **Inspection:** the trace prompt is still the exact provider input. The `compile_context` trace step records `identity_sources` (configured / evolved / relationship / session), shown in `PromptInspector`'s new "Identity Sources" panel.
+- **Tests:**
+  - New `tests/test_persistent_identity_integration.py` (12): real `chat`, `stream_chat`, avatar `_spoken_turn`, `create_session` and `create_room` on real SQLAlchemy sessions; only the provider is faked.
+    - Identical standard, streaming and spoken system prompts for equivalent state.
+    - New sessions reuse the relationship and its history.
+    - Room identity, companion and user isolation.
+    - Mood and drift never becoming durable.
+    - Inspector equal to provider input.
+    - Fast path.
+    - One generation, one embedding batch and one durable-state query per turn.
+  - New `react_ui/tests/identitySources.test.ts` (2).
+  - The Task 1.2 golden seed test now asserts the frozen seed and prompt minus exactly the approved D7/D8 removals.
+  - Mutation checks: removing the relationship, the prompt view or room seeding each fails the expected tests.
+- **Results:**
+  - Disposable PostgreSQL built only by Alembic: **62/62** (Task 1.3 12, Task 1.2 storage 11, timeline migration 9, completion 19, lifecycle 11).
+  - Default environment, focused set: **237 passed**, 19 PostgreSQL-only skipped.
+  - Frontend: **79/79**; `tsc --noEmit` clean.
+  - Wider non-integration suite: failure set **identical** to the committed Phase 0 baseline (`6c2f019` archive).
+- **Known pre-existing failures:** `test_auth_companions` errors only when run after other async test files; it passes 41/41 alone. `test_identity_config::test_config_api_identity_endpoints` returns 401 because the test has no auth override. `test_companions` has 2 failures, already failing at the baseline, with the failure mode changed by Task 1.2's `add_all`. `test_config_integration.py` fails at collection. None of these was caused by Task 1.3.
+- **Performance:** `compile_context` +18 µs median per turn. No added query, LLM call or embedding call. Live avatar latency was not re-measured.
+- **Limitations:** a durable adjustment reaches an open session only from its next session; relationship depth has no evidence source until Phase 5; mood-engine guidance is unchanged.
 
 **Review candidate:** E09 synthetic formative experiences — only after approval. No fabricated observed user history.
 

@@ -121,7 +121,12 @@ class PersonaPromptAssembler:
         momentum: Optional[str] = None,
         user_response_time_seconds: Optional[float] = None,
         user_message_length: Optional[int] = None,
+        relationship_stage_known: bool = True,
+        relationship_history: str | None = None,
     ) -> str:
+        """``relationship_stage_known=False`` omits the relationship stage, depth
+        and stage guidance (use it whenever ``depth`` is not evidence-based);
+        ``relationship_history`` adds a factual history line."""
         persona_data = _persona_mapping(persona)
 
         # Resolve Linguistic Fingerprint variables
@@ -165,6 +170,8 @@ class PersonaPromptAssembler:
                 identity_state,
                 fingerprint_text=fingerprint_text,
                 pacing_directive=pacing_directive,
+                relationship_stage_known=relationship_stage_known,
+                relationship_history=relationship_history,
             )
 
         style_name = _first_text(
@@ -188,6 +195,8 @@ class PersonaPromptAssembler:
             character_profile=character_profile,
             identity_state=identity_state,
             fingerprint_text=fingerprint_text,
+            relationship_stage_known=relationship_stage_known,
+            relationship_history=relationship_history,
         )
         if not sections:
             separator = str(style.get("section_separator", "\n"))
@@ -201,6 +210,8 @@ class PersonaPromptAssembler:
                 identity_state,
                 fingerprint_text=fingerprint_text,
                 pacing_directive=pacing_directive,
+                relationship_stage_known=relationship_stage_known,
+                relationship_history=relationship_history,
             )
 
         heading = _format_template(
@@ -236,6 +247,8 @@ class PersonaPromptAssembler:
         identity_state: Optional[IdentityState],
         fingerprint_text: str | None = None,
         pacing_directive: str | None = None,
+        relationship_stage_known: bool = True,
+        relationship_history: str | None = None,
     ) -> str:
         style = _default_modifier_style(self._config)
         parts = [prompt]
@@ -246,6 +259,8 @@ class PersonaPromptAssembler:
                 character_profile=character_profile,
                 identity_state=identity_state,
                 fingerprint_text=fingerprint_text,
+                relationship_stage_known=relationship_stage_known,
+                relationship_history=relationship_history,
             )
         )
         modifier_section = _render_prompt_modifiers(
@@ -523,17 +538,19 @@ def _render_identity_sections(
     character_profile: Optional[CharacterProfile],
     identity_state: Optional[IdentityState],
     fingerprint_text: str | None = None,
+    relationship_stage_known: bool = True,
+    relationship_history: str | None = None,
 ) -> list[str]:
     sections: list[str] = []
 
     if relationship_config is not None:
-        sections.append(
-            _render_labeled_section(
-                style,
-                "RELATIONSHIP CONFIG",
-                relationship_config.to_prompt_fragment(),
+        if relationship_stage_known and relationship_history is None:
+            fragment = relationship_config.to_prompt_fragment()
+        else:
+            fragment = relationship_config.to_prompt_fragment(
+                include_stage=relationship_stage_known, history=relationship_history
             )
-        )
+        sections.append(_render_labeled_section(style, "RELATIONSHIP CONFIG", fragment))
 
     if character_profile is not None:
         sections.append(
@@ -545,12 +562,14 @@ def _render_identity_sections(
         )
 
     if identity_state is not None:
-        tier_fragments = identity_state.to_prompt_fragment().split("\n\n", 2)
-        for label, fragment in zip(
-            ("FIXED IDENTITY", "CURRENT DRIFT TRAITS", "MOOD"),
-            tier_fragments,
-        ):
-            sections.append(_render_labeled_section(style, label, fragment))
+        tier_labels = {"fixed": "FIXED IDENTITY", "slow": "CURRENT DRIFT TRAITS", "mood": "MOOD"}
+        prompt_tiers = getattr(identity_state, "prompt_tiers", None)
+        if callable(prompt_tiers):
+            tiers = prompt_tiers()  # empty tiers are left out
+        else:
+            tiers = zip(tier_labels, identity_state.to_prompt_fragment().split("\n\n", 2))
+        for tier, fragment in tiers:
+            sections.append(_render_labeled_section(style, tier_labels[tier], fragment))
 
     if fingerprint_text:
         prefix = "Linguistic Directives:\n"

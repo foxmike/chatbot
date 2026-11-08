@@ -98,10 +98,12 @@ async def stream_chat(
         )
 
     # Companion, personality and identity: shared with standard chat.
+    durable_state = {}
     character_profile, companion_persona = await conversation.load_companion_inputs(
         db,
         db_session,
         current_user.user_id,
+        durable_state=durable_state,
     )
     history = None
     identity_state = None
@@ -126,6 +128,7 @@ async def stream_chat(
             session_room_id=db_session.room_id,
             session_snapshot=_session_snapshot(db_session),
             character_profile=character_profile,
+            durable_state=durable_state,
             identity_state=identity_state,
             history=history,
             # Streaming's established fallback without a companion is an empty persona.
@@ -146,6 +149,7 @@ async def _stream_turn(
     session_room_id: str | None,
     session_snapshot: dict[str, Any],
     character_profile: dict[str, Any] | None,
+    durable_state: dict[str, Any] | None = None,
     identity_state: Any,
     history: list[dict[str, Any]] | None,
     persona: dict[str, Any] | None = None,
@@ -229,6 +233,7 @@ async def _stream_turn(
             room_id=session_room_id or request.room_id,
             character_profile=character_profile,
             identity_state=identity_state,
+            durable_state=durable_state,
             session_record=session_snapshot,
             provider_override=request.provider_override,
             model_override=request.model_override,
@@ -389,6 +394,7 @@ async def _stream_turn(
             assistant_message=response,
             turn_id=ctx.metadata.get("turn_id"),
             strict=avatar_turn is not None,
+            completed=keep_effects,
             db=stream_db if keep_effects else None,
         )
         if avatar_turn:
@@ -683,6 +689,7 @@ async def _persist_messages(
     turn_id: str | None = None,
     interrupted: bool = False,
     strict: bool = False,
+    completed: bool = True,
     db: Any | None = None,
 ) -> None:
     """Commit a turn's messages, in a session of its own unless the caller passes *db*.
@@ -708,6 +715,8 @@ async def _persist_messages(
             interrupted=interrupted,
             omit_empty_assistant=True,
         )
+        if completed and not interrupted:
+            await conversation.record_completed_interaction(db, companion_id, current_user.user_id)
         await db.commit()
     except Exception as exc:
         try:

@@ -12,8 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from chatbot.auth.dependencies import CurrentUser, get_current_user
 from chatbot.db import get_db
-from chatbot.db.models import Companion, CharacterProfileModel, IdentityStateModel, Message, Session
-from chatbot.soul.evolution import IdentityState
+from chatbot.db.models import (
+    CompanionIdentityModel, Companion, CharacterProfileModel, IdentityStateModel, Message, Session,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +89,8 @@ async def create_session(
     await db.flush()
 
     if companion_orm is not None:
-        _seed_session_from_companion(db, session.id, companion_orm)
+        identity = await db.get(CompanionIdentityModel, companion_id)
+        _seed_session_from_companion(db, session.id, companion_orm, identity)
 
     await db.commit()
     await db.refresh(session)
@@ -270,20 +272,11 @@ async def _get_companion_orm(
     return result.scalar_one_or_none()
 
 
-# Communication-style weights mirror IdentityState evolution constants.
-_COMM_STYLE_WEIGHTS: dict[str, float] = {
-    "concise": 0.35,
-    "verbose": 0.7,
-    "storyteller": 0.65,
-    "question_driven": 0.55,
-    "aphoristic": 0.45,
-}
-
-
 def _seed_session_from_companion(
     db: AsyncSession,
     session_id: uuid.UUID,
     companion: Companion,
+    identity: CompanionIdentityModel | None = None,
 ) -> None:
     """Seed CharacterProfileModel and IdentityStateModel from a companion's profile."""
     profile = companion.to_character_profile()
@@ -300,26 +293,6 @@ def _seed_session_from_companion(
         )
     )
 
-    base = IdentityState.defaults()
-    fixed = {
-        **base.fixed,
-        "name": profile.name,
-        "backstory": profile.backstory,
-        "humor_style": profile.humor_style,
-    }
-    slow = {
-        **base.slow,
-        "communication_style_weight": _COMM_STYLE_WEIGHTS.get(
-            profile.communication_style, 0.5
-        ),
-        "favorite_topics": list(profile.favorite_topics),
-        **{k: float(v) for k, v in profile.personality_sliders.items()},
-    }
-    db.add(
-        IdentityStateModel(
-            session_id=session_id,
-            fixed=fixed,
-            slow=slow,
-            mood={**base.mood},
-        )
-    )
+    from chatbot.soul.persistent_identity import initial_session_identity
+    state = initial_session_identity(companion, identity)
+    db.add(IdentityStateModel(session_id=session_id, fixed=state.fixed, slow=state.slow, mood=state.mood))

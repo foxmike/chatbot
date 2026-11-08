@@ -191,6 +191,70 @@ class Companion(Base):
         )
 
 
+class CompanionIdentityModel(Base):
+    """Durable adjustments to configuration; session drift never writes here."""
+
+    __tablename__ = "companion_identities"
+    companion_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("companions.companion_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    trait_adjustments: Mapped[dict] = mapped_column(
+        sa.JSON, nullable=False, default=dict, server_default=sa.text("'{}'")
+    )
+    version: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, default=1, server_default=sa.text("1")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), server_default=sa.func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now()
+    )
+    __mapper_args__ = {"version_id_col": version}
+
+
+class CompanionRelationshipModel(Base):
+    """One relationship per owned companion, independent of conversations."""
+
+    __tablename__ = "companion_relationships"
+    companion_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("companions.companion_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    type: Mapped[str] = mapped_column(sa.String, nullable=False, server_default=sa.text("'friend'"))
+    tone: Mapped[str] = mapped_column(sa.String, nullable=False, server_default=sa.text("'warm'"))
+    directness: Mapped[float] = mapped_column(
+        sa.Float, nullable=False, server_default=sa.text("0.5")
+    )
+    warmth: Mapped[float] = mapped_column(sa.Float, nullable=False, server_default=sa.text("0.7"))
+    initiative_level: Mapped[float] = mapped_column(
+        sa.Float, nullable=False, server_default=sa.text("0.3")
+    )
+    content_level: Mapped[str] = mapped_column(
+        sa.String, nullable=False, server_default=sa.text("'moderate'")
+    )
+    depth: Mapped[float] = mapped_column(sa.Float, nullable=False, server_default=sa.text("0"))
+    completed_turns: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, server_default=sa.text("0")
+    )
+    version: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default=sa.text("1"))
+    first_interaction_at: Mapped[datetime | None] = mapped_column(
+        sa.DateTime(timezone=True), nullable=True
+    )
+    last_interaction_at: Mapped[datetime | None] = mapped_column(
+        sa.DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), server_default=sa.func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now()
+    )
+
+
 class Voice(Base):
     """A saved Voice Library voice: metadata only.
 

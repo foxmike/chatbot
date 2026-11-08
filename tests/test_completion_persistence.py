@@ -61,6 +61,7 @@ _TABLES = [
     models.User, models.Companion, models.Session, models.Message, models.SemanticFact, models.Episode,
     models.BotMoodLog, models.UserStateLog, models.IdentityStateModel,
     models.CharacterProfileModel, models.Room, RelationshipTimelineEntryModel,
+    models.CompanionIdentityModel, models.CompanionRelationshipModel,
 ]
 
 

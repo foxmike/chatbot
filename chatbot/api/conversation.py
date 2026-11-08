@@ -30,13 +30,12 @@ from typing import Any
 import uuid
 
 from fastapi import HTTPException, Request, status
-from sqlalchemy import or_, select, update
+from sqlalchemy import or_, select, update, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from chatbot.api.sessions import sessions_store
-from chatbot.companions.companion import CompanionManager
 from chatbot.core.steps import TurnContext
-from chatbot.db.models import IdentityStateModel, Message, Room as RoomModel, Session
+from chatbot.db.models import Companion, CompanionIdentityModel, CompanionRelationshipModel, IdentityStateModel, Message, Room as RoomModel, Session
 from chatbot.providers.base import ProviderConfig, ProviderRegistry
 from chatbot.providers.router import apply_routing_overrides
 
@@ -89,41 +88,104 @@ async def load_companion_inputs(
     db_session: Session,
     user_id: str,
     requested_companion_id: str | None = None,
+    *,
+    durable_state: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
     """Return ``(character_profile, companion_persona)`` for the session's companion.
 
     ``requested_companion_id`` is only supplied by the standard-chat request
     body: it must exist, belong to the user and match the session binding.
-    Otherwise the session-bound companion is used. Both values are derived from
-    the same ``CompanionManager.get`` call.
+    Otherwise the session-bound companion is used. Both values and optional durable
+    metadata are derived from one ownership-filtered LEFT JOIN query.
+    ``durable_state`` receives read-only snapshots for the turn context: the
+    effective traits and their durable adjustments, the durable relationship and
+    its factual interaction history. ``CompileContextStep`` composes them into the
+    prompt (Phase 1 precedence, ``chatbot/soul/persistent_identity.py``).
     """
-    if requested_companion_id is not None:
-        companion = await CompanionManager(db).get(user_id, requested_companion_id)
-        if companion is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Companion not found",
-            )
-        if (
-            db_session.companion_id is not None
-            and db_session.companion_id != requested_companion_id
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Companion mismatch: session is bound to a different companion",
-            )
-    else:
-        bound_id = db_session.companion_id
-        if bound_id is None:
-            return None, None
-        try:
-            companion = await CompanionManager(db).get(user_id, str(bound_id))
-        except Exception:
-            return None, None
-        if companion is None:
-            return None, None
+    companion_id = requested_companion_id or db_session.companion_id
+    if companion_id is None:
+        return None, None
+    row = await _load_companion_state(db, user_id, str(companion_id))
+    if row is None:
+        if requested_companion_id is not None:
+            raise HTTPException(status_code=404, detail="Companion not found")
+        return None, None
+    companion, identity, relationship = row
+    if (
+        requested_companion_id is not None
+        and db_session.companion_id is not None
+        and db_session.companion_id != requested_companion_id
+    ):
+        raise HTTPException(
+            status_code=400, detail="Companion mismatch: session is bound to a different companion"
+        )
+    if durable_state is not None:
+        from chatbot.soul.persistent_identity import effective_traits
+        from chatbot.soul.relationship import RelationshipConfig
 
+        durable_state["companion_identity"] = effective_traits(companion, identity)
+        durable_state["companion_identity_adjustments"] = dict(
+            (identity.trait_adjustments if identity is not None else None) or {}
+        )
+        defaults = asdict(RelationshipConfig.defaults())
+        durable_state["companion_relationship"] = (
+            {key: getattr(relationship, key) for key in defaults}
+            if relationship is not None
+            else defaults
+        )
+        # Factual interaction history from the same row (no extra query).
+        durable_state["companion_relationship_history"] = {
+            "completed_turns": relationship.completed_turns if relationship is not None else 0,
+            "first_interaction_at": getattr(relationship, "first_interaction_at", None),
+            "last_interaction_at": getattr(relationship, "last_interaction_at", None),
+        }
     return companion_to_profile_dict(companion), companion_to_persona(companion)
+
+
+async def _load_companion_state(db: AsyncSession, user_id: str, companion_id: str):
+    result = await db.execute(
+        select(Companion, CompanionIdentityModel, CompanionRelationshipModel)
+        .outerjoin(
+            CompanionIdentityModel, CompanionIdentityModel.companion_id == Companion.companion_id
+        )
+        .outerjoin(
+            CompanionRelationshipModel,
+            CompanionRelationshipModel.companion_id == Companion.companion_id,
+        )
+        .where(Companion.companion_id == companion_id, Companion.user_id == uuid.UUID(user_id))
+    )
+    return result.one_or_none()
+
+
+async def record_completed_interaction(
+    db: AsyncSession,
+    companion_id: str | None,
+    user_id: str | uuid.UUID,
+    at: datetime | None = None,
+) -> None:
+    """Atomic factual update, called last in the existing completion transaction.
+
+    No commit here, no identity drift or depth updates. Session/companion owners
+    must match even when legacy inconsistent sessions exist.
+    """
+    if companion_id is None:
+        return
+    at = at or datetime.now(timezone.utc)
+    row = CompanionRelationshipModel
+    owned = select(Companion.companion_id).where(Companion.user_id == uuid.UUID(str(user_id)))
+    await db.execute(
+        update(row)
+        .where(row.companion_id == companion_id, row.companion_id.in_(owned))
+        .values(
+            completed_turns=row.completed_turns + 1,
+            first_interaction_at=func.coalesce(row.first_interaction_at, at),
+            last_interaction_at=case(
+                (row.last_interaction_at > at, row.last_interaction_at), else_=at
+            ),
+            version=row.version + 1,
+        )
+        .execution_options(synchronize_session=False)
+    )
 
 
 def companion_to_profile_dict(companion: Any) -> dict[str, Any]:
@@ -360,6 +422,7 @@ def build_turn_context(
     room_system_prompt: str | None = None,
     character_profile: dict[str, Any] | None = None,
     identity_state: Any = None,
+    durable_state: dict[str, Any] | None = None,
     session_record: dict[str, Any] | None = None,
     provider_override: str | None = None,
     model_override: str | None = None,
@@ -419,6 +482,9 @@ def build_turn_context(
         metadata["character_profile"] = character_profile
     if identity_state is not None:
         metadata["identity_state"] = identity_state
+
+    if durable_state:
+        metadata.update(durable_state)
 
     retrieval_engine = metadata.get("retrieval_engine") or metadata.get("memory_retriever")
     if retrieval_engine is not None and not callable(getattr(retrieval_engine, "retrieve", None)):

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { fetchTraceByTurn, TraceDetail } from "../api/client";
+import { IDENTITY_LAYERS, identitySources } from "./identitySources";
 
 interface PromptInspectorProps {
   turnId: string | null;
@@ -21,6 +22,7 @@ export default function PromptInspector({ turnId }: PromptInspectorProps) {
   
   const [promptOpen, setPromptOpen] = useState(true);
   const [responseOpen, setResponseOpen] = useState(true);
+  const [identityOpen, setIdentityOpen] = useState(true);
 
   useEffect(() => {
     if (!turnId) {
@@ -118,6 +120,37 @@ export default function PromptInspector({ turnId }: PromptInspectorProps) {
                 </div>
               )}
             </div>
+
+            {identitySources(trace) && (
+              <div className="rounded-lg border border-gray-700 overflow-hidden">
+                <button
+                  type="button"
+                  className="w-full flex items-center justify-between bg-gray-800 px-4 py-3 text-left font-medium text-gray-200 hover:bg-gray-700 focus:outline-none"
+                  onClick={() => setIdentityOpen(!identityOpen)}
+                >
+                  <span>Identity Sources</span>
+                  <span className="text-gray-500">{identityOpen ? "▼" : "▶"}</span>
+                </button>
+                {identityOpen && (
+                  <div className="bg-gray-950 p-4 space-y-3">
+                    <p className="text-xs text-gray-500">
+                      Layers composed into the assembled prompt above.
+                    </p>
+                    {IDENTITY_LAYERS.map(({ key, label }) => {
+                      const value = identitySources(trace)?.[key];
+                      return (
+                        <div key={key}>
+                          <div className="text-gray-500 text-xs uppercase mb-1">{label}</div>
+                          <pre className="whitespace-pre-wrap font-mono text-xs text-gray-300">
+                            {value == null ? "Not used for this turn." : JSON.stringify(value, null, 2)}
+                          </pre>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="rounded-lg border border-gray-700 overflow-hidden">
               <button 

@@ -7,13 +7,15 @@ from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, field_validator
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from chatbot.auth.dependencies import CurrentUser, get_current_user
 from chatbot.db import get_db
 from chatbot.db.models import (
+    Companion,
+    CompanionRelationshipModel,
     CharacterProfileModel,
     IdentityStateModel,
     RelationshipConfigModel,
@@ -109,8 +111,8 @@ async def get_relationship_config(
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> RelationshipConfigResponse:
-    await _verify_session_ownership(db, session_id, current_user.user_id)
-    model = await _get_latest_relationship_model(db, session_id)
+    session = await _verify_session_ownership(db, session_id, current_user.user_id)
+    model = await _relationship_for_session(db, session, current_user.user_id)
     config = _relationship_from_model(model) if model is not None else RelationshipConfig.defaults()
     return _relationship_response(config)
 
@@ -125,18 +127,26 @@ async def put_relationship_config(
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> RelationshipConfigResponse:
-    await _verify_session_ownership(db, session_id, current_user.user_id)
-    model = await _get_latest_relationship_model(db, session_id)
+    session = await _verify_session_ownership(db, session_id, current_user.user_id)
+    model = await _relationship_for_session(db, session, current_user.user_id, write=True)
     current = _relationship_from_model(model) if model is not None else RelationshipConfig.defaults()
     config_data = _relationship_to_dict(current)
     config_data.update(body.model_dump(exclude_unset=True, exclude_none=True))
     config = RelationshipConfig(**config_data)
 
     if model is None:
-        model = RelationshipConfigModel(session_id=session_id)
+        model = (CompanionRelationshipModel(companion_id=session.companion_id)
+                 if session.companion_id else RelationshipConfigModel(session_id=session_id))
         db.add(model)
 
     _write_relationship_model(model, config)
+    if isinstance(model, CompanionRelationshipModel):
+        await db.flush()
+        await db.execute(
+            update(CompanionRelationshipModel)
+            .where(CompanionRelationshipModel.companion_id == model.companion_id)
+            .values(version=CompanionRelationshipModel.version + 1)
+        )
     await _commit_or_session_not_found(db)
     await db.refresh(model)
     await _invalidate_persona_cache(db, session_id)
@@ -249,7 +259,7 @@ async def _verify_session_ownership(
     db: AsyncSession,
     session_id: UUID,
     user_id: str,
-) -> None:
+) -> Session:
     """Verify that a session exists and belongs to the current user."""
     from uuid import UUID as _UUID
     result = await db.execute(
@@ -261,6 +271,23 @@ async def _verify_session_ownership(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found",
         )
+
+    return session
+
+
+async def _relationship_for_session(db, session, user_id, *, write=False):
+    if session.companion_id is None:
+        return await _get_latest_relationship_model(db, session.id)
+    # The session and its companion must both belong to this user.
+    statement = select(Companion.companion_id).where(
+        Companion.companion_id == session.companion_id, Companion.user_id == UUID(user_id)
+    )
+    if write:
+        statement = statement.with_for_update()
+    companion = await db.scalar(statement)
+    if companion is None:
+        raise HTTPException(status_code=404, detail="Companion not found")
+    return await db.get(CompanionRelationshipModel, companion)
 
 
 async def _get_latest_relationship_model(

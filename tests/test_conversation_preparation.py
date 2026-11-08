@@ -315,10 +315,8 @@ def test_each_mode_keeps_its_established_fallback_when_no_companion_is_configure
 
 async def _companion_inputs(db_session: Any, requested: str | None, found: Any) -> Any:
     db = AsyncMock()
-    manager = Mock()
-    manager.get = AsyncMock(return_value=found)
     with pytest.MonkeyPatch.context() as mp:
-        mp.setattr(conversation, "CompanionManager", lambda _db: manager)
+        mp.setattr(conversation, "_load_companion_state", AsyncMock(return_value=(found, None, None) if found is not None else None))
         return await conversation.load_companion_inputs(db, db_session, UID, requested)
 
 

@@ -88,8 +88,29 @@ class RelationshipConfig:
             content_level="moderate",
         )
 
-    def to_prompt_fragment(self) -> str:
-        """Render compact relationship guidance for persona prompt injection."""
+    def to_prompt_fragment(self, *, include_stage: bool = True, history: str | None = None) -> str:
+        """Render compact relationship guidance for persona prompt injection.
+
+        ``include_stage=False`` renders only the configured preferences: callers
+        whose ``depth`` is not backed by evidence must not present a stage (or
+        stage guidance) as a fact. ``history`` is an optional factual line about
+        past interactions.
+        """
+
+        if not include_stage:
+            lines = ["Relationship:", f"- Type: {self.type}"]
+            if history:
+                lines.append(f"- History: {history}")
+            lines.extend(
+                (
+                    f"- Tone: {self.tone}",
+                    f"- Directness: {_format_ratio(self.directness)}",
+                    f"- Warmth: {_format_ratio(self.warmth)}",
+                    f"- Initiative level: {_format_ratio(self.initiative_level)}",
+                    f"- Content level: {self.content_level}",
+                )
+            )
+            return "\n".join(lines)
 
         if self.stage == "acquaintance":
             stage_guidance = "Keep interactions polite, relatively safe, and exploratory."

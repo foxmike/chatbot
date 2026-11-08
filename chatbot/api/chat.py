@@ -99,11 +99,13 @@ async def chat(
 
     # Companion, personality and identity: shared with streaming/spoken chat.
     companion_id = body.companion_id
+    durable_state = {}
     character_profile, companion_persona = await conversation.load_companion_inputs(
         db,
         db_session,
         current_user.user_id,
         companion_id,
+        durable_state=durable_state,
     )
     identity_state = await conversation.load_session_identity(db, sid)
 
@@ -148,6 +150,7 @@ async def chat(
         room_system_prompt=room_system_prompt,
         character_profile=character_profile,
         identity_state=identity_state,
+        durable_state=durable_state,
         provider_override=body.provider_override,
         model_override=body.model_override,
         thinking=body.thinking,
@@ -170,6 +173,13 @@ async def chat(
         assistant_message=response,
         turn_id=ctx.metadata.get("turn_id"),
     )
+    if (
+        not ctx.metadata.get("pipeline_error")
+        and not str(ctx.provider_response or "").startswith("Provider error:")
+    ):
+        await conversation.record_completed_interaction(
+            db, db_session.companion_id or companion_id, user_uuid
+        )
     await db.commit()
 
     conversation.schedule_title_generation(

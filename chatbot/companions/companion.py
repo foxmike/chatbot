@@ -21,7 +21,10 @@ from chatbot.visual.appearance import (
     stable_outfit_id,
 )
 from chatbot.visual.generation import GenerationOptions, create_image_generation_service
-from chatbot.db.models import Voice
+from chatbot.db.models import (
+    Voice, CompanionIdentityModel, CompanionRelationshipModel, Session, Companion,
+)
+from fastapi import HTTPException
 
 
 class CompanionCreateRequest(BaseModel):
@@ -314,6 +317,10 @@ class CompanionManager:
             ),
         )
         row = result.fetchone()
+        self._session.add_all([
+            CompanionIdentityModel(companion_id=companion_id),
+            CompanionRelationshipModel(companion_id=companion_id),
+        ])
         if voice_id is not None:
             await self._set_voice(companion_id, voice_id)
             await self._session.commit()
@@ -436,6 +443,16 @@ class CompanionManager:
         if existing is None:
             return False
 
+        # Lock the parent so a concurrent session insert cannot bypass the check.
+        await self._session.execute(
+            sa.select(Companion.companion_id)
+            .where(Companion.companion_id == companion_id).with_for_update()
+        )
+        conversations = await self._session.scalar(
+            sa.select(Session.id).where(Session.companion_id == companion_id).limit(1)
+        )
+        if conversations:
+            raise HTTPException(status_code=409, detail="Companion still has conversations")
         stmt = text("DELETE FROM companions WHERE companion_id = :companion_id")
         await self._session.execute(stmt, dict(companion_id=companion_id))
         await self._session.commit()

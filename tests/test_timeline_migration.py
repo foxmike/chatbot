@@ -59,7 +59,8 @@ def _scripts() -> ScriptDirectory:
 
 def test_the_timeline_revision_extends_the_chain_and_is_the_only_head() -> None:
     scripts = _scripts()
-    assert scripts.get_heads() == [REVISION]
+    assert scripts.get_heads() == ["a12f907bc341"]
+    assert scripts.get_revision("a12f907bc341").down_revision == REVISION
     assert scripts.get_revision(REVISION).down_revision == PREVIOUS_HEAD
 
 
@@ -157,7 +158,7 @@ async def make_session(db: Fresh) -> tuple[uuid.UUID, uuid.UUID]:
 async def test_a_fresh_alembic_database_has_the_timeline_table_matching_the_model(
     fresh_database: Callable[..., Any],
 ) -> None:
-    db: Fresh = await fresh_database()
+    db: Fresh = await fresh_database(upgrade_to=REVISION)
     assert await db.scalar("select version_num from alembic_version") == REVISION
 
     def inspect(connection: Any) -> dict[str, Any]:
@@ -203,7 +204,7 @@ async def test_a_fresh_alembic_database_has_the_timeline_table_matching_the_mode
 async def test_timeline_entries_persist_and_read_back_without_create_all(
     fresh_database: Callable[..., Any],
 ) -> None:
-    db: Fresh = await fresh_database()
+    db: Fresh = await fresh_database(upgrade_to=REVISION)
     _, sid = await make_session(db)
     timeline = RelationshipTimeline(session_factory=db.factory)
 
@@ -223,7 +224,7 @@ async def test_timeline_entries_persist_and_read_back_without_create_all(
 async def test_a_turn_session_entry_commits_with_the_turn_and_rolls_back_with_it(
     fresh_database: Callable[..., Any],
 ) -> None:
-    db: Fresh = await fresh_database()
+    db: Fresh = await fresh_database(upgrade_to=REVISION)
     _, sid = await make_session(db)
     timeline = RelationshipTimeline(session_factory=db.factory)
 
@@ -246,7 +247,7 @@ async def test_a_turn_session_entry_commits_with_the_turn_and_rolls_back_with_it
 async def test_the_database_enforces_the_timeline_constraints(
     fresh_database: Callable[..., Any],
 ) -> None:
-    db: Fresh = await fresh_database()
+    db: Fresh = await fresh_database(upgrade_to=REVISION)
     _, sid = await make_session(db)
     insert = (
         f"insert into {TABLE} (session_id, entry_type, title, description, content, turn_id, tags, metadata) "
@@ -271,7 +272,7 @@ async def test_deleting_a_session_deletes_its_timeline_entries(
     fresh_database: Callable[..., Any],
 ) -> None:
     """Without ON DELETE CASCADE a session holding a milestone could not be deleted."""
-    db: Fresh = await fresh_database()
+    db: Fresh = await fresh_database(upgrade_to=REVISION)
     _, sid = await make_session(db)
     other_uid, other_sid = await make_session(db)
     timeline = RelationshipTimeline(session_factory=db.factory)
@@ -294,7 +295,7 @@ async def test_deleting_a_session_deletes_its_timeline_entries(
 async def test_downgrade_removes_only_the_timeline_table_and_upgrade_restores_it(
     fresh_database: Callable[..., Any],
 ) -> None:
-    db: Fresh = await fresh_database()  # a throwaway database, never an existing one
+    db: Fresh = await fresh_database(upgrade_to=REVISION)  # a throwaway database, never an existing one
     users_before = await db.scalar("select count(*) from information_schema.tables where table_schema='public'")
 
     done = alembic(db.url, "downgrade", PREVIOUS_HEAD)
@@ -303,7 +304,7 @@ async def test_downgrade_removes_only_the_timeline_table_and_upgrade_restores_it
     assert await db.scalar("select count(*) from information_schema.tables where table_schema='public'") == users_before - 1
     assert await db.scalar("select version_num from alembic_version") == PREVIOUS_HEAD
 
-    done = alembic(db.url, "upgrade", "head")
+    done = alembic(db.url, "upgrade", REVISION)
     assert done.returncode == 0, done.stderr[-2000:]
     assert await db.scalar("select to_regclass('public.relationship_timeline_entries')") is not None
 
@@ -337,7 +338,7 @@ async def test_an_existing_compatible_table_is_adopted_with_its_rows_untouched(
         )
         await session.commit()
 
-    done = alembic(db.url, "upgrade", "head")
+    done = alembic(db.url, "upgrade", REVISION)
 
     assert done.returncode == 0, done.stderr[-2000:]
     assert await db.scalar("select version_num from alembic_version") == REVISION
@@ -368,7 +369,7 @@ async def test_an_existing_incompatible_table_stops_the_upgrade_and_is_left_unto
         )
         await session.commit()
 
-    done = alembic(db.url, "upgrade", "head")
+    done = alembic(db.url, "upgrade", REVISION)
 
     assert done.returncode != 0
     assert "does not match the application model" in done.stderr
