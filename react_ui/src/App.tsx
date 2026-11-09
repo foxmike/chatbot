@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { AuthImage } from "./components/AuthImage";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createRoom,
   createSession,
@@ -9,7 +10,9 @@ import {
   listCompanions,
   listRooms,
   listSessions,
+  logout,
   sendMessage,
+  setUnauthorizedHandler,
 } from "./api/client";
 import AvatarDisplay from "./components/AvatarDisplay";
 import { AvatarControlPanel } from "./components/AvatarControlPanel";
@@ -92,7 +95,7 @@ function formatRoomDate(value: string) {
 function SwitcherAvatar({ companion }: { companion: Companion }) {
   if (companion.avatar_url) {
     return (
-      <img
+      <AuthImage
         src={companion.avatar_url}
         alt={`${companion.name} avatar`}
         className="h-7 w-7 shrink-0 rounded-full object-cover ring-1 ring-gray-600"
@@ -265,6 +268,8 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [sessionNotice, setSessionNotice] = useState<string | null>(null);
+  const loggingOutRef = useRef(false);
   const [selectedCompanion, setSelectedCompanion] = useState<Companion | null>(
     null,
   );
@@ -758,7 +763,15 @@ export default function App() {
     setSelectedCompanion(companion);
   };
 
-  const handleCompanionLogout = () => {
+  // Drops everything that belongs to the signed-in account: queued work, active
+  // conversation/room/companion state, the avatar window (which owns the microphone and
+  // its WebSocket), and per-account UI choices. Persistent preferences are untouched.
+  const resetAccountState = () => {
+    try {
+      AvatarWindowManager.getInstance().close();
+    } catch {
+      // No avatar window to close.
+    }
     queueRef.current = [];
     processingRef.current = false;
     streamSettleRef.current = null;
@@ -775,17 +788,59 @@ export default function App() {
     setError(null);
     setIsLoading(false);
     setStreamRequest(null);
+    setActivePanel("chat");
+    setIsAvatarActive(false);
+    setDebugMode(false);
+    setInspectedTurnId(null);
+    setThinking(false);
+    setModelSendBlocker(null);
   };
 
+  // The backend session is revoked while the token still exists; credentials are then
+  // cleared (even if that call fails), which also aborts this account's in-flight
+  // requests and streams. Only afterwards is the UI reset, so the auth screen cannot
+  // restore the old session from a token that is about to be removed.
+  const handleLogout = async () => {
+    if (loggingOutRef.current) return;
+    loggingOutRef.current = true;
+    try {
+      await logout();
+    } catch {
+      // Already signed out locally; the server session expires on its own.
+    } finally {
+      resetAccountState();
+      setSessionNotice(null);
+      loggingOutRef.current = false;
+    }
+  };
+
+  const resetAccountStateRef = useRef(resetAccountState);
+  resetAccountStateRef.current = resetAccountState;
+
+  // The server rejected our credentials (expired or revoked): return to login.
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      resetAccountStateRef.current();
+      setSessionNotice("Your session has expired or was signed out. Please log in again.");
+    });
+    return () => setUnauthorizedHandler(null);
+  }, []);
+
+  const handleAuthenticated = useCallback((authenticated: User) => {
+    setSessionNotice(null);
+    setUser(authenticated);
+  }, []);
+
   if (!user) {
-    return <AuthScreen onAuthenticated={setUser} />;
+    return <AuthScreen onAuthenticated={handleAuthenticated} notice={sessionNotice} />;
   }
 
   if (!selectedCompanion) {
     return (
       <CompanionSelector
+        key={user.user_id}
         onSelectCompanion={setSelectedCompanion}
-        onLogout={handleCompanionLogout}
+        onLogout={handleLogout}
       />
     );
   }
@@ -869,7 +924,9 @@ export default function App() {
   return (
     <>
       <AppShell
+        key={user.user_id}
         user={user}
+        onLogout={handleLogout}
         activePanel={activePanel}
         onPanelChange={setActivePanel}
         companionSwitcher={

@@ -1,6 +1,8 @@
+import { AuthImage } from "./AuthImage";
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import {
+  accountLocalStorage,
   createCompanion,
   deleteVisualImage,
   generateCompanionField,
@@ -371,10 +373,10 @@ export function CompanionForm({
   const [autoLoadingField, setAutoLoadingField] =
     useState<GenerateCompanionFieldName | null>(null);
   const [autoProvider, setAutoProvider] = useState(() =>
-    localStorage.getItem(COMPANION_AUTO_PROVIDER_KEY) ?? "",
+    accountLocalStorage().getItem(COMPANION_AUTO_PROVIDER_KEY) ?? "",
   );
   const [autoModel, setAutoModel] = useState(() =>
-    localStorage.getItem(COMPANION_AUTO_MODEL_KEY) ?? "",
+    accountLocalStorage().getItem(COMPANION_AUTO_MODEL_KEY) ?? "",
   );
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -400,17 +402,17 @@ export function CompanionForm({
 
   useEffect(() => {
     if (autoProvider.trim()) {
-      localStorage.setItem(COMPANION_AUTO_PROVIDER_KEY, autoProvider);
+      accountLocalStorage().setItem(COMPANION_AUTO_PROVIDER_KEY, autoProvider);
     } else {
-      localStorage.removeItem(COMPANION_AUTO_PROVIDER_KEY);
+      accountLocalStorage().removeItem(COMPANION_AUTO_PROVIDER_KEY);
     }
   }, [autoProvider]);
 
   useEffect(() => {
     if (autoModel.trim()) {
-      localStorage.setItem(COMPANION_AUTO_MODEL_KEY, autoModel);
+      accountLocalStorage().setItem(COMPANION_AUTO_MODEL_KEY, autoModel);
     } else {
-      localStorage.removeItem(COMPANION_AUTO_MODEL_KEY);
+      accountLocalStorage().removeItem(COMPANION_AUTO_MODEL_KEY);
     }
   }, [autoModel]);
 
@@ -799,7 +801,7 @@ export function CompanionForm({
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
           {form.avatar_url ? (
-            <img
+            <AuthImage
               src={form.avatar_url}
               alt="Avatar preview"
               className="h-20 w-20 rounded-full object-cover ring-2 ring-gray-600 shadow-md"
@@ -934,7 +936,7 @@ export function CompanionForm({
                     onClick={() => handleSelectGalleryImage(image)}
                     className="block w-full focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:cursor-not-allowed disabled:opacity-70"
                   >
-                    <img
+                    <AuthImage
                       src={image.image_url}
                       alt={imageDescription(image) || "Companion image"}
                       className="aspect-square w-full object-cover"

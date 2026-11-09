@@ -12,6 +12,8 @@ import type { ApiError } from "../types";
 
 interface AuthScreenProps {
   onAuthenticated: (user: User) => void;
+  /** Why the user is back here (e.g. the session expired); shown above the form. */
+  notice?: string | null;
 }
 
 function getErrorDetail(error: unknown) {
@@ -31,7 +33,7 @@ function getErrorDetail(error: unknown) {
   return "Something went wrong. Please try again.";
 }
 
-export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
+export function AuthScreen({ onAuthenticated, notice }: AuthScreenProps) {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -138,6 +140,12 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
         <div className="mb-6 text-center">
           <h1 className="text-xl font-semibold">Abracapocus Companion</h1>
         </div>
+
+        {notice && !error ? (
+          <div className="mb-4 rounded-md border border-amber-700 bg-amber-950/40 px-3 py-2 text-sm text-amber-200">
+            {notice}
+          </div>
+        ) : null}
 
         {error ? (
           <div className="mb-4 rounded-md border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-200">

@@ -1,3 +1,4 @@
+import { AuthImage } from "./AuthImage";
 import type { Companion } from "../api/client";
 import { avatarColorForCompanion, getInitial } from "../utils/avatar";
 
@@ -20,7 +21,7 @@ export function AvatarControlPanel({
         {/* Companion Avatar / Initials */}
         <div className="flex flex-col items-center text-center">
           {companion?.avatar_url ? (
-            <img
+            <AuthImage
               src={companion.avatar_url}
               alt={companion.name}
               className="h-28 w-28 rounded-full object-cover ring-4 ring-indigo-500/30 shadow-lg"

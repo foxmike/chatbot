@@ -1,3 +1,4 @@
+import { accountIdFromToken, accountStorage, type AccountStorage } from "../utils/accountStorage.ts";
 import type {
   ApiError,
   ChatResponse,
@@ -428,11 +429,108 @@ export interface StreamCallbacks {
 const BASE_URL = "";
 const API_PREFIX = "/api";
 
-let accessToken: string | null = localStorage.getItem("auth_token");
+function browserStorage(): Storage | null {
+  try {
+    return typeof localStorage === "undefined" ? null : localStorage;
+  } catch {
+    return null;
+  }
+}
+
+let accessToken: string | null = browserStorage()?.getItem("auth_token") ?? null;
+
+// ---- Session scope -------------------------------------------------------
+// Everything an account has in flight (requests, streams, cached private images)
+// belongs to the current "session scope". Ending the scope (logout, expiry, or a
+// different account signing in) aborts those requests and makes any response that
+// still arrives afterwards fail instead of populating the next account's UI.
+
+export class StaleSessionError extends Error {
+  constructor() {
+    super("Response discarded: the session that requested it has ended");
+    this.name = "StaleSessionError";
+  }
+}
+
+let sessionEpoch = 0;
+let sessionAbort = new AbortController();
+const sessionCleanups = new Set<() => void>();
+let unauthorizedHandler: (() => void) | null = null;
+
+/** Register cleanup (e.g. revoking private image URLs) to run when the session ends. */
+export function onSessionEnd(cleanup: () => void): () => void {
+  sessionCleanups.add(cleanup);
+  return () => {
+    sessionCleanups.delete(cleanup);
+  };
+}
+
+/** Abort the account's in-flight work and drop its cached private data. */
+export function endSessionScope(): void {
+  sessionEpoch += 1;
+  sessionAbort.abort();
+  sessionAbort = new AbortController();
+  for (const cleanup of Array.from(sessionCleanups)) {
+    try {
+      cleanup();
+    } catch {
+      // Cleanup is best-effort; one failure must not block the others.
+    }
+  }
+}
+
+/** Called once when the server rejects the current credentials (expired or revoked). */
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  unauthorizedHandler = handler;
+}
+
+// A request signal that fires when either the caller or the session scope aborts.
+function scopedSignal(callerSignal?: AbortSignal | null): AbortSignal {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  for (const signal of [sessionAbort.signal, callerSignal]) {
+    if (!signal) continue;
+    if (signal.aborted) abort();
+    else signal.addEventListener("abort", abort, { once: true });
+  }
+  return controller.signal;
+}
+
+const UNAUTHENTICATED_PATHS = ["/auth/login", "/auth/register", "/auth/logout"];
+
+function noteUnauthorized(path: string, status: number): void {
+  if (status !== 401 || !accessToken) return;
+  if (UNAUTHENTICATED_PATHS.some((p) => path.includes(p))) return;
+  clearAccessToken();
+  endSessionScope();
+  unauthorizedHandler?.();
+}
+
+// fetch() with the session scope applied: aborted when the session ends, stale
+// responses discarded, and a 401 treated as an expired or revoked session.
+async function scopedFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  const epoch = sessionEpoch;
+  const response = await fetch(url, { ...init, signal: scopedSignal(init.signal) });
+  if (epoch !== sessionEpoch) throw new StaleSessionError();
+  noteUnauthorized(url, response.status);
+  return response;
+}
+
+export function currentAccountId(): string | null {
+  return accountIdFromToken(accessToken);
+}
+
+/** localStorage restricted to the signed-in account's own preferences. */
+export function accountLocalStorage(): AccountStorage {
+  return accountStorage(browserStorage(), currentAccountId());
+}
 
 export function setAccessToken(token: string): void {
+  if (accountIdFromToken(token) !== currentAccountId()) {
+    endSessionScope();
+  }
   accessToken = token;
-  localStorage.setItem("auth_token", token);
+  browserStorage()?.setItem("auth_token", token);
 }
 
 export function getAccessToken(): string | null {
@@ -441,7 +539,7 @@ export function getAccessToken(): string | null {
 
 export function clearAccessToken(): void {
   accessToken = null;
-  localStorage.removeItem("auth_token");
+  browserStorage()?.removeItem("auth_token");
 }
 
 async function parseErrorResponse(response: Response): Promise<ApiError> {
@@ -499,7 +597,15 @@ export async function authorizedRequest(path: string, init: RequestInit = {}): P
   if (accessToken) {
     headers["Authorization"] = `Bearer ${accessToken}`;
   }
-  return fetch(`${BASE_URL}${backendPath(path)}`, { ...init, headers });
+  const epoch = sessionEpoch;
+  const response = await fetch(`${BASE_URL}${backendPath(path)}`, {
+    ...init,
+    headers,
+    signal: scopedSignal(init.signal),
+  });
+  if (epoch !== sessionEpoch) throw new StaleSessionError();
+  noteUnauthorized(path, response.status);
+  return response;
 }
 
 async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
@@ -511,13 +617,19 @@ async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
     headers["Authorization"] = `Bearer ${accessToken}`;
   }
 
+  const epoch = sessionEpoch;
   const response = await fetch(`${BASE_URL}${backendPath(path)}`, {
     ...init,
     headers,
+    signal: scopedSignal(init.signal),
   });
+  if (epoch !== sessionEpoch) throw new StaleSessionError();
+  noteUnauthorized(path, response.status);
 
   await assertOk(response);
-  return (await response.json()) as T;
+  const body = (await response.json()) as T;
+  if (epoch !== sessionEpoch) throw new StaleSessionError();
+  return body;
 }
 
 function dispatchSseEvent(rawEvent: string, onEvent: (event: StreamEvent) => void) {
@@ -684,7 +796,7 @@ export async function streamChat(
       method: "POST",
       headers,
       body: JSON.stringify(body),
-      signal,
+      signal: scopedSignal(signal),
     });
   } catch (err: unknown) {
     if (err instanceof DOMException && err.name === "AbortError") {
@@ -697,6 +809,7 @@ export async function streamChat(
   }
 
   if (!response.ok) {
+    noteUnauthorized("/chat/stream", response.status);
     let detail = response.statusText;
     try {
       const body = (await response.json()) as Partial<ApiError>;
@@ -1219,7 +1332,7 @@ export async function deactivateRitual(ritualId: string): Promise<void> {
   if (accessToken) {
     headers["Authorization"] = `Bearer ${accessToken}`;
   }
-  const response = await fetch(
+  const response = await scopedFetch(
     `${BASE_URL}${backendPath(`/api/rituals/${ritualId}`)}`,
     {
       method: "DELETE",
@@ -1387,7 +1500,7 @@ export async function deleteRoom(roomId: string): Promise<void> {
   if (accessToken) {
     headers["Authorization"] = `Bearer ${accessToken}`;
   }
-  const response = await fetch(
+  const response = await scopedFetch(
     `${BASE_URL}${backendPath(`/rooms/${roomId}`)}`,
     {
       method: "DELETE",
@@ -1424,7 +1537,7 @@ export async function unlinkRoomSession(roomId: string): Promise<void> {
   if (accessToken) {
     headers["Authorization"] = `Bearer ${accessToken}`;
   }
-  const response = await fetch(
+  const response = await scopedFetch(
     `${BASE_URL}${backendPath(`/rooms/${roomId}/session`)}`,
     {
       method: "DELETE",
@@ -1536,11 +1649,23 @@ export async function login(
   return tokens;
 }
 
+/**
+ * Revoke the server session while the token is still available, then clear local
+ * credentials and end the session scope. The local sign-out happens even if the
+ * server call fails (offline, or the session was already revoked/expired).
+ */
 export async function logout(): Promise<void> {
-  await requestJson<{ detail: string }>("/auth/logout", {
-    method: "POST",
-  });
-  clearAccessToken();
+  try {
+    await requestJson<{ detail: string }>("/auth/logout", {
+      method: "POST",
+    });
+  } catch (err: unknown) {
+    const status = (err as Partial<ApiError> | null)?.status_code;
+    if (status !== 401) throw err;
+  } finally {
+    clearAccessToken();
+    endSessionScope();
+  }
 }
 
 export async function fetchMe(): Promise<User> {
@@ -1591,7 +1716,7 @@ export async function updateCompanion(
 }
 
 export async function deleteCompanion(companionId: string): Promise<void> {
-  const response = await fetch(
+  const response = await scopedFetch(
     `${BASE_URL}${backendPath(`/companions/${companionId}`)}`,
     {
       method: "DELETE",
@@ -1649,7 +1774,7 @@ export function updateVisualImageDescription(
 }
 
 export async function deleteVisualImage(imageId: string): Promise<void> {
-  const response = await fetch(
+  const response = await scopedFetch(
     `${BASE_URL}${backendPath(`/visual/images/${imageId}`)}`,
     {
       method: "DELETE",
