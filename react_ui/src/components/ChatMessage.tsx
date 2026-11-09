@@ -1,3 +1,4 @@
+import { AuthImage } from "./AuthImage";
 import type { Message } from "../types";
 import type { Companion, User } from "../api/client";
 import {
@@ -30,7 +31,7 @@ function MessageAvatar({
 
   if (!isUser && companion?.avatar_url) {
     return (
-      <img
+      <AuthImage
         src={companion.avatar_url}
         alt={`${companion.name} avatar`}
         className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-gray-700"

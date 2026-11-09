@@ -22,6 +22,7 @@ interface AppShellProps {
   panels: Record<Exclude<AppPanelKey, "chat">, ReactNode>;
   activePanel?: AppPanelKey;
   onPanelChange?: (panel: AppPanelKey) => void;
+  onLogout?: () => void;
 }
 
 const panelTabs: { key: AppPanelKey; label: string }[] = [
@@ -45,6 +46,7 @@ export function AppShell({
   panels,
   activePanel: propActivePanel,
   onPanelChange,
+  onLogout,
 }: AppShellProps) {
   const [localActivePanel, setLocalActivePanel] = useState<AppPanelKey>("chat");
   const activePanel = propActivePanel !== undefined ? propActivePanel : localActivePanel;
@@ -102,6 +104,16 @@ export function AppShell({
                   );
                 })}
               </nav>
+
+              {onLogout ? (
+                <button
+                  type="button"
+                  className="h-9 shrink-0 self-start rounded border border-gray-600 px-3 text-sm font-medium text-gray-300 transition hover:border-red-500 hover:text-red-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/70 lg:self-auto"
+                  onClick={onLogout}
+                >
+                  Log out
+                </button>
+              ) : null}
             </div>
           </header>
 

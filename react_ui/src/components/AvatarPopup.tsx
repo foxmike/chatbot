@@ -1,7 +1,8 @@
+import { AuthImage } from "./AuthImage";
 import { useEffect, useRef, useState } from "react";
 import { AvatarRuntime } from "../avatar/avatarRuntime";
 import { getAvatarSyncBridge } from "../avatar/avatarSync";
-import { getAccessToken, listCompanions, type Companion } from "../api/client";
+import { accountLocalStorage, getAccessToken, listCompanions, type Companion } from "../api/client";
 import {
   DEFAULT_TTS_MODE,
   TTS_MODES,
@@ -16,7 +17,7 @@ import { STORAGE_KEY, routingFromStorage, type RoutingSelection } from "../utils
 /** The model picker's persisted selection, read fresh each time it is needed. */
 function currentRouting(): RoutingSelection {
   try {
-    return routingFromStorage(localStorage.getItem(STORAGE_KEY));
+    return routingFromStorage(accountLocalStorage().getItem(STORAGE_KEY));
   } catch {
     return routingFromStorage(null);
   }
@@ -43,7 +44,7 @@ export function AvatarPopup({
   // Restored from localStorage so the choice survives reopening the popup; Natural when unset.
   const [ttsMode, setTtsMode] = useState<TtsMode>(() => {
     try {
-      return loadTtsMode(localStorage);
+      return loadTtsMode(accountLocalStorage());
     } catch {
       return DEFAULT_TTS_MODE;
     }
@@ -205,7 +206,7 @@ export function AvatarPopup({
 
     // The picker lives in the main window; its changes arrive as storage events.
     const handleStorage = (event: StorageEvent) => {
-      if (event.key === STORAGE_KEY) runtime.sendRouting();
+      if (event.key === accountLocalStorage().keyFor(STORAGE_KEY)) runtime.sendRouting();
     };
     window.addEventListener("storage", handleStorage);
 
@@ -235,7 +236,7 @@ export function AvatarPopup({
     if (!isTtsMode(value)) return;
     setTtsMode(value);
     try {
-      saveTtsMode(localStorage, value);
+      saveTtsMode(accountLocalStorage(), value);
     } catch {
       // Persistence is best-effort.
     }
@@ -293,7 +294,7 @@ export function AvatarPopup({
 
       {/* Main Avatar Stage */}
       <main className="relative flex min-h-0 flex-1 w-full items-center justify-center p-2">
-        <img
+        <AuthImage
           ref={imgRef}
           id="face"
           src={portraitUrl}

@@ -1,6 +1,6 @@
+import { AuthImage } from "./AuthImage";
 import { useEffect, useState } from "react";
 import {
-  clearAccessToken,
   deleteCompanion,
   listCompanions,
 } from "../api/client";
@@ -39,7 +39,7 @@ function getErrorDetail(error: unknown) {
 function CompanionCardAvatar({ companion }: { companion: Companion }) {
   if (companion.avatar_url) {
     return (
-      <img
+      <AuthImage
         src={companion.avatar_url}
         alt={`${companion.name} avatar`}
         className="h-16 w-16 shrink-0 rounded-full object-cover ring-2 ring-gray-700"
@@ -138,7 +138,6 @@ export function CompanionSelector({
   };
 
   const handleLogout = () => {
-    clearAccessToken();
     onLogout();
   };
 

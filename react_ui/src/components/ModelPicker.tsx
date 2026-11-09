@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchOllamaModels } from "../api/client";
+import { accountLocalStorage, fetchOllamaModels } from "../api/client";
 import {
   BUILT_IN_MODELS,
   PROVIDERS,
@@ -27,7 +27,7 @@ export interface ModelPickerProps {
 
 function readStorage(): PickerState {
   try {
-    return loadPickerState(localStorage);
+    return loadPickerState(accountLocalStorage());
   } catch {
     return loadPickerState(null);
   }
@@ -41,7 +41,7 @@ export function ModelPicker({ onChange }: ModelPickerProps) {
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, serializeState(picker));
+      accountLocalStorage().setItem(STORAGE_KEY, serializeState(picker));
     } catch {
       // Persistence is best-effort.
     }

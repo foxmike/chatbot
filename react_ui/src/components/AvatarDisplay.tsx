@@ -1,3 +1,4 @@
+import { AuthImage } from "./AuthImage";
 import type { Companion } from "../api/client";
 import { avatarColorForCompanion, getInitials } from "../utils/avatar";
 
@@ -16,7 +17,7 @@ export function AvatarDisplay({
     <div className="flex items-center justify-between border-b border-gray-700 bg-gray-800/60 py-3 pl-4 pr-24">
       <div className="flex items-center gap-3 min-w-0">
         {companion.avatar_url ? (
-          <img
+          <AuthImage
             src={companion.avatar_url}
             alt={`${companion.name} avatar`}
             className="h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-gray-600"

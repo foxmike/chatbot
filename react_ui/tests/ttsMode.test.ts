@@ -147,6 +147,6 @@ test("the popup footer shows 'TTS:' between the microphone and Skip Speech contr
   assert.ok(mic > 0 && tts > mic && skip > tts, "TTS dropdown must sit between mic and skip");
   assert.match(footer, /TTS:/);
   assert.match(footer, /TTS_MODES\.map/); // options come from the list, not hard-coded
-  assert.match(source, /loadTtsMode\(localStorage\)/); // restored on open
+  assert.match(source, /loadTtsMode\(accountLocalStorage\(\)\)/); // restored on open, per account
   assert.match(source, /runtimeRef\.current\?\.sendTtsMode\(\)/); // applied to the next turn
 });
