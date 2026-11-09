@@ -1,0 +1,296 @@
+{
+  "generated_at": "2026-11-09T00:16:08.250111+00:00",
+  "basis": {
+    "token_estimate": "characters/4 heuristic (no tokenizer dependency added)",
+    "providers": "scripted; no network, no paid inference",
+    "databases": "throwaway SQLite always; disposable Alembic-built PostgreSQL when PHASE0_PG_URL is set"
+  },
+  "sqlite": {
+    "deterministic": {
+      "load_companion_inputs": {
+        "median_ms": 1.149,
+        "p95_ms": 1.562,
+        "min_ms": 1.116,
+        "max_ms": 1.694,
+        "samples": 30,
+        "queries_per_call": 3
+      },
+      "cross_session_mood_restoration": {
+        "median_ms": 0.844,
+        "p95_ms": 1.031,
+        "min_ms": 0.81,
+        "max_ms": 1.149,
+        "samples": 30,
+        "queries_per_call": 2
+      },
+      "emotional_association_retrieval": {
+        "median_ms": 1.586,
+        "p95_ms": 2.354,
+        "min_ms": 1.468,
+        "max_ms": 2.407,
+        "samples": 30,
+        "queries_per_call": 2
+      }
+    },
+    "synchronous_overheads": {
+      "character_behavior_block": {
+        "chars": 420,
+        "est_tokens": 105,
+        "median_ms": 0.027,
+        "p95_ms": 0.038,
+        "samples": 50
+      },
+      "open_thread_context": {
+        "chars": 232,
+        "included": 1,
+        "median_ms": 0.01,
+        "p95_ms": 0.016,
+        "samples": 50
+      },
+      "linguistic_fingerprint": {
+        "chars": 142,
+        "median_ms": 0.013,
+        "p95_ms": 0.018,
+        "samples": 50
+      },
+      "pacing_guidance": {
+        "chars": 428,
+        "median_ms": 0.037,
+        "p95_ms": 0.062,
+        "samples": 50
+      },
+      "mood_updates": {
+        "median_ms_per_100_updates": 1.405,
+        "median_ms_per_update": 0.014
+      }
+    },
+    "prompt_composition": {
+      "prompt_growth_chars": {
+        "phase1_persona_baseline": 1800,
+        "relationship": 256,
+        "phase3_developed_self": 359,
+        "phase4_6_expression_fingerprint_behavior_pacing": 996,
+        "phase4_open_threads": 232,
+        "phase5_emotional_associations": 441
+      },
+      "prompt_growth_estimated_tokens": {
+        "phase1_persona_baseline": 450,
+        "phase3_developed_self": 85,
+        "phase4_6_expression_fingerprint_behavior_pacing": 249,
+        "phase4_open_threads": 58,
+        "phase5_emotional_associations": 110
+      },
+      "full_persona_prompt_estimated_tokens": 1022,
+      "full_persona_prompt_chars": 4090,
+      "persona_assembly_median_ms": 0.086,
+      "expression_context_median_ms": 0.147,
+      "open_threads_included": 1
+    },
+    "streaming_parser": {
+      "stream_bytes": 44420,
+      "parser_only_median_ms": 36.573,
+      "parser_throughput_mb_per_s": 1.21,
+      "completed_response_pipeline_median_ms": 23.261
+    },
+    "background_extraction": {
+      "provider_calls_per_job": 1,
+      "extraction_input_chars": 904,
+      "extraction_input_estimated_tokens": 226,
+      "extraction_output_chars": 1497,
+      "extraction_output_estimated_tokens": 374,
+      "extraction_system_prompt_estimated_tokens": 1844,
+      "single_job_handler_median_ms": 57.197,
+      "sequential_jobs": 20,
+      "sequential_wall_seconds": 1.154,
+      "jobs_per_second": 17.34,
+      "replay_extra_provider_calls": 0
+    },
+    "concurrent_preparation_10_wall_ms": 21.4,
+    "corpus": {
+      "items": [
+        {
+          "name": "quiet_smalltalk",
+          "description": "Chatter turn: nothing worth remembering",
+          "chars": 78,
+          "estimated_tokens": 19,
+          "fits_700": true,
+          "expected_full": false
+        },
+        {
+          "name": "typical_fact_only",
+          "description": "One or two facts, no auxiliary categories",
+          "chars": 427,
+          "estimated_tokens": 106,
+          "fits_700": true,
+          "expected_full": true
+        },
+        {
+          "name": "typical_mixed",
+          "description": "Two facts, one experience, one self-observation",
+          "chars": 1100,
+          "estimated_tokens": 275,
+          "fits_700": true,
+          "expected_full": true
+        },
+        {
+          "name": "typical_with_threads_and_emotions",
+          "description": "Typical rich turn: facts + experience + self + threads + emotions",
+          "chars": 1679,
+          "estimated_tokens": 419,
+          "fits_700": true,
+          "expected_full": true
+        },
+        {
+          "name": "busy_maximal",
+          "description": "Maximal legitimate turn: 8 facts, 2 experiences, 3 self, 2 threads, 2 emotions",
+          "chars": 4253,
+          "estimated_tokens": 1063,
+          "fits_700": false,
+          "expected_full": true
+        },
+        {
+          "name": "resolution_turn",
+          "description": "Turn that resolves known items (keys referencing known state)",
+          "chars": 1504,
+          "estimated_tokens": 376,
+          "fits_700": true,
+          "expected_full": true
+        }
+      ],
+      "estimated_output_limit_tokens": 700,
+      "full_category_items": 5,
+      "over_budget_items": 1,
+      "max_estimated_tokens": 1063,
+      "truncation_mode": "provider truncation (finish_reason=length) makes the JSON unparseable; parse_candidates returns None and the whole response falls back to the regex heuristic, which keeps only user facts and loses experiences, self-observations, threads and emotional associations"
+    }
+  },
+  "postgres": {
+    "deterministic": {
+      "load_companion_inputs": {
+        "median_ms": 1.326,
+        "p95_ms": 1.606,
+        "min_ms": 1.286,
+        "max_ms": 2.146,
+        "samples": 30,
+        "queries_per_call": 3
+      },
+      "cross_session_mood_restoration": {
+        "median_ms": 0.928,
+        "p95_ms": 1.058,
+        "min_ms": 0.887,
+        "max_ms": 1.062,
+        "samples": 30,
+        "queries_per_call": 2
+      },
+      "emotional_association_retrieval": {
+        "median_ms": 1.598,
+        "p95_ms": 1.912,
+        "min_ms": 1.557,
+        "max_ms": 1.957,
+        "samples": 30,
+        "queries_per_call": 2
+      }
+    },
+    "synchronous_overheads": {
+      "character_behavior_block": {
+        "chars": 420,
+        "est_tokens": 105,
+        "median_ms": 0.027,
+        "p95_ms": 0.034,
+        "samples": 50
+      },
+      "open_thread_context": {
+        "chars": 232,
+        "included": 1,
+        "median_ms": 0.01,
+        "p95_ms": 0.014,
+        "samples": 50
+      },
+      "linguistic_fingerprint": {
+        "chars": 142,
+        "median_ms": 0.013,
+        "p95_ms": 0.02,
+        "samples": 50
+      },
+      "pacing_guidance": {
+        "chars": 428,
+        "median_ms": 0.036,
+        "p95_ms": 0.04,
+        "samples": 50
+      },
+      "mood_updates": {
+        "median_ms_per_100_updates": 1.387,
+        "median_ms_per_update": 0.0139
+      }
+    },
+    "prompt_composition": {
+      "prompt_growth_chars": {
+        "phase1_persona_baseline": 1800,
+        "relationship": 256,
+        "phase3_developed_self": 359,
+        "phase4_6_expression_fingerprint_behavior_pacing": 996,
+        "phase4_open_threads": 232,
+        "phase5_emotional_associations": 441
+      },
+      "prompt_growth_estimated_tokens": {
+        "phase1_persona_baseline": 450,
+        "phase3_developed_self": 85,
+        "phase4_6_expression_fingerprint_behavior_pacing": 249,
+        "phase4_open_threads": 58,
+        "phase5_emotional_associations": 110
+      },
+      "full_persona_prompt_estimated_tokens": 1022,
+      "full_persona_prompt_chars": 4090,
+      "persona_assembly_median_ms": 0.088,
+      "expression_context_median_ms": 0.178,
+      "open_threads_included": 1
+    },
+    "background_extraction": {
+      "provider_calls_per_job": 1,
+      "extraction_input_chars": 904,
+      "extraction_input_estimated_tokens": 226,
+      "extraction_output_chars": 1497,
+      "extraction_output_estimated_tokens": 374,
+      "extraction_system_prompt_estimated_tokens": 1844,
+      "single_job_handler_median_ms": 21.71,
+      "sequential_jobs": 20,
+      "sequential_wall_seconds": 0.43,
+      "jobs_per_second": 46.49,
+      "replay_extra_provider_calls": 0
+    },
+    "concurrent_preparation_10_wall_ms": 108.4,
+    "semantic_retrieval_engine": {
+      "median_ms": 1.975,
+      "p95_ms": 2.224,
+      "min_ms": 1.839,
+      "max_ms": 6.945,
+      "samples": 20,
+      "queries_per_call": 1,
+      "results_for_seeded_facts": 3
+    }
+  },
+  "cost": {
+    "basis": "token counts are characters/4 estimates from scripted providers; call counts are measured; no dollar estimates (no verified pricing applied)",
+    "per_conversation_turn": {
+      "generation_provider_calls": 1,
+      "embedding_provider_calls": 1,
+      "background_extraction_provider_calls": 1,
+      "extraction_input_estimated_tokens": 226,
+      "extraction_output_estimated_tokens": 374,
+      "extraction_system_prompt_estimated_tokens": 1844,
+      "deterministic_overhead_median_ms": 3.742
+    },
+    "prompt_growth_phases_3_to_6_estimated_tokens": {
+      "phase1_persona_baseline": 450,
+      "phase3_developed_self": 85,
+      "phase4_6_expression_fingerprint_behavior_pacing": 249,
+      "phase4_open_threads": 58,
+      "phase5_emotional_associations": 110
+    },
+    "retry_duplicate_costs": {
+      "extraction_replay_extra_provider_calls": 0,
+      "note": "the durable job receipt prevents repeated model calls and repeated effects"
+    },
+    "dollar_estimates": "intentionally omitted — no verified provider pricing was applied"
+  }
+}
