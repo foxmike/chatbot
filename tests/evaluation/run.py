@@ -37,13 +37,15 @@ if __package__ in (None, ""):  # executed as a script
 from evaluation import blind, harness, scenarios as scn  # noqa: E402
 
 FIXTURES = Path(__file__).resolve().parent.parent / "fixtures"
+DEFAULT_FIXTURES = ("phase*_behavioral_acceptance.json", "phase7_behavioral_evaluation.json")
+DEFAULT_RUBRIC = FIXTURES / "phase7_evaluation_rubric.json"
 PRESET_SCENARIOS = ("scenario_1_same_input_different_personalities", "scenario_4_selective_attention",
                     "scenario_3_personality_specific_reactions", "scenario_1_distinctive_linguistic_voices")
 PRESET_CAST_SCENARIO = "scenario_1_same_input_different_personalities"
 
 
 def _load(paths: list[str]) -> list[scn.Scenario]:
-    return scn.load_fixtures(paths or sorted(map(str, FIXTURES.glob("phase*_behavioral_acceptance.json"))))
+    return scn.load_fixtures(paths or sorted({str(p) for pattern in DEFAULT_FIXTURES for p in FIXTURES.glob(pattern)}))
 
 
 def _config(args: argparse.Namespace, loaded: list[scn.Scenario]) -> harness.RunConfig:
@@ -55,11 +57,11 @@ def _config(args: argparse.Namespace, loaded: list[scn.Scenario]) -> harness.Run
         args.max_generations = min(12 if args.max_generations is None else args.max_generations, 12)
         args.max_output_tokens = min(200 if args.max_output_tokens is None else args.max_output_tokens, 200)
         args.shared = True
-    return harness.RunConfig(
-        retry_unanswered=args.retry_unanswered,
-        name="baseline" if args.baseline else "improved",
-        drop_layers=harness.AUGMENTATION_LAYERS if args.baseline else (), cast=cast, shared_companions=args.shared,
-        max_generations=args.max_generations, max_output_tokens=args.max_output_tokens, seed=args.seed, scenario_ids=ids)
+    common = dict(retry_unanswered=args.retry_unanswered, cast=cast, shared_companions=args.shared,
+                  max_generations=args.max_generations, max_output_tokens=args.max_output_tokens, seed=args.seed, scenario_ids=ids)
+    if args.baseline:
+        return harness.baseline_config("layers" if args.baseline is True else args.baseline, **common)
+    return harness.RunConfig(name="improved", **common)
 
 
 async def _run(args: argparse.Namespace) -> int:
@@ -74,7 +76,7 @@ async def _run(args: argparse.Namespace) -> int:
             print("provider unavailable: no conversation provider credentials/endpoint configured; nothing was run", file=sys.stderr)
             return 3
     else:
-        responder = harness.ScriptedResponder.from_exemplars(loaded)
+        responder = harness.ScriptedResponder.from_exemplars(loaded, cast=config.cast)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     try:
@@ -95,7 +97,8 @@ async def _run(args: argparse.Namespace) -> int:
         print(f"interrupted ({type(exc).__name__}: {exc}); replies are preserved in {ledger.path}; "
               f"rerun the same command with --resume to continue without regenerating them", file=sys.stderr)
         return 2
-    paths = harness.write_artifacts(result, {s.scenario_id: s for s in loaded}, args.out, seed=args.seed)
+    rubric = scn.load_rubric(args.rubric) if args.rubric else None
+    paths = harness.write_artifacts(result, {s.scenario_id: s for s in loaded}, args.out, seed=args.seed, rubric=rubric)
     print(json.dumps({"run_id": result["run_id"], "summary": result["summary"], "artifacts": {k: str(v) for k, v in paths.items()}}, indent=2))
     return 0
 
@@ -121,7 +124,10 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--scenario", nargs="*", default=[])
     run.add_argument("--out", required=True)
     run.add_argument("--provider", action="store_true", help="use the configured conversation provider")
-    run.add_argument("--baseline", action="store_true", help="drop the Phase 4-6 augmentation prompt layers")
+    run.add_argument("--baseline", nargs="?", const="layers", choices=["layers", "neutral"], default=None,
+                     help="layers: drop the Phase 4-6 augmentation prompt layers; neutral: the rubric's condition B")
+    run.add_argument("--rubric", default=str(DEFAULT_RUBRIC) if DEFAULT_RUBRIC.exists() else None,
+                     help="rubric JSON whose dimensions and markers go into the blind package")
     run.add_argument("--preset", choices=["initial-real"])
     run.add_argument("--shared", action="store_true", help="persist one companion per character across scenarios")
     run.add_argument("--max-generations", type=int)

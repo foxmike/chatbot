@@ -66,8 +66,9 @@ def test_all_four_existing_fixtures_load_without_rewriting_them(scenarios):
     voices_scenario = next(s for s in scenarios if s.scenario_id == VOICES)
     assert [c.name for c in voices_scenario.companions] == list(NAMES)
     assert voices_scenario.expected_terms["mercury"] and voices_scenario.exemplars["kore"]
-    unexecutable = [s for s in scenarios if not s.executable()[0]]
-    assert unexecutable and all(s.executable()[1] for s in unexecutable)  # skipped with a stated reason
+    # One probe rule for loader and runner: every scenario that is executable has cells, and vice versa.
+    assert all(s.executable()[0] == bool(s.cells()) for s in scenarios)
+    assert all(s.executable()[0] for s in scenarios)  # the later-session, contrast, episode and test-case shapes all map
 
 
 def test_runner_accepts_a_supplied_fixture_path_and_reports_unmapped_keys(tmp_path):
@@ -491,6 +492,27 @@ def test_recorded_real_evaluation_status_is_incomplete_and_bounds_any_resume():
     entries = [json.loads(line) for line in (folder / "generations.jsonl").read_text().splitlines()]
     assert [e["event"] for e in entries] == ["run", "unrecorded_requests"] and entries[1]["count"] == 10
     assert not any(e["event"] == "response" for e in entries)  # no reconstructed replies
+
+
+def test_the_recorded_preset_ledger_still_bounds_a_resume_to_two_generations(tmp_path):
+    import argparse
+    import shutil
+    from types import SimpleNamespace
+    from evaluation import run
+    copy = tmp_path / "generations.jsonl"
+    shutil.copy(Path(__file__).resolve().parent / "results" / "initial-real" / "generations.jsonl", copy)
+    args = argparse.Namespace(scenario=[], preset="initial-real", max_generations=None, max_output_tokens=None,
+                              shared=False, baseline=None, seed="phase7", retry_unanswered=False)
+    config = run._config(args, run._load([]))
+    provider = SimpleNamespace(source="provider", model="google/gemma-4-31b-it")
+    ledger = harness.Ledger(copy, harness.ledger_header(config, provider), resume=True)  # later config keys are defaults
+    recorder = harness.Recorder(provider, config, ledger)
+    assert ledger.prior_requests == 10 and recorder.consumed == 10 and recorder.can_generate("any-cell")
+    recorder.generations = 2
+    assert not recorder.can_generate("any-cell")  # 12 authorised - 10 lost = 2
+    other = harness.baseline_config("neutral", max_generations=12, max_output_tokens=200)
+    with pytest.raises(harness.LedgerError, match="different run"):
+        harness.Ledger(copy, harness.ledger_header(other, provider), resume=True)
 
 
 def dataclasses_replace(config, **changes):

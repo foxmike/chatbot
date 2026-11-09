@@ -49,13 +49,17 @@ from chatbot.observability.tracing import TraceCollector  # noqa: E402
 from chatbot.soul.self_model import SCHEMA_VERSION, _subject_key, empty_self_model  # noqa: E402
 
 from . import blind, metrics  # noqa: E402
-from .scenarios import CompanionSpec, Condition, Scenario, SessionSpec, slug  # noqa: E402
+from .scenarios import CompanionSpec, Condition, Scenario, Seed, SessionSpec, slug  # noqa: E402
 
 RESULT_FORMAT = "behavioral-evaluation/1"
 # Prompt layers Phases 4-6 added on top of identity/relationship/mood/memory.
 AUGMENTATION_LAYERS = ("open_threads", "emotional_associations", "character_behavior",
                        "social_context", "expression", "performance_output")
 BASELINE_NAME = "without_behavior_expression_layers"
+# phase7_evaluation_rubric.json, baseline_comparison_protocol.condition_B_baseline: personality directives replaced by
+# this instruction; history, retrieved memory, provider, model and token budget unchanged.
+NEUTRAL_BASELINE_NAME = "rubric_neutral_assistant"
+NEUTRAL_BASELINE_INSTRUCTION = "You are a helpful, neutral AI assistant. Respond clearly and accurately."
 MOOD_WORDS = {"warm": "warm", "upbeat": "upbeat", "tired": "tired", "weary": "tired", "reflective": "reflective",
               "scholarly": "reflective", "direct": "direct", "gentle": "gentle", "playful": "playful"}
 
@@ -123,18 +127,21 @@ class ScriptedResponder:
         self._script = script or {}
 
     @classmethod
-    def from_exemplars(cls, scenarios: Iterable[Scenario]) -> "ScriptedResponder":
+    def from_exemplars(cls, scenarios: Iterable[Scenario], cast: Iterable[CompanionSpec] | None = None) -> "ScriptedResponder":
+        """One reply per cell from the fixture's own expected reply for that cell; cells without one stay missing."""
         script: dict[str, str] = {}
+        cast = tuple(cast) if cast is not None else None
         for s in scenarios:
-            for cid, text in s.exemplars.items():
-                for c in s.companions if cid == "*" else [c for c in s.companions if c.character_id == cid]:
-                    script.setdefault(f"{s.scenario_id}/{c.character_id}", text)
+            for spec, condition, session in s.cells(cast):
+                text = s.exemplar_for(spec.character_id, condition, session)
+                if text:
+                    script[cell_id(s.scenario_id, condition.condition_id, spec.character_id, session.session_id)] = text
         return cls(script)
 
     async def generate(self, request: GenerationRequest) -> Generated:
         if callable(self._script):
             return Generated(self._script(request))
-        for key in (f"{request.scenario_id}/{request.character_id}/{request.condition_id}",
+        for key in (request.cell, f"{request.scenario_id}/{request.character_id}/{request.condition_id}",
                     f"{request.scenario_id}/{request.character_id}"):
             if key in self._script:
                 return Generated(self._script[key])
@@ -179,6 +186,7 @@ def provider_responder_from_settings(settings: Any | None = None) -> ProviderRes
 class RunConfig:
     name: str = "improved"
     drop_layers: tuple[str, ...] = ()  # non-empty = an explicit baseline configuration
+    replace_layers: tuple[tuple[str, str], ...] = ()  # (layer, replacement text): the rubric's neutral baseline
     cast: tuple[CompanionSpec, ...] | None = None  # same companions for every scenario
     shared_companions: bool = False  # one persisted companion per character across scenarios
     max_generations: int | None = None
@@ -190,6 +198,7 @@ class RunConfig:
 
     def describe(self) -> dict[str, Any]:
         return {"name": self.name, "dropped_prompt_layers": list(self.drop_layers),
+                "replaced_prompt_layers": [name for name, _ in self.replace_layers],
                 "cast": None if self.cast is None else [c.character_id for c in self.cast],
                 "shared_companions": self.shared_companions, "max_generations": self.max_generations,
                 "max_output_tokens": self.max_output_tokens, "seed": self.seed}
@@ -219,7 +228,7 @@ class Ledger:
         if entries and not resume:
             raise LedgerError(f"{self.path} already records generations; resume it or use a new output directory")
         runs = [e for e in entries if e.get("event") == "run"]
-        if runs and runs[0].get("identity") != header.get("identity"):
+        if runs and not _same_identity(runs[0].get("identity") or {}, header.get("identity") or {}):
             raise LedgerError(f"{self.path} belongs to a different run configuration/provider; refusing to mix replies")
         for entry in entries:
             event, cell = entry.get("event"), entry.get("cell")
@@ -263,6 +272,14 @@ class Ledger:
 
     def error(self, cell: str, message: str) -> None:
         self._write({"event": "error", "cell": cell, "error": message})
+
+
+def _same_identity(stored: Mapping[str, Any], current: Mapping[str, Any]) -> bool:
+    """Exact match, except that a configuration key an older ledger predates matches only its empty default."""
+    if {k: v for k, v in stored.items() if k != "config"} != {k: v for k, v in current.items() if k != "config"}:
+        return False
+    old, new = dict(stored.get("config") or {}), dict(current.get("config") or {})
+    return all(old[k] == new.get(k) for k in old) and all(new[k] in ([], None, False, "") for k in new if k not in old)
 
 
 def ledger_header(config: RunConfig, responder: Responder) -> dict[str, Any]:
@@ -393,7 +410,9 @@ def _install_recorder(patch: pytest.MonkeyPatch, recorder: Recorder, config: Run
 
     def compose(layers: Any, *args: Any, **kwargs: Any) -> str:
         if isinstance(layers, Mapping):
-            layers = {name: ("" if str(getattr(name, "value", name)) in config.drop_layers else value)
+            replaced = dict(config.replace_layers)
+            layers = {name: replaced.get(str(getattr(name, "value", name)),
+                                         "" if str(getattr(name, "value", name)) in config.drop_layers else value)
                       for name, value in layers.items()}
             recorder.layers.append({str(getattr(n, "value", n)): len(str(v)) for n, v in layers.items() if v})
         return real_compose(layers, *args, **kwargs)
@@ -432,43 +451,126 @@ def _mood_label(mood: Mapping[str, Any]) -> str:
     return next((label for word, label in MOOD_WORDS.items() if word in text), "neutral")
 
 
-def seed_report_for(scenario: Scenario, spec: CompanionSpec) -> dict[str, Any]:
-    applied = ["name", "persona", "voice_and_tone(description)", "personality_anchors(sliders)"]
-    if spec.fingerprint:
-        applied.append("linguistic_fingerprint(description)")
-    if spec.self_model:
-        applied.append("developed_self_model(held items)")
-    if scenario.mood:
-        applied.append("initial_mood(session mood_state: energy, closeness, label)")
-    if scenario.relationship or "communication_directness" in spec.anchors:
-        applied.append("relationship(directness, warmth, depth where present)")
-    not_applied = list(scenario.unmapped) + (["behavioral_disposition"] if spec.disposition else [])
-    return {"applied": applied, "not_applied": sorted(set(not_applied)),
-            "note": "emotional associations, memory evidence and user facts are not seeded; durable extraction is not run"}
+def cell_id(scenario_id: str, condition_id: str, character_id: str, session_id: str) -> str:
+    """The identity of one generation: scenario, condition, character and fixture session."""
+    return f"{scenario_id}/{condition_id}/{character_id}/{session_id}"
 
 
-async def seed_companion(env: Env, spec: CompanionSpec, scenario: Scenario, condition: Condition) -> str:
+SEED_EXTRACTOR = "evaluation_fixture_seed"
+
+
+def _entry(seed: Seed, status: str, detail: str = "") -> dict[str, Any]:
+    return {"field": seed.field, "kind": seed.kind, "status": status, **({"detail": detail} if detail else {})}
+
+
+def seeds_for(scenario: Scenario, condition: Condition, spec: CompanionSpec) -> list[Seed]:
+    return [seed for seed in (*scenario.seeds, *condition.seeds) if seed.applies_to(spec.character_id)]
+
+
+async def seed_companion(env: Env, spec: CompanionSpec, scenario: Scenario, condition: Condition,
+                         seeds: Sequence[Seed] = ()) -> tuple[str, list[dict[str, Any]]]:
+    """Companion, identity (self-model) and relationship rows. Returns ``(companion_id, seed report entries)``."""
     cid = f"c{hashlib.sha1(f'{scenario.scenario_id}/{spec.character_id}/{condition.condition_id}'.encode()).hexdigest()[:34]}"
+    report = [{"field": "companion_configuration", "kind": "companion", "status": "applied",
+               "detail": "name, persona, archetype/voice/profile -> description, numeric anchors -> sliders"}]
     sliders = {k: _clamp(v) for k, v in spec.anchors.items()}
     speech = "; ".join(f"{k.replace('_', ' ')}: {v.replace('_', ' ')}" for k, v in spec.fingerprint.items())
     description = ". ".join(p for p in (spec.archetype, f"Voice and tone: {spec.voice_and_tone}" if spec.voice_and_tone else "",
                                         f"Speech habits - {speech}" if speech else "") if p)
-    relationship = {**scenario.relationship, **{k: v for k, v in condition.relationship.items() if v is not None}}
     fields: dict[str, Any] = {}
     if "communication_directness" in spec.anchors:
         fields["directness"] = _clamp(spec.anchors["communication_directness"])
     if isinstance(scenario.mood.get("warmth"), (int, float)):
         fields["warmth"] = _clamp(scenario.mood["warmth"])
-    if isinstance(relationship.get("familiarity"), (int, float)):
-        fields["depth"] = _clamp(relationship["familiarity"])
+    now = datetime.now(timezone.utc)
+    for seed in seeds:
+        if seed.kind != "relationship":
+            continue
+        values = dict(seed.values)
+        if "depth" in values:
+            fields["depth"] = _clamp(values["depth"])
+        if "completed_turns" in values:
+            fields["completed_turns"] = int(values["completed_turns"])
+        if "days_since_last_interaction" in values:
+            last = now - timedelta(days=float(values["days_since_last_interaction"]))
+            fields["last_interaction_at"], fields["first_interaction_at"] = last, last - timedelta(days=30)
+        report.append(_entry(seed, "applied", ", ".join(sorted(values))))
+    doc = build_self_model(spec) if spec.self_model else empty_self_model()
+    for seed in seeds:
+        if seed.kind == "interest":
+            doc["items"][f"interest:{_subject_key(seed.subject)}"] = _held_item("interest", seed.subject, f"I am interested in {seed.text}.")
+            report.append(_entry(seed, "applied", "held self-model interest"))
+        elif seed.kind == "opinion":
+            doc["items"][f"opinion:{_subject_key(seed.subject)}"] = _held_item("opinion", seed.subject, seed.text, str(seed.values.get("reason", "")))
+            report.append(_entry(seed, "applied", "held self-model opinion"))
     async with env.factory() as db:
         db.add(models.Companion(companion_id=cid, user_id=USER_ID, name=spec.name, persona=spec.persona or None,
                                 description=description or None, personality_sliders=sliders))
         await db.flush()
-        db.add(models.CompanionIdentityModel(companion_id=cid, trait_adjustments={}, self_model=build_self_model(spec) if spec.self_model else {}))
+        db.add(models.CompanionIdentityModel(companion_id=cid, trait_adjustments={}, self_model=doc if doc["items"] else {}))
         db.add(models.CompanionRelationshipModel(companion_id=cid, **fields))
         await db.commit()
-    return cid
+    return cid, report
+
+
+async def seed_session_state(env: Env, companion_id: str, session_id: str, scenario: Scenario, condition: Condition,
+                             seeds: Sequence[Seed]) -> list[dict[str, Any]]:
+    """Experiences, user facts, emotional associations and open threads through existing models and writers."""
+    from chatbot.soul.conversational_threads import ThreadObservation, apply_thread_observations
+    from chatbot.soul.emotional_associations import AssociationObservation, AssociationSource, apply_emotional_associations
+
+    report: list[dict[str, Any]] = []
+    at = datetime.now(timezone.utc) - timedelta(days=1)
+    sid = uuid.UUID(session_id)
+    for index, seed in enumerate(seeds):
+        # One durable job id per companion, as production has: thread ids derive from (job id, slot).
+        ref = f"fixture:{hashlib.sha1(f'{scenario.scenario_id}:{seed.field}:{index}:{companion_id}'.encode()).hexdigest()[:24]}"
+        if seed.kind in ("experience", "user_fact"):
+            async with env.factory() as db:
+                fact_id = uuid.uuid5(uuid.NAMESPACE_URL, f"{ref}:{companion_id}")
+                metadata: dict[str, Any] = {
+                    "extractor": SEED_EXTRACTOR, "source_type": "fixture", "user_id": str(USER_ID), "companion_id": companion_id,
+                    "room_id": None, "session_id": session_id, "source_created_at": at.isoformat(), "evidence": seed.text,
+                    "seed_ref": ref,
+                }
+                if seed.kind == "experience":
+                    metadata.update(kind="shared_experience", experience={
+                        "title": (seed.subject or seed.text)[:80], "participants": ["user", "companion"],
+                        "significance": seed.significance, "salience": 0.95 if seed.significance == "major" else 0.7,
+                        "topics": [], "revises": None, "observed": False})
+                db.add(models.SemanticFact(id=fact_id, user_id=USER_ID, fact_text=seed.text, extraction_metadata=metadata,
+                                           source_type="explicit", confidence=1.0))
+                await db.flush()
+                db.add(models.MemoryEvidence(evidence_id=uuid.uuid5(uuid.NAMESPACE_URL, f"{ref}:evidence:{companion_id}"),
+                                             memory_id=fact_id, user_id=USER_ID, session_id=sid, turn_id=f"fixture-seed-{index}",
+                                             assertion_text=seed.text, evidence=seed.text,
+                                             provenance={"origin": "evaluation_fixture", "ref": ref}, source_at=at))
+                await db.commit()
+            report.append(_entry(seed, "applied", "semantic_facts + memory_evidence row"))
+        elif seed.kind == "association":
+            async with env.factory() as db:
+                change = await apply_emotional_associations(
+                    db, user_id=USER_ID, companion_id=companion_id, session_id=sid,
+                    observations=[AssociationObservation(
+                        subject=seed.subject, emotion=seed.emotion, interpretation=seed.text, source="inferred",
+                        excerpt=seed.text, experience_ref=ref[:64], significance=seed.significance, unresolved=seed.unresolved)],
+                    source=AssociationSource(turn_id=f"fixture-seed-{index}", session_id=session_id, source_at=at, job_id=ref))
+                await db.commit()
+            report.append(_entry(seed, "applied" if change.applied else "rejected",
+                                 "; ".join(f"{s}: {r}" for s, r in change.rejected) or f"emotion={seed.emotion}"))
+        elif seed.kind == "thread":
+            async with env.factory() as db:
+                change = await apply_thread_observations(
+                    db, user_id=USER_ID, companion_id=companion_id, room_id=None,
+                    observations=[ThreadObservation(ownership="shared", kind="subject", subject=seed.subject, excerpt=seed.text,
+                                                    role="assistant", importance="significant")],
+                    job_id=ref, session_id=session_id, source_at=at)
+                await db.commit()
+            report.append(_entry(seed, "applied" if change.applied else "rejected",
+                                 "; ".join(f"{s}: {r}" for s, r in change.rejected)))
+        elif seed.kind == "not_applied":
+            report.append(_entry(seed, "not_applied", seed.reason))
+    return report
 
 
 async def open_session(env: Env, companion_id: str, scenario: Scenario, seed_mood: bool = True) -> str:
@@ -498,10 +600,47 @@ async def seed_turns(env: Env, session_id: str, companion_id: str, turns: Sequen
         await db.commit()
 
 
+class SeededMemoryRetrieval:
+    """Stands in for the embedding retriever, which the evaluation cannot call (no embedding requests).
+
+    It returns the memory rows of the session's own user and companion (never
+    another companion's, never emotional associations, which production
+    retrieves on its own path), unranked. Production ranking is not exercised.
+    """
+
+    def __init__(self, factory: Any, limit: int = 10) -> None:
+        self.factory, self.limit = factory, limit
+
+    async def retrieve(self, *, query: str | None = None, session_id: Any = None, limit: int | None = None, **_: Any) -> list[dict[str, Any]]:
+        from sqlalchemy import select
+
+        async with self.factory() as db:
+            session = await db.get(models.Session, uuid.UUID(str(session_id))) if session_id else None
+            if session is None or not session.companion_id:
+                return []
+            rows = (await db.scalars(select(models.SemanticFact).where(
+                models.SemanticFact.user_id == session.user_id, models.SemanticFact.lifecycle_status == "active")
+                .order_by(models.SemanticFact.created_at, models.SemanticFact.id))).all()
+        out = []
+        for row in rows:
+            meta = dict(row.extraction_metadata or {})
+            if meta.get("companion_id") != session.companion_id or meta.get("kind") == "emotional_association":
+                continue
+            if meta.get("room_id") != session.room_id:
+                continue
+            kind = "experience" if meta.get("kind") == "shared_experience" else "fact"
+            out.append({"id": str(row.id), "content": row.fact_text, "fact_text": row.fact_text, "type": kind,
+                        "kind": meta.get("kind") or kind, "extraction_metadata": meta,
+                        "narrative": row.fact_text, "title": (meta.get("experience") or {}).get("title")})
+        return out[: limit or self.limit]
+
+
 async def chat_once(env: Env, session_id: str, message: str) -> Any:
+    app = app_with_engine()
+    app.state.retrieval_engine = SeededMemoryRetrieval(env.factory)
     async with env.factory() as db:
         return await chat_api.chat(
-            request=Request({"type": "http", "app": app_with_engine(), "state": {}}),
+            request=Request({"type": "http", "app": app, "state": {}}),
             body=chat_api.ChatRequest(session_id=session_id, message=message, companion_id=None),
             current_user=USER, db=db,
         )
@@ -584,33 +723,42 @@ async def run_evaluation(scenarios: Sequence[Scenario], responder: Responder, co
                 continue
             cast = config.cast if config.cast is not None else scenario.companions
             cells = done = 0
+            scenario_view = dataclasses.replace(scenario, companions=tuple(cast)) if config.cast is not None else scenario
             for spec in cast:
                 cast_specs[(scenario.scenario_id, spec.character_id)] = spec
-                scenario_view = dataclasses.replace(scenario, companions=tuple(cast)) if config.cast is not None else scenario
                 for condition in scenario.conditions:
+                    if not condition.applies_to(spec.character_id):
+                        continue
+                    seeds = seeds_for(scenario_view, condition, spec)
                     if config.shared_companions and spec.character_id in persisted:
                         companion_id = persisted[spec.character_id]
+                        report = [{"field": "companion_configuration", "kind": "companion", "status": "persisted",
+                                   "detail": "companion reused across scenarios; identity and relationship rows not reseeded"}]
                     else:
-                        companion_id = await seed_companion(env, spec, scenario_view, condition)
-                        persisted[spec.character_id] = companion_id
-                    report = seed_report_for(scenario_view, spec)
+                        companion_id, report = await seed_companion(env, spec, scenario_view, condition, seeds)
+                        if config.shared_companions:
+                            persisted[spec.character_id] = companion_id
                     history_text = ""
-                    for session in condition.sessions:
+                    for number, session in enumerate(condition.sessions):
                         sid = await open_session(env, companion_id, scenario_view, seed_mood=True)
-                        turns = list(session.turns)
-                        probe = session.probes()[-1] if session.probes() and turns and turns[-1].role == "user" else None
-                        await seed_turns(env, sid, companion_id, turns[:-1] if probe else turns)
-                        prior = history_text + " ".join(t.content for t in (turns[:-1] if probe else turns))
+                        if number == 0:
+                            report = report + await seed_session_state(env, companion_id, sid, scenario_view, condition, seeds)
+                        probe = session.probe
+                        await seed_turns(env, sid, companion_id, session.history)
+                        prior = history_text + " ".join(t.content for t in session.history)
                         history_text = prior + " "
                         if probe is None:
                             continue
                         cells += 1
-                        cell = f"{scenario.scenario_id}/{condition.condition_id}/{spec.character_id}/{session.session_id}"
+                        cell = cell_id(scenario.scenario_id, condition.condition_id, spec.character_id, session.session_id)
                         recorder.context = {"scenario_id": scenario.scenario_id, "character_id": spec.character_id,
                                             "condition_id": condition.condition_id, "session_id": sid, "cell": cell}
+                        seeding = {"entries": report, "applied": sum(e["status"] == "applied" for e in report),
+                                   "not_applied": sum(e["status"] == "not_applied" for e in report),
+                                   "rejected": sum(e["status"] == "rejected" for e in report)}
                         if not recorder.can_generate(cell):
                             records.append(_record(scenario, spec, condition, session, probe, prior, recorder, responder, config,
-                                                   len(recorder.calls), 0.0, None, "BudgetExceeded: generation budget reached", report))
+                                                   len(recorder.calls), 0.0, None, "BudgetExceeded: generation budget reached", seeding))
                             if on_record:
                                 on_record(records[-1])
                             continue
@@ -623,11 +771,11 @@ async def run_evaluation(scenarios: Sequence[Scenario], responder: Responder, co
                             error = f"{type(exc).__name__}: {exc}"
                         error = error or (recorder.calls[before]["error"] if len(recorder.calls) > before and recorder.calls[before].get("error") else None)
                         args = (scenario, spec, condition, session, probe, prior, recorder, responder, config,
-                                before, perf_counter() - t0, response, error, report)
+                                before, perf_counter() - t0, response, error, seeding)
                         try:
                             record = _record(*args)
                         except Exception as exc:  # a measurement bug must not discard a paid-for reply
-                            record = _record(*args[:-3], response, f"measurement failed: {type(exc).__name__}: {exc}", report)
+                            record = _record(*args[:-3], response, f"measurement failed: {type(exc).__name__}: {exc}", seeding)
                             record["dialogue"], record["status"] = response or "", "error"
                         records.append(record)
                         if on_record:
@@ -655,7 +803,10 @@ def samples_from(records: Iterable[Mapping[str, Any]], config: Mapping[str, Any]
 LIMITATIONS = (
     "Dimension values are lexical/stylometric proxies over generated text; they do not replace blind human judgment.",
     "Free-text expected criteria and failure conditions are listed as pending human review; only quoted literal phrases are machine-checked.",
-    "Memory extraction, emotional associations and evidence are not seeded or run; opinion/memory grounding reflects seeded self-model items only.",
+    "Fixture state is seeded through existing writers (relationship row, self-model, semantic_facts/memory_evidence, emotional associations, threads); "
+    "fields production has no representation for are reported as not_applied. Durable extraction is not run.",
+    "Retrieval uses SeededMemoryRetrieval (owner/companion/room-scoped, unranked) because the evaluation makes no embedding requests; "
+    "production vector ranking is not exercised.",
     "Scripted responses test the harness and scoring, not any model's personality.",
 )
 
@@ -695,16 +846,27 @@ def stable_view(result: Mapping[str, Any]) -> dict[str, Any]:
     return {**{k: v for k, v in result.items() if k != "timing"}, "results": [scrub(r) for r in result["results"]]}
 
 
-def write_artifacts(result: Mapping[str, Any], scenarios: Mapping[str, Scenario], out_dir: str | Path, *, seed: str = "phase7") -> dict[str, Path]:
+def write_artifacts(result: Mapping[str, Any], scenarios: Mapping[str, Scenario], out_dir: str | Path, *, seed: str = "phase7",
+                    rubric: Any = None) -> dict[str, Path]:
     """results.json, blind_package.json (anonymous) and blind_truth.json (hidden ground truth)."""
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    public, truth = blind.build_blind_package(result["results"], scenarios, seed=seed)
+    public, truth = blind.build_blind_package(result["results"], scenarios, seed=seed, rubric=rubric)
     paths = {"results": out / "results.json", "blind_package": out / "blind_package.json", "blind_truth": out / "blind_truth.json"}
     paths["results"].write_text(json.dumps(result, indent=2, ensure_ascii=False))
     paths["blind_package"].write_text(json.dumps(public, indent=2, ensure_ascii=False))
     paths["blind_truth"].write_text(json.dumps(truth, indent=2, ensure_ascii=False))
     return paths
+
+
+def baseline_config(kind: str = "layers", **overrides: Any) -> RunConfig:
+    """``layers``: drop the Phase 4-6 augmentation layers. ``neutral``: the rubric's condition B."""
+    if kind == "layers":
+        return RunConfig(name="baseline", drop_layers=AUGMENTATION_LAYERS, **overrides)
+    if kind == "neutral":
+        return RunConfig(name=NEUTRAL_BASELINE_NAME, drop_layers=AUGMENTATION_LAYERS,
+                         replace_layers=(("companion_identity", NEUTRAL_BASELINE_INSTRUCTION),), **overrides)
+    raise ValueError(f"unknown baseline {kind!r}")
 
 
 def compare_runs(baseline: Mapping[str, Any], improved: Mapping[str, Any]) -> dict[str, Any]:
@@ -730,7 +892,8 @@ def compare_runs(baseline: Mapping[str, Any], improved: Mapping[str, Any]) -> di
         reasons.append("scripted responses do not depend on the prompt, so behavioural differences are not evidence")
     if any(b[k]["prompt_refs"]["probe_sha256_16"] != i[k]["prompt_refs"]["probe_sha256_16"] for k in shared):
         reasons.append("different probes")
-    if baseline["configuration"]["dropped_prompt_layers"] == improved["configuration"]["dropped_prompt_layers"]:
+    if (baseline["configuration"]["dropped_prompt_layers"], baseline["configuration"].get("replaced_prompt_layers")) == \
+            (improved["configuration"]["dropped_prompt_layers"], improved["configuration"].get("replaced_prompt_layers")):
         reasons.append("both runs use the same prompt configuration")
     pairs = [{"cell": "/".join(k), "baseline_prompt_chars": b[k]["prompt_refs"]["system_chars"],
               "improved_prompt_chars": i[k]["prompt_refs"]["system_chars"],

@@ -55,7 +55,8 @@ ACTS: dict[str, re.Pattern[str]] = {
 }
 DRIFT: dict[str, re.Pattern[str]] = {
     "opening_filler": re.compile(r"^\W*(certainly|sure thing|sure|absolutely|of course|great question|good question)\b", re.I),
-    "offer_closer": re.compile(r"\b(let me know if|feel free to|happy to help|hope this helps|anything else|i'?m here to help|here to assist)\b", re.I),
+    "offer_closer": re.compile(r"\b(let me know if|feel free to|happy to help|hope this helps|(?:is there|need|want|help(?: you)? with) anything else|"
+                               r"i'?m here to help|here to assist)\b", re.I),
     "ai_self": re.compile(r"\b(as an ai|language model|i'?m an ai|i am an ai|as a virtual)\b", re.I),
     "faux_empathy": re.compile(r"\b(i understand how|i'?m sorry to hear|that must be (?:so |really )?(?:frustrating|difficult|hard)|i can imagine how)\b", re.I),
     "boilerplate": re.compile(r"\b(it'?s important to note|it is important to note|here are (?:some|a few)|keep in mind that|i'?d be happy to)\b", re.I),
@@ -64,6 +65,10 @@ LEAK = re.compile(r"\b(my instructions|system prompt|my persona|as a character|i
                   r"my configuration|character behavior|as your companion character|my prompt)\b", re.I)
 _LIST_LINE = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s+\S", re.M)
 _HEADING = re.compile(r"^\s{0,3}#{1,6}\s+\S", re.M)
+# Production's own directive forbids lists "when the user is chatting naturally"; an explicit request for an
+# explanation or procedure is the case it exempts, so structure is not drift there.
+EXPLICIT_EXPLANATION = re.compile(r"\b(explain|how does|how do(?:es)? (?:it|this|that)|walk me through|step[- ]by[- ]step|"
+                                  r"what are the steps|list (?:the|all)|outline)\b", re.I)
 
 
 def words(text: str) -> list[str]:
@@ -111,9 +116,10 @@ def act_counts(text: str) -> dict[str, int]:
     return counts
 
 
-def drift_hits(text: str) -> list[str]:
+def drift_hits(text: str, probe: str = "") -> list[str]:
     hits = [name for name, p in DRIFT.items() if p.search(text)]
-    if len(_LIST_LINE.findall(text)) >= 3 or _HEADING.search(text):
+    structured = len(_LIST_LINE.findall(text)) >= 3 or _HEADING.search(text)
+    if structured and not EXPLICIT_EXPLANATION.search(probe):
         hits.append("markdown_structure")
     return hits
 
@@ -315,11 +321,11 @@ def compute_dimensions(samples: Sequence[Sample], scenarios: Mapping[str, Scenar
         "per scenario, mean over replies of (share of the character's own attention terms used) - (share of the other characters' terms used)",
         "needs two characters with configured attention terms answering one scenario", per_scenario=scoped)
 
-    drifting = [bool(drift_hits(s.text)) for s in samples]
+    drifting = [bool(drift_hits(s.text, s.probe)) for s in samples]
     out["generic_assistant_drift"] = _dim(
         mean(drifting) if drifting else None, len(drifting),
         "share of replies containing assistant boilerplate (filler opener, offer closer, AI self-reference, faux empathy, list/markdown structure)",
-        "no completed reply", mean_hits=round(mean(len(drift_hits(s.text)) for s in samples), 4) if samples else None)
+        "no completed reply", mean_hits=round(mean(len(drift_hits(s.text, s.probe)) for s in samples), 4) if samples else None)
     assert set(out) == set(DIMENSIONS)
     return {name: out[name] for name in DIMENSIONS}
 
@@ -347,7 +353,7 @@ def _norm(text: str) -> str:
 def automated_checks(text: str, *, scenario: Scenario, spec: CompanionSpec, probe: str, finish_reason: str | None) -> dict[str, Any]:
     """Per-reply observations and failures. Free-text criteria that need a human are returned as pending."""
     failures: list[str] = []
-    drift = drift_hits(text)
+    drift = drift_hits(text, probe)
     if not text.strip():
         failures.append("empty_response")
     if text.startswith("Provider error:"):

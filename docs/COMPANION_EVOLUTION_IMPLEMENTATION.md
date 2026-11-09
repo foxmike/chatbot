@@ -212,8 +212,8 @@ Evaluation is **continuous**, not deferred until the end. Phase 7 packages and c
 
 | Task | Status | Scope | Requirements | Acceptance evidence |
 |---|---|---|---|---|
-| **7.1** | PLANNED | Build/extend three-character, shared-scenario evals (~30 scenarios baseline); test blind recognizability, disagreement, initiative, emotional continuity, factual memory, corrections and cross-session identity. | E08, A14 | Baseline vs improved comparisons; recorded scenario outcomes; no reliance on provider self-report only. |
-| **7.2** | PLANNED | Targeted integrated checks for restart/retry, memory cost, throughput, room/user isolation, prompt fidelity and TTFT; remove verified obsolete duplicates. | A09, A10, A13, A14, A16 | Demonstrated behavioral gains without significant regression or uncontrolled background cost. |
+| **7.1** | ENGINEERING INTEGRATED on `feature/companion-phase7-integration`; **real-model evaluation INCOMPLETE; blind judgments NOT COLLECTED** | Build/extend three-character, shared-scenario evals (~30 scenarios baseline); test blind recognizability, disagreement, initiative, emotional continuity, factual memory, corrections and cross-session identity. | E08, A14 | Harness, thirty-scenario dataset and rubric integrated; scripted acceptance recorded below. Baseline-vs-improved behaviour, recognizability and personality quality are **not** established: no completed real-model run and no independent ratings exist. |
+| **7.2** | INTEGRATED on `feature/companion-phase7-integration` (targeted evidence; obsolete-duplicate removal not undertaken) | Targeted integrated checks for restart/retry, memory cost, throughput, room/user isolation, prompt fidelity and TTFT; remove verified obsolete duplicates. | A09, A10, A13, A14, A16 | Reliability and deterministic-overhead evidence recorded below. "Demonstrated behavioral gains" remains unproven pending 7.1's real-model and blind evaluation; provider TTFT was not measured. |
 
 ### Phase 7.2a reliability evidence (2026-11-09)
 
@@ -224,6 +224,91 @@ Existing coverage verified lease recovery, bounded retry and terminal failure, d
 Demonstrated fixes are confined to conversational-thread persistence: serialize initially empty scopes using the existing companion parent row; refresh locked ORM rows before updating evidence; retain older observations as historical evidence without reopening resolved topics or applying stale resolutions; deduplicate evidence by job/receipt slot while preserving original slots. No migration, dependency, worker or personality-policy change was needed. One pre-existing Phase 1 fast-path assertion omitted the approved Phase 5 mood steps; its exact expected order now includes restoration, update and persistence without weakening the assertion.
 
 Limits: this evidence establishes targeted storage/recovery/isolation and prompt correctness, not exhaustive failure injection, long-run load behavior or real-model conversational quality. Existing bounded evidence-retention policies are unchanged. No development records were modified; no commits or pushes were made by this assignment.
+
+### Phase 7 integration evidence (2026-11-09)
+
+Integrated on `feature/companion-phase7-integration` from `main` at `019b413`, merging `feature/companion-phase7-behavioral-eval` (7.1a harness), `feature/companion-phase7-reliability` (7.2a), `feature/companion-phase7-performance` (7.2b) and `feature/companion-phase7-scenarios` (7.1b dataset and rubric). The merge had no conflicts. The only production change in Phase 7 is the 7.2a conversational-thread fix. There is no migration, no dependency, no extra LLM or embedding call, and no personality-policy change. No paid inference was used during integration.
+
+The evidence is kept in four separate categories, and no category is evidence for another.
+
+**A. Infrastructure correctness (verified).**
+- *Harness (`tests/evaluation/`, 34 focused tests).*
+  - Each provider request is written to a fsync'd ledger before it is sent, and each reply as soon as it returns.
+  - An interrupted run keeps its replies. Resume replays them and never regenerates.
+  - Errored or unanswered requests are re-sent only with `--retry-unanswered`.
+  - Budgets count all earlier requests. Limits below 1, and unbounded provider runs, are rejected.
+  - A ledger is never overwritten, and a different configuration or model cannot resume it.
+  - Cell identity is scenario/condition/character/session.
+  - Blind packages strip names, and the ground truth lives in a separate file.
+  - Scores are absent when no rater is present. Baseline comparison refuses mismatched models, sources, probes or configurations.
+- *Integration defects found and fixed (all in the harness, none in production):*
+  - The loader's executability rule disagreed with the runner, so `scenario_5_new_evidence_can_revise_previous_opinion` ran zero cells. There is now one probe rule: a session's final user turn.
+  - Phase 3 later-session probes, Phase 4 `contrast_turns` and `cross_session_episodes`, and Phase 5 condition and test-case stages were not mapped. Eight scenarios were wrongly "skipped".
+  - Seeded thread ids collided across companions because the seed job id was shared. Production derives thread ids from `(job id, slot)`, and its job ids are unique per companion turn.
+  - Association seeds produced labels production correctly rejected as `bad_emotion`.
+  - Phase 5 `two_relationship_stages` were not applied to their stage conditions.
+  - The loader fallback name "Companion" was treated as an identifying label.
+- *Seeding through existing writers.*
+  - Relationship row (`completed_turns`, `depth`, interaction dates).
+  - Self-model interests and opinions.
+  - `semantic_facts` with `memory_evidence`.
+  - `apply_emotional_associations`.
+  - `apply_thread_observations`.
+  - Every fixture field with no production representation is recorded per cell as `not_applied`, with its reason: `trust_level`, stage labels, humour style, free-text situation descriptions, and condition-specific valences, which are expected interpretations rather than state.
+- *Retrieval stand-in.* Retrieval in the harness uses an owner-, companion- and room-scoped, unranked stand-in, because the evaluation makes no embedding calls. Production vector ranking is not exercised.
+
+**B. Scripted acceptance (the fixtures' own example replies; tests the harness and scoring, not any model).**
+- *Coverage.* All five fixtures load: 68 scenarios, including the 30 Phase 7 scenarios with 5 in each of categories A–F, three distinct companions, and the 8-dimension rubric. The Phase 7 dataset was not edited. All 68 run, giving 144 cells and 0 skipped.
+- *Totals.* **141 passed, 1 failed, 2 incomplete.** By scenario: 66 complete, 1 partial, 1 incomplete.
+- *Phase 7 alone.* 90 cells: 89 passed and 1 failed.
+- *Classification of the 7.1a non-passes:*
+  - `scenario_10_cross_mode_consistency` and `scenario_5_adaptive_response_depth`: **harness defects (A), fixed narrowly.**
+    - In the first, "anything else" matched outside an offer.
+    - In the second, list structure was counted as drift in reply to an explicit "Can you explain how …" request. Production's own directive forbids lists only "when the user is chatting naturally". Lists in casual chat are still drift.
+  - `scenario_16_shared_achievement`/Mercury: **fixture assumption (B).** The fixture's example reply contains "keep in mind that". The criterion is unchanged and the cell stays failed.
+  - `scenario_8_streaming_performance`/Kore and `scenario_2_related_experiences…`/Kore (`session-201`): **missing scenario input (D).** The fixture has no expected reply for these cells. Nothing was fabricated, and they stay incomplete.
+- *Behavioural limitations observed (C, production behaviour, not defects):*
+  - Open threads and emotional associations are relevance-gated, so `scenario_09_initiative`'s threads are seeded but not surfaced for an unrelated message.
+  - `scenario_5_teasing_versus_criticism`'s two conditions receive byte-identical prompts, because trust, humour style and the dispute context have no production state.
+
+**C. Real-model evaluation: INCOMPLETE.**
+- The bounded 7.1a run (3 companions × 4 scenarios, at most 12 generations) consumed **about 10 of the 12 authorised generations** across two aborted attempts. **No reply was recorded.**
+  - Each attempt sent 5 requests and crashed in measurement after the provider answered (`StopIteration` from a cast-override lookup).
+  - Results were written only at the end of a run, so nothing was kept.
+  - The second attempt happened because `--max-generations 0` was read as unset.
+- The owner decided that the loss counts against the authorisation, that the run is not to be restarted, and that the lost outputs are not to be reconstructed. `tests/evaluation/results/initial-real/evaluation_status.json` records this, and the preset's ledger holds an `unrecorded_requests: 10` entry, so the code allows only 2 more generations there.
+- No completed real-model evaluation exists, and no baseline-versus-improved behavioural comparison has been run.
+
+**D. Independent blind judgments: NONE COLLECTED.** The harness produces the anonymous package and judgment template with the rubric's dimensions and name-stripped identification markers. It scores only complete, attested raters, and never for scripted replies. Recognizability is **not verified**.
+
+**Reliability (A09/A10/A13/A16).** One focused integration pass ran against a fresh PostgreSQL 16/pgvector database on 127.0.0.1:55437, built only by `alembic upgrade head` to `e5f2a7c9b8d4`. The development database was untouched.
+- *Result:* 305 tests collected, **298 passed**.
+  - Covered: the 6 Phase 7.2a PostgreSQL reliability checks; the five thread fixes; rollback with fresh-process restore; retry and restart recovery; ownership and room isolation; standard/SSE/spoken prompt fidelity; no leakage of performance metadata; unchanged provider call counts; the 11 performance invariants.
+- *7 failures, all pre-existing:* each fails identically on the untouched baseline `019b413` against the same database, and none involves Phase 7 code.
+  - `test_completion_persistence`: two fast-path assertions that predate the Phase 5 mood steps.
+  - `test_phase4_behavior_integration` scene/roleplay: expected prompt predates the Phase 6 expression layer.
+  - Two `test_phase4_conversational_threads` SQLite fixtures that lack `semantic_facts`.
+  - `test_durable_handler_storage_errors`: a `SimpleNamespace` double without `.get`.
+  - `test_timeline_migration`'s delete test: runs on its own older-revision database.
+- They are recorded here and were not changed by the integration.
+
+**Performance and cost (7.2b; `docs/verification/phase7_performance_evaluation.md`, reproducible with `scripts/phase7_measurements.py`).**
+- *Deterministic preparation overhead* is about **3.7–4.2 ms median per turn** in the controlled sample: identity, relationship and thread load; mood restoration; association retrieval; and behaviour, fingerprint and pacing assembly. This is application overhead only. **It is not provider latency, which was not measured.**
+- *Call counts:* one conversation generation per turn, one embedding batch per turn, and one provider call per extraction job, with a replayed job costing 0 calls. All are unchanged.
+- *Prompt growth:* about 500 estimated tokens since Phase 1, all section-capped.
+
+**Extraction output limit (owner decision pending; not changed).**
+- *Current state:* `LLMExtractionLimits.max_output_tokens` remains **700**.
+- *Measured limitation:* the maximal legitimate full-category extraction (8 facts, 2 experiences, 3 self-observations, 2 threads, 2 emotions) is about **1,063 estimated tokens**. Typical turns are 19–419.
+- *Failure mode:* the provider truncates (`finish_reason=length`), the JSON becomes unparseable, and the whole response falls back to the regex heuristic. That keeps plain user facts but **loses experiences, self-observations, threads and emotional associations** for that turn. There is no partial parse and no retry.
+- *Recommendation (GLM):* **1,100 tokens.**
+  - Typical extractions are unaffected, because the limit is a ceiling.
+  - The expected maximum increase is up to **400 output tokens on the turns that reach it**.
+  - `max_response_chars` (12,000) already accommodates it.
+- *Uncertainty:* counts are characters/4 estimates, not tokenizer counts, and JSON-dense output usually tokenizes at fewer characters per token. The real maximal turn may therefore exceed 1,063, and 1,100 may not cover every maximal turn. Verify against the configured extraction model's tokenizer or reported usage before or after approval.
+- *Not done:* no retries and no split extraction calls were added.
+
+**REVIEW items stay open and unchanged:** P11 erasure, P12, P15, E07, E09 and A17. Nothing in Phase 7 approves or implements them.
 
 ## 11. Original idea coverage and disposition guard
 
