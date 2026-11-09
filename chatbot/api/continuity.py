@@ -2,10 +2,19 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, status
+import sqlalchemy as sa
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from chatbot.auth.dependencies import CurrentUser, get_current_user
+from chatbot.db import get_db
+from chatbot.db.models import Session
+from chatbot.continuity.timeline import RelationshipTimelineEntryModel
+from chatbot.continuity.rituals import CompanionRitualModel
 
 from chatbot.continuity.narrative import (
     NarrativeThread,
@@ -35,6 +44,39 @@ from chatbot.continuity.timeline import (
 timeline_router = APIRouter(prefix="/timeline", tags=["continuity"])
 narrative_router = APIRouter(prefix="/narrative", tags=["continuity"])
 rituals_router = APIRouter(prefix="/rituals", tags=["continuity"])
+
+
+async def _require_owned_session(db: AsyncSession, session_id: str, user: CurrentUser) -> None:
+    try:
+        sid = uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(404, "Session not found")
+    result = await db.execute(sa.select(Session.id).where(
+        Session.id == sid, Session.user_id == uuid.UUID(user.user_id)
+    ))
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(404, "Session not found")
+
+
+async def _require_owned_record(
+    db: AsyncSession, model: Any, record_id: str, user: CurrentUser,
+) -> None:
+    try:
+        key = uuid.UUID(record_id)
+    except ValueError:
+        raise HTTPException(404, "Resource not found")
+    # Ritual identifiers are stored as strings in the migration-backed table;
+    # timeline entries use native UUIDs.
+    string_ids = model is CompanionRitualModel
+    session_key = sa.cast(Session.id, sa.String) if string_ids else Session.id
+    result = await db.execute(
+        sa.select(model.id).join(Session, model.session_id == session_key).where(
+            model.id == (str(key) if string_ids else key),
+            Session.user_id == uuid.UUID(user.user_id),
+        )
+    )
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(404, "Resource not found")
 
 
 # ---------------------------------------------------------------------------
@@ -95,8 +137,11 @@ async def fetch_timeline(
     tags: list[str] | None = Query(default=None),
     date_from: str | None = Query(default=None),
     date_to: str | None = Query(default=None),
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> list[TimelineEntryResponse]:
     """Return timeline entries for a session, optionally filtered."""
+    await _require_owned_session(db, session_id, current_user)
     timeline_filter = TimelineFilter(
         session_id=None,
         entry_types=entry_types,
@@ -115,8 +160,11 @@ async def fetch_timeline(
 )
 async def fetch_active_projects(
     session_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> list[TimelineEntryResponse]:
     """Return active running projects for a session."""
+    await _require_owned_session(db, session_id, current_user)
     entries = await get_active_projects(session_id)
     return [_entry_to_response(entry) for entry in entries]
 
@@ -127,8 +175,11 @@ async def fetch_active_projects(
 )
 async def fetch_pending_promises(
     session_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> list[TimelineEntryResponse]:
     """Return pending promises for a session."""
+    await _require_owned_session(db, session_id, current_user)
     entries = await get_pending_promises(session_id)
     return [_entry_to_response(entry) for entry in entries]
 
@@ -137,8 +188,11 @@ async def fetch_pending_promises(
 async def resolve_timeline_entry(
     entry_id: str,
     body: ResolveRequest = ResolveRequest(),
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> TimelineEntryResponse:
     """Resolve a timeline entry (milestone, promise, etc.)."""
+    await _require_owned_record(db, RelationshipTimelineEntryModel, entry_id, current_user)
     try:
         entry = await resolve_entry(entry_id, body.resolution)
     except ValueError as exc:
@@ -219,8 +273,11 @@ def _callback_to_response(callback: ThreadCallback) -> ThreadCallbackResponse:
 )
 async def fetch_narrative_threads(
     session_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> list[NarrativeThreadResponse]:
     """Build and return narrative threads for a session."""
+    await _require_owned_session(db, session_id, current_user)
     threads = await build_narrative_threads(session_id)
     return [_thread_to_response(thread) for thread in threads]
 
@@ -232,8 +289,11 @@ async def fetch_narrative_threads(
 async def fetch_thread_callbacks(
     session_id: str,
     body: CallbackRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> list[ThreadCallbackResponse]:
     """Generate thread callbacks relevant to the current message."""
+    await _require_owned_session(db, session_id, current_user)
     callbacks = await generate_thread_callback(session_id, body.message)
     return [_callback_to_response(callback) for callback in callbacks]
 
@@ -296,8 +356,11 @@ def _ritual_to_response(ritual: Ritual) -> RitualResponse:
 async def fetch_rituals(
     session_id: str,
     type: str | None = Query(default=None),
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> list[RitualResponse]:
     """Return rituals for a session, optionally filtered by type."""
+    await _require_owned_session(db, session_id, current_user)
     rituals = await get_rituals(session_id, ritual_type=type)
     return [_ritual_to_response(ritual) for ritual in rituals]
 
@@ -306,8 +369,11 @@ async def fetch_rituals(
 async def create_ritual_endpoint(
     session_id: str,
     body: CreateRitualRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> RitualResponse:
     """Create a new ritual for a session."""
+    await _require_owned_session(db, session_id, current_user)
     try:
         ritual = await create_ritual(
             session_id=session_id,
@@ -326,8 +392,13 @@ async def create_ritual_endpoint(
 
 
 @rituals_router.delete("/{ritual_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def deactivate_ritual_endpoint(ritual_id: str) -> None:
+async def deactivate_ritual_endpoint(
+    ritual_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
     """Deactivate a ritual (soft delete)."""
+    await _require_owned_record(db, CompanionRitualModel, ritual_id, current_user)
     try:
         await deactivate_ritual(ritual_id)
     except ValueError as exc:

@@ -131,6 +131,7 @@ class SceneModel(_SceneDeclarativeBase):
         nullable=True,
     )
     metadata_json: Mapped[dict[str, object] | None] = mapped_column(
+        "extra_metadata",
         sa.JSON,
         nullable=True,
     )
