@@ -391,7 +391,8 @@ async def test_the_fast_path_runs_with_the_same_identity_composition(env: Any, p
     response = await standard_turn(env, await new_session(env, cid), "Hello!")
 
     assert [s["name"] for s in response.step_results] == [
-        "receive", "retrieve", "compile_context", "call_provider", "respond", "update_identity",
+        "receive", "restore_mood", "retrieve", "compile_context", "call_provider",
+        "update_mood", "persist_emotional_state", "respond", "update_identity",
     ]
     assert "- Type: mentor" in provider.system() and "Identity: Mercury" in provider.system()
 

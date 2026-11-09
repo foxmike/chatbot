@@ -1,0 +1,49 @@
+{
+  "format": "behavioral-evaluation-status/1",
+  "evaluation": "Phase 7.1a bounded initial real-provider evaluation (--preset initial-real)",
+  "status": "incomplete",
+  "provider": "openrouter (configured LLM_PROVIDER)",
+  "configured_model": "google/gemma-4-31b-it",
+  "model_confirmed_by_response": false,
+  "plan": {
+    "companions": [
+      "mercury",
+      "kore",
+      "aura"
+    ],
+    "scenarios": [
+      "scenario_1_same_input_different_personalities",
+      "scenario_4_selective_attention",
+      "scenario_3_personality_specific_reactions",
+      "scenario_1_distinctive_linguistic_voices"
+    ],
+    "max_generations": 12,
+    "max_output_tokens": 200,
+    "retries": "none",
+    "shared_companions": true
+  },
+  "authorized_generations": 12,
+  "consumed_generations": {
+    "approximate": 10,
+    "attempts": 2,
+    "per_attempt": 5,
+    "basis": "both attempts ran the same deterministic order; the crash point (measurement of the 5th reply, kore on scenario_4_selective_attention) is only reachable after that request returned successfully. The 4 earlier requests per attempt were sent; whether each succeeded was not recorded."
+  },
+  "remaining_generations": 2,
+  "recorded_responses": 0,
+  "why_outputs_were_lost": [
+    "metrics.automated_checks looked the answering companion up in the scenario's own cast; under a cast override (kore is not in scenario_4_selective_attention's cast) that raised StopIteration, which escaped the run as 'coroutine raised StopIteration'.",
+    "the result document was written only after the whole run, so replies already received were discarded with the process.",
+    "the second attempt was intended as a zero-generation check, but the CLI read --max-generations 0 as 'unset' and applied the preset's 12."
+  ],
+  "fixes": [
+    "companion spec carried with each reply; no scenario lookup in measurement",
+    "generation ledger: request persisted before each call, reply persisted on return (fsync per line)",
+    "--resume replays recorded replies; unanswered requests are not re-sent without --retry-unanswered",
+    "budget counts all earlier requests, including these 10 (this directory's ledger)",
+    "--max-generations / --max-output-tokens below 1 rejected; provider runs require an explicit bound",
+    "an existing ledger is never overwritten; a different configuration cannot resume it"
+  ],
+  "owner_decision": "2026-11-08: do not run further real generations now; the ~10 lost generations count against the authorization; do not restart the 12-generation evaluation; do not reconstruct lost replies. The complete 30-scenario evaluation is to be considered after Phase 7 integration.",
+  "real_model_findings": null
+}

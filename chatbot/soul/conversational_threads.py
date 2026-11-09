@@ -123,6 +123,7 @@ def reconcile_threads(
     *,
     job_id: str,
     source_at: datetime,
+    observation_slots: Sequence[int] | None = None,
 ) -> tuple[list[dict[str, Any]], list[tuple[str, str]]]:
     """Match *observations* against the scope's open threads; return ``(ops, rejected)``.
 
@@ -154,6 +155,7 @@ def reconcile_threads(
         }
 
     for index, obs in enumerate(observations):
+        index = observation_slots[index] if observation_slots is not None else index
         label = obs.subject or obs.key or obs.supersedes
         if obs.supersedes:
             old = _find_open(threads, obs.supersedes, obs)
@@ -447,7 +449,7 @@ async def open_thread_rows(
         .limit(limit)
     )
     if for_update:
-        query = query.with_for_update()
+        query = query.with_for_update().execution_options(populate_existing=True)
     return list((await db.scalars(query)).all())
 
 
@@ -512,14 +514,22 @@ async def apply_thread_observations(
     """Apply validated observations in the caller's transaction; never commits.
 
     The durable job's effects transaction owns the commit, so a rollback undoes
-    thread changes together with the turn's other effects. The scope's open
-    threads are locked ``FOR UPDATE``, so concurrent jobs for one companion-user
-    pair serialize on the same set. Raises ``PermissionError`` for a companion
-    (or room) the user does not own.
+    thread changes together with the turn's other effects. The companion parent
+    and open thread rows are locked, so initially empty scopes also serialize.
+    Raises ``PermissionError`` for a companion (or room) the user does not own.
     """
     await _owned_companion(db, companion_id, user_id)
     await _verify_room(db, room_id, user_id)
     change = ThreadChange()
+
+    # An empty set of thread rows cannot be locked. Serialize on the existing
+    # companion parent, using NO KEY UPDATE so foreign-key readers remain free.
+    # This lock is transaction-owned and needs neither a new row nor a lock service.
+    await db.execute(
+        sa.select(Companion.companion_id)
+        .where(Companion.companion_id == companion_id, Companion.user_id == _uuid(user_id))
+        .with_for_update(key_share=True)
+    )
 
     # The write scope covers private threads plus the current room's, so a room
     # conversation reinforces a private thread instead of duplicating it.
@@ -533,6 +543,42 @@ async def apply_thread_observations(
         stale=False,  # a re-discussed stale thread is reinforced, not duplicated
     )
     rows = {row.thread_id: row for row in existing}
+    eligible, slots = [], []
+    at = _aware(source_at)
+    for slot, obs in enumerate(observations):
+        keys = {key for key in (subject_key(obs.subject), obs.key, obs.supersedes) if key}
+        closed = list((await db.scalars(
+            sa.select(ConversationalThread).where(
+                ConversationalThread.user_id == _uuid(user_id),
+                ConversationalThread.companion_id == companion_id,
+                _room_filter(room_id),
+                ConversationalThread.status != "open",
+                ConversationalThread.subject_key.in_(keys),
+            ).order_by(ConversationalThread.last_discussed_at.desc(), ConversationalThread.thread_id)
+            .execution_options(populate_existing=True).limit(MAX_THREADS_PER_SCOPE)
+        )).all()) if keys else []
+        candidates = [*existing, *closed]
+        if any(any(str(ref.get("job_id")) == str(job_id) and ref.get("slot") == slot
+                   for ref in (row.source_evidence or [])) for row in candidates):
+            change.rejected.append((obs.subject, "already_applied"))
+            continue
+        matched = _find_open(
+            {row.thread_id: {"thread_id": row.thread_id, "subject_key": row.subject_key}
+             for row in candidates}, obs.key or obs.supersedes or None, obs,
+        )
+        previous = next((row for row in candidates if matched and row.thread_id == matched["thread_id"]), None)
+        if previous is not None and at < _aware(previous.last_discussed_at):
+            _append_evidence(previous, {
+                "job_id": str(job_id), "slot": slot, "source_at": at.isoformat(),
+                "role": obs.role, "excerpt": obs.excerpt[:MAX_EXCERPT_CHARS],
+                "turn_id": str(turn_id) if turn_id else None,
+                "session_id": str(session_id) if session_id else None,
+                "message_id": str(message_id) if message_id else None,
+            })
+            change.applied.append({"op": "historical_evidence", "thread_id": previous.thread_id})
+            continue
+        eligible.append(obs)
+        slots.append(slot)
     ops, rejected = reconcile_threads(
         [
             {
@@ -549,12 +595,15 @@ async def apply_thread_observations(
             }
             for row in rows.values()
         ],
-        observations,
+        eligible,
         job_id=str(job_id),
         source_at=source_at,
+        observation_slots=slots,
     )
-    change.rejected = [(label, reason) for label, reason in rejected]
+    change.rejected.extend((label, reason) for label, reason in rejected)
     if not ops:
+        if change.changed:
+            await db.flush()
         return change
 
     context = dict(relationship_context or {}) or None
@@ -669,6 +718,9 @@ def _with_ids(
 
 def _append_evidence(row: Any, evidence_ref: Mapping[str, Any]) -> None:
     refs = [dict(item) for item in (row.source_evidence or [])]
+    if any(ref.get("job_id") == evidence_ref.get("job_id") and ref.get("slot") == evidence_ref.get("slot")
+           for ref in refs):
+        return
     refs.append(dict(evidence_ref))
     if len(refs) > MAX_EVIDENCE:
         refs = [refs[0], *refs[-(MAX_EVIDENCE - 1):]]

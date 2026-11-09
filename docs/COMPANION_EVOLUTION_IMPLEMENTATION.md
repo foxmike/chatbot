@@ -215,6 +215,16 @@ Evaluation is **continuous**, not deferred until the end. Phase 7 packages and c
 | **7.1** | PLANNED | Build/extend three-character, shared-scenario evals (~30 scenarios baseline); test blind recognizability, disagreement, initiative, emotional continuity, factual memory, corrections and cross-session identity. | E08, A14 | Baseline vs improved comparisons; recorded scenario outcomes; no reliance on provider self-report only. |
 | **7.2** | PLANNED | Targeted integrated checks for restart/retry, memory cost, throughput, room/user isolation, prompt fidelity and TTFT; remove verified obsolete duplicates. | A09, A10, A13, A14, A16 | Demonstrated behavioral gains without significant regression or uncontrolled background cost. |
 
+### Phase 7.2a reliability evidence (2026-11-09)
+
+A09/A10/A13/A14/A16: targeted checks ran against a fresh PostgreSQL 16/pgvector instance on a non-development port, built only by `alembic upgrade head` through `e5f2a7c9b8d4`. Across the initial selected suites and directly affected reruns, **86 distinct checks passed**: 74 existing integration/database checks, six new PostgreSQL reliability checks, and six directly affected thread reconciliation checks. No full repository suite or paid provider was used.
+
+Existing coverage verified lease recovery, bounded retry and terminal failure, duplicate delivery, receipt reuse, transaction rollback, concurrent canonicalization/self-model/emotion writes, version conflicts, provenance, actual pgvector ownership/companion/room/session filtering, roleplay exclusion, mood restoration, and standard/SSE/spoken provider-prompt fidelity and clean performance persistence. A new fault-injection check fails after all memory/self/thread/emotion effects, verifies the entire effects transaction rolls back, retries from the persisted receipt with no second extraction call, and reloads identity, relationship, facts/evidence, experience, opinion, thread, emotion and mood from a fresh Python process.
+
+Demonstrated fixes are confined to conversational-thread persistence: serialize initially empty scopes using the existing companion parent row; refresh locked ORM rows before updating evidence; retain older observations as historical evidence without reopening resolved topics or applying stale resolutions; deduplicate evidence by job/receipt slot while preserving original slots. No migration, dependency, worker or personality-policy change was needed. One pre-existing Phase 1 fast-path assertion omitted the approved Phase 5 mood steps; its exact expected order now includes restoration, update and persistence without weakening the assertion.
+
+Limits: this evidence establishes targeted storage/recovery/isolation and prompt correctness, not exhaustive failure injection, long-run load behavior or real-model conversational quality. Existing bounded evidence-retention policies are unchanged. No development records were modified; no commits or pushes were made by this assignment.
+
 ## 11. Original idea coverage and disposition guard
 
 **Personality ideas:** `P01`–`P16` are all mapped.  
