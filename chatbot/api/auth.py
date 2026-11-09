@@ -119,16 +119,13 @@ async def logout(
     if authorization is not None and authorization.startswith("Bearer "):
         token = authorization.removeprefix("Bearer ")
         token_hash = hashlib.sha256(token.encode()).hexdigest()
-        result = await db.execute(
-            sa.select(UserSession).where(
+        await db.execute(
+            sa.update(UserSession).where(
                 UserSession.token_hash == token_hash,
-                UserSession.revoked == False,
-            )
+                UserSession.user_id == uuid.UUID(current_user.user_id),
+            ).values(revoked=True)
         )
-        session = result.scalar_one_or_none()
-        if session is not None:
-            session.revoked = True
-            await db.commit()
+        await db.commit()
 
     return {"detail": "Logged out"}
 

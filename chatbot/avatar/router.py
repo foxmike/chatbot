@@ -67,6 +67,12 @@ class AvatarAuth(AvatarRouting):
     companion_id: str = Field(min_length=1, max_length=36)
 
 
+async def _authenticate(authorization: str | None) -> CurrentUser:
+    # WebSocket handlers are called outside FastAPI's HTTP dependency resolver.
+    async with async_session_factory() as db:
+        return await get_current_user(authorization=authorization, db=db)
+
+
 async def _authorize(auth: AvatarAuth, user: CurrentUser) -> None:
     """Check both owners and the session/companion relationship, before startup."""
     user_id = uuid.UUID(user.user_id)
@@ -161,7 +167,7 @@ async def avatar_websocket(ws: WebSocket) -> None:
         authorization = ws.headers.get("authorization")
         if auth.token:
             authorization = f"Bearer {auth.token}"
-        user = await get_current_user(authorization=authorization)
+        user = await _authenticate(authorization)
         await _authorize(auth, user)
         try:
             speech_mode = (
@@ -179,7 +185,16 @@ async def avatar_websocket(ws: WebSocket) -> None:
         binding = AvatarBinding(str(auth.session_id), user.user_id, auth.companion_id, ws)
         apply_routing(binding, auth)
         binding.speech_mode = speech_mode
-        binding.on_transcript = lambda text: _spoken_turn(ws, binding, user, text)
+
+        async def authenticated_turn(text: str) -> None:
+            try:
+                active_user = await _authenticate(authorization)
+            except HTTPException:
+                await ws.close(code=1008, reason="Authentication expired or revoked")
+                return
+            await _spoken_turn(ws, binding, active_user, text)
+
+        binding.on_transcript = authenticated_turn
         await coordinator.connect(binding, factory)
         await binding.send(
             {

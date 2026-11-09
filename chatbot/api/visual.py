@@ -222,15 +222,21 @@ async def _load_companion_for_user(
 async def _load_appearance_manager_for_user(
     session: AsyncSession,
     user_id: str,
+    companion_id: str | None = None,
 ) -> AppearanceManager:
-    """Load the DB-backed appearance manager for the given user's first companion.
+    """Load an owned companion; omitted id retains the legacy first-companion fallback.
 
     If no companion exists yet, returns a default in-memory AppearanceManager
     with the given session attached so callers can persist it later.
     """
+    if companion_id is not None:
+        await _load_companion_for_user(session, companion_id, user_id)
+        return await _load_appearance_manager_for_companion(session, companion_id)
+
     stmt = (
         select(Companion.companion_id)
         .where(Companion.user_id == _uuid.UUID(user_id))
+        .order_by(Companion.created_at, Companion.companion_id)
         .limit(1)
     )
     result = await session.execute(stmt)
@@ -498,6 +504,9 @@ async def update_image_description(
                 detail="Image not found or not owned by user",
             )
 
+        if image.companion_id is not None:
+            await _load_companion_for_user(session, image.companion_id, current_user.user_id)
+
         prompt_used = request.prompt_used
         image.prompt_used = prompt_used
         image.description = prompt_used
@@ -517,20 +526,31 @@ async def update_image_description(
 
 
 @visual_router.get("/images/{image_id}")
-async def get_generated_image(image_id: str) -> Response:
-    """Return generated image bytes for use in avatar URLs."""
+async def get_generated_image(
+    image_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> Response:
+    """Return private image bytes; browsers fetch with Bearer auth and render a blob URL."""
     async with async_session_factory() as session:
         result = await session.execute(
-            select(ImageMemory).where(ImageMemory.image_id == image_id)
+            select(ImageMemory).where(
+                ImageMemory.image_id == image_id,
+                ImageMemory.user_id == _user_uuid(current_user.user_id),
+            )
         )
         image = result.scalar_one_or_none()
+        if image is not None and image.companion_id is not None:
+            await _load_companion_for_user(session, image.companion_id, current_user.user_id)
     if image is None or image.image_data is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Image not found",
         )
 
-    return Response(content=image.image_data, media_type=image.mime_type)
+    return Response(
+        content=image.image_data, media_type=image.mime_type,
+        headers={"Cache-Control": "private, no-store", "Vary": "Authorization"},
+    )
 
 
 @visual_router.delete("/images/{image_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -554,6 +574,8 @@ async def delete_image(
                 detail="Image not found or not owned by user",
             )
 
+        if image.companion_id is not None:
+            await _load_companion_for_user(session, image.companion_id, current_user.user_id)
         await session.delete(image)
         await session.commit()
 
@@ -640,11 +662,12 @@ def _resolve_understanding_provider() -> ImageUnderstandingProvider:
 @visual_router.get("/appearance", response_model=AppearanceProfileResponse)
 async def get_appearance(
     current_user: CurrentUser = Depends(get_current_user),
+    companion_id: str | None = None,
 ) -> AppearanceProfileResponse:
     """Return the current DB-backed appearance profile for the user's companion."""
     async with async_session_factory() as session:
         manager = await _load_appearance_manager_for_user(
-            session, current_user.user_id
+            session, current_user.user_id, companion_id
         )
         return _profile_to_response(manager.get_profile())
 
@@ -658,11 +681,12 @@ async def get_appearance(
 async def update_appearance(
     update: AppearanceProfileRequest,
     current_user: CurrentUser = Depends(get_current_user),
+    companion_id: str | None = None,
 ) -> AppearanceProfileResponse:
     """Update the DB-backed appearance profile for the user's companion."""
     async with async_session_factory() as session:
         manager = await _load_appearance_manager_for_user(
-            session, current_user.user_id
+            session, current_user.user_id, companion_id
         )
         if update.character_seed is not None:
             manager.lock_seed(update.character_seed)
@@ -675,6 +699,7 @@ async def update_appearance(
         if update.color_palette is not None:
             manager.update_color_palette(update.color_palette)
         await manager.save_to_db()
+        await session.commit()
         return _profile_to_response(manager.get_profile())
 
 

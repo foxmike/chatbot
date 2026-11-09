@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import uuid
 from datetime import datetime, timedelta, timezone
 
 import jwt
@@ -35,7 +36,8 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     expire = datetime.now(timezone.utc) + (
         expires_delta if expires_delta is not None else timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
-    to_encode.update({"exp": expire})
+    # A browser login must have its own token, even within the same second.
+    to_encode.update({"exp": expire, "jti": str(uuid.uuid4())})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import asdict
 from datetime import datetime
 from typing import Any, Literal
@@ -13,7 +14,7 @@ from pydantic import BaseModel
 from chatbot.auth.dependencies import get_current_user, CurrentUser
 
 from chatbot.db import async_session_factory
-from chatbot.db.models import Room as RoomRecord, Scene as SceneModel, Session as SessionRecord
+from chatbot.db.models import Companion, Room as RoomRecord, Scene as SceneModel, Session as SessionRecord
 
 from chatbot.core.mode_contracts import (
     ModeName as ContractModeName,
@@ -53,7 +54,7 @@ rooms_router = APIRouter(prefix="/rooms", tags=["rooms"])
 
 
 class RoomCreateRequest(BaseModel):
-    user_id: str
+    user_id: str | None = None  # Legacy input; ownership always comes from authentication.
     room_type: RoomType
     display_name: str | None = None
     companion_id: str | None = None
@@ -83,7 +84,7 @@ class MemoryPolicyUpdateRequest(BaseModel):
 
 
 class SceneCreateRequest(BaseModel):
-    room_id: str
+    room_id: str | None = None  # The path identifies the room.
     location: str = ""
     activity: str = ""
 
@@ -278,6 +279,51 @@ def _scene_to_response(scene: SceneState) -> SceneResponse:
     )
 
 
+async def _require_owned_session(session_id: str, user: CurrentUser) -> SessionRecord:
+    try:
+        sid = uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(404, "Session not found")
+    async with async_session_factory() as db:
+        result = await db.execute(sa.select(SessionRecord).where(
+            SessionRecord.id == sid, SessionRecord.user_id == uuid.UUID(user.user_id)
+        ))
+        record = result.scalar_one_or_none()
+    if record is None:
+        raise HTTPException(404, "Session not found")
+    return record
+
+
+async def _require_owned_companion(companion_id: str, user: CurrentUser) -> None:
+    async with async_session_factory() as db:
+        result = await db.execute(sa.select(Companion.companion_id).where(
+            Companion.companion_id == companion_id,
+            Companion.user_id == uuid.UUID(user.user_id),
+        ))
+        if result.scalar_one_or_none() is None:
+            raise HTTPException(404, "Companion not found")
+
+
+async def _require_owned_room(room_id: str, user: CurrentUser) -> Room:
+    room = await get_room(room_id)
+    if room is None or room.user_id != user.user_id:
+        raise HTTPException(404, "Room not found")
+    # Reject stale cross-account links as well as direct identifier attacks.
+    if room.companion_id is not None:
+        await _require_owned_companion(room.companion_id, user)
+    if room.session_id is not None:
+        await _require_owned_session(room.session_id, user)
+    return room
+
+
+async def _require_owned_scene(scene_id: str, user: CurrentUser) -> SceneState:
+    scene = await get_scene(scene_id)
+    if scene is None:
+        raise HTTPException(404, "Scene not found")
+    await _require_owned_room(scene.room_id, user)
+    return scene
+
+
 # ---------------------------------------------------------------------------
 # Room endpoints
 # ---------------------------------------------------------------------------
@@ -288,9 +334,14 @@ def _scene_to_response(scene: SceneState) -> SceneResponse:
     response_model=RoomResponse,
     status_code=status.HTTP_201_CREATED,
 )
-async def create_room_endpoint(body: RoomCreateRequest) -> RoomResponse:
+async def create_room_endpoint(
+    body: RoomCreateRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> RoomResponse:
+    if body.companion_id is not None:
+        await _require_owned_companion(body.companion_id, current_user)
     room = await create_room(
-        user_id=body.user_id,
+        user_id=current_user.user_id,
         room_type=body.room_type,
         display_name=body.display_name,
         companion_id=body.companion_id,
@@ -299,19 +350,22 @@ async def create_room_endpoint(body: RoomCreateRequest) -> RoomResponse:
 
 
 @rooms_router.get("/detail/{room_id}", response_model=RoomResponse)
-async def get_room_detail(room_id: str) -> RoomResponse:
-    room = await get_room(room_id)
-    if room is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Room not found",
-        )
+async def get_room_detail(
+    room_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> RoomResponse:
+    room = await _require_owned_room(room_id, current_user)
     return _room_to_response(room)
 
 
 @rooms_router.get("/{user_id}", response_model=RoomListResponse)
-async def list_user_rooms(user_id: str) -> RoomListResponse:
-    rooms = await get_user_rooms(user_id)
+async def list_user_rooms(
+    user_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> RoomListResponse:
+    if user_id != current_user.user_id:
+        raise HTTPException(404, "User rooms not found")
+    rooms = await get_user_rooms(current_user.user_id)
     return RoomListResponse(rooms=[_room_to_response(r) for r in rooms])
 
 
@@ -319,13 +373,9 @@ async def list_user_rooms(user_id: str) -> RoomListResponse:
 async def update_memory_policy(
     room_id: str,
     body: MemoryPolicyUpdateRequest,
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> RoomResponse:
-    room = await get_room(room_id)
-    if room is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Room not found",
-        )
+    room = await _require_owned_room(room_id, current_user)
 
     current = room.memory_policy
     policy = RoomMemoryPolicy(
@@ -354,15 +404,22 @@ async def update_memory_policy(
 
 
 @rooms_router.delete("/{room_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_room_endpoint(room_id: str) -> None:
-    room = await get_room(room_id)
-    if room is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Room not found",
-        )
+async def delete_room_endpoint(
+    room_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> None:
+    room = await _require_owned_room(room_id, current_user)
 
     async with async_session_factory() as session:
+        await session.execute(
+            sa.update(RoomRecord).where(RoomRecord.room_id == room_id).values(scene_id=None),
+        )
+        await session.execute(
+            sa.update(SessionRecord).where(
+                SessionRecord.room_id == room_id,
+                SessionRecord.user_id == uuid.UUID(current_user.user_id),
+            ).values(room_id=None),
+        )
         await session.execute(
             sa.delete(SceneModel).where(SceneModel.room_id == room_id),
         )
@@ -385,7 +442,11 @@ async def delete_room_endpoint(room_id: str) -> None:
 async def create_scene_endpoint(
     room_id: str,
     body: SceneCreateRequest,
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> SceneResponse:
+    await _require_owned_room(room_id, current_user)
+    if body.room_id is not None and body.room_id != room_id:
+        raise HTTPException(400, "Body room_id must match the path")
     scene = await create_scene(
         room_id=room_id,
         location=body.location,
@@ -395,7 +456,11 @@ async def create_scene_endpoint(
 
 
 @rooms_router.get("/{room_id}/scenes/active", response_model=SceneResponse)
-async def get_active_scene_endpoint(room_id: str) -> SceneResponse:
+async def get_active_scene_endpoint(
+    room_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> SceneResponse:
+    await _require_owned_room(room_id, current_user)
     scene = await get_active_scene(room_id)
     if scene is None:
         raise HTTPException(
@@ -406,13 +471,11 @@ async def get_active_scene_endpoint(room_id: str) -> SceneResponse:
 
 
 @rooms_router.get("/scenes/{scene_id}", response_model=SceneResponse)
-async def get_scene_endpoint(scene_id: str) -> SceneResponse:
-    scene = await get_scene(scene_id)
-    if scene is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Scene not found",
-        )
+async def get_scene_endpoint(
+    scene_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> SceneResponse:
+    scene = await _require_owned_scene(scene_id, current_user)
     return _scene_to_response(scene)
 
 
@@ -420,7 +483,9 @@ async def get_scene_endpoint(scene_id: str) -> SceneResponse:
 async def update_scene_endpoint(
     scene_id: str,
     body: SceneUpdateRequest,
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> SceneResponse:
+    await _require_owned_scene(scene_id, current_user)
     kwargs: dict[str, Any] = {}
     if body.location is not None:
         kwargs["location"] = body.location
@@ -452,7 +517,11 @@ async def update_scene_endpoint(
 
 
 @rooms_router.post("/scenes/{scene_id}/pause", response_model=SceneResponse)
-async def pause_scene_endpoint(scene_id: str) -> SceneResponse:
+async def pause_scene_endpoint(
+    scene_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> SceneResponse:
+    await _require_owned_scene(scene_id, current_user)
     try:
         scene = await pause_scene(scene_id)
     except ValueError as exc:
@@ -464,7 +533,11 @@ async def pause_scene_endpoint(scene_id: str) -> SceneResponse:
 
 
 @rooms_router.post("/scenes/{scene_id}/resume", response_model=SceneResponse)
-async def resume_scene_endpoint(scene_id: str) -> SceneResponse:
+async def resume_scene_endpoint(
+    scene_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> SceneResponse:
+    await _require_owned_scene(scene_id, current_user)
     try:
         scene = await resume_scene(scene_id)
     except ValueError as exc:
@@ -476,7 +549,11 @@ async def resume_scene_endpoint(scene_id: str) -> SceneResponse:
 
 
 @rooms_router.post("/scenes/{scene_id}/end", response_model=SceneResponse)
-async def end_scene_endpoint(scene_id: str) -> SceneResponse:
+async def end_scene_endpoint(
+    scene_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> SceneResponse:
+    await _require_owned_scene(scene_id, current_user)
     try:
         scene = await end_scene(scene_id)
     except ValueError as exc:
@@ -493,16 +570,14 @@ async def end_scene_endpoint(scene_id: str) -> SceneResponse:
 
 
 @rooms_router.get("/{room_id}/session", response_model=RoomSessionResponse)
-async def get_room_session_endpoint(room_id: str) -> RoomSessionResponse:
-    room = await get_room(room_id)
-    if room is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Room not found",
-        )
+async def get_room_session_endpoint(
+    room_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> RoomSessionResponse:
+    room = await _require_owned_room(room_id, current_user)
 
     session_record = await get_room_session(room_id)
-    if session_record is None:
+    if session_record is None or str(session_record.user_id) != current_user.user_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No session linked to this room",
@@ -524,7 +599,10 @@ async def get_room_session_endpoint(room_id: str) -> RoomSessionResponse:
 async def link_session_endpoint(
     room_id: str,
     body: LinkSessionRequest,
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> RoomResponse:
+    await _require_owned_room(room_id, current_user)
+    await _require_owned_session(body.session_id, current_user)
     try:
         room = await link_room_session(room_id, body.session_id)
     except ValueError as exc:
@@ -539,7 +617,11 @@ async def link_session_endpoint(
     "/{room_id}/session",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-async def unlink_session_endpoint(room_id: str) -> None:
+async def unlink_session_endpoint(
+    room_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> None:
+    await _require_owned_room(room_id, current_user)
     try:
         await unlink_room_session(room_id)
     except ValueError as exc:
@@ -558,14 +640,12 @@ async def unlink_session_endpoint(room_id: str) -> None:
     "/{room_id}/mode-contract",
     response_model=RoomModeContractResponse,
 )
-async def get_room_mode_contract_endpoint(room_id: str) -> RoomModeContractResponse:
+async def get_room_mode_contract_endpoint(
+    room_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> RoomModeContractResponse:
     """Return the mode contract (tone, length, pacing, etc.) for a room's type."""
-    room = await get_room(room_id)
-    if room is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Room not found",
-        )
+    room = await _require_owned_room(room_id, current_user)
     response = get_room_mode_contract(room.room_type)
     response.room_id = room_id
     return response
@@ -600,18 +680,14 @@ async def get_room_prompt_template(
     constraints: str = "",
     display_name: str = "",
     session_count: str = "",
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> PromptTemplateResponse:
     """Return the rendered prompt template for a room's type.
 
     Accepts optional query parameters that are interpolated into the
     room-type-specific template.
     """
-    room = await get_room(room_id)
-    if room is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Room not found",
-        )
+    room = await _require_owned_room(room_id, current_user)
 
     kwargs: dict[str, str] = {}
     for key in (
@@ -652,14 +728,10 @@ async def get_room_prompt_template(
 async def post_room_prompt_template(
     room_id: str,
     body: PromptTemplateRequest,
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> PromptTemplateResponse:
     """Return the rendered prompt template for a room's type using POST body."""
-    room = await get_room(room_id)
-    if room is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Room not found",
-        )
+    room = await _require_owned_room(room_id, current_user)
 
     kwargs: dict[str, str] = {}
     for field_name, field_value in body.model_dump().items():
@@ -685,13 +757,9 @@ async def post_room_prompt_template(
 async def set_persona_endpoint(
     scene_id: str,
     body: PersonaRequest,
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> ScenePromptResponse:
-    scene = await get_scene(scene_id)
-    if scene is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Scene not found",
-        )
+    scene = await _require_owned_scene(scene_id, current_user)
 
     persona = RoleplayPersona(
         name=body.name,
@@ -722,13 +790,9 @@ async def set_persona_endpoint(
 async def classify_memory_endpoint(
     scene_id: str,
     body: ClassifyRequest,
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> MemoryClassificationResponse:
-    scene = await get_scene(scene_id)
-    if scene is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Scene not found",
-        )
+    scene = await _require_owned_scene(scene_id, current_user)
 
     # A persona is structurally required by RoleplayEngine but not
     # used by classify_memory_importance; supply a minimal stub.

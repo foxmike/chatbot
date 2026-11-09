@@ -14,7 +14,7 @@ from starlette.websockets import WebSocketDisconnect
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from test_avatar_backend import AUTH, CID, ORIGIN, SID, FakeRuntime  # noqa: E402
+from test_avatar_backend import AUTH, CID, ORIGIN, SID, FakeRuntime, authenticate_transport  # noqa: E402
 
 from chatbot.avatar import router  # noqa: E402
 from chatbot.avatar.coordinator import get_coordinator  # noqa: E402
@@ -27,6 +27,7 @@ def avatar(monkeypatch):
     factory = Mock(side_effect=FakeRuntime)
     app.state.avatar_runtime_factory = factory
     monkeypatch.setattr(router, "_authorize", AsyncMock())
+    monkeypatch.setattr(router, "_authenticate", authenticate_transport)
     with TestClient(app) as client:
         yield app, client, factory
 

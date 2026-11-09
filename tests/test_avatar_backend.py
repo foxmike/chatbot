@@ -17,7 +17,7 @@ from starlette.requests import Request
 from starlette.websockets import WebSocketDisconnect
 
 from chatbot.api import conversation, streaming
-from chatbot.auth.dependencies import CurrentUser
+from chatbot.auth.dependencies import CurrentUser, get_current_user
 from chatbot.auth.security import create_access_token
 from chatbot.avatar.coordinator import AvatarBinding, AvatarCoordinator
 from chatbot.avatar import router
@@ -31,6 +31,14 @@ USER = CurrentUser(user_id=UID, username="test", email="test@example.com")
 ORIGIN: dict[str, str] = {}
 TOKEN = create_access_token(USER.model_dump() | {"sub": UID})
 AUTH = {"type": "auth", "token": TOKEN, "session_id": SID, "companion_id": CID}
+
+
+async def authenticate_transport(authorization):
+    """Exercise JWT/session validation without connecting the transport unit tests to a DB."""
+    active = "test-session" if authorization == f"Bearer {TOKEN}" else None
+    result = SimpleNamespace(scalar_one_or_none=lambda: active)
+    db = SimpleNamespace(execute=AsyncMock(return_value=result))
+    return await get_current_user(authorization=authorization, db=db)
 
 
 class FakeSocket:
@@ -116,6 +124,7 @@ def transport(monkeypatch):
     app.state.avatar_runtime_factory = factory
     authorize = AsyncMock()
     monkeypatch.setattr(router, "_authorize", authorize)
+    monkeypatch.setattr(router, "_authenticate", authenticate_transport)
     with TestClient(app) as client:
         yield app, client, factory, authorize
 

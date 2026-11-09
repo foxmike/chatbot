@@ -11,11 +11,9 @@ import uuid
 from typing import Any, Literal, TypeAlias
 
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Mapped, mapped_column
 
-from chatbot.db.models import Base
+from chatbot.db.models import CompanionRitualModel
 from chatbot.db.session import async_session_factory
 
 
@@ -78,60 +76,6 @@ class Ritual:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
-class CompanionRitualModel(Base):
-    __tablename__ = "companion_rituals"
-    __table_args__ = (
-        sa.CheckConstraint(
-            "ritual_type IN ('check_in', 'recap', 'planning', 'recurring', 'joke', 'custom')",
-            name="ck_companion_rituals_ritual_type",
-        ),
-    )
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid4,
-        server_default=sa.text("gen_random_uuid()"),
-    )
-    session_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        sa.ForeignKey("sessions.id"),
-        index=True,
-        nullable=False,
-    )
-    name: Mapped[str] = mapped_column(sa.String, nullable=False)
-    ritual_type: Mapped[str] = mapped_column(sa.String, index=True, nullable=False)
-    description: Mapped[str] = mapped_column(sa.Text, nullable=False)
-    schedule_description: Mapped[str] = mapped_column(sa.String, nullable=False)
-    last_triggered_at: Mapped[datetime | None] = mapped_column(
-        sa.DateTime(timezone=True),
-        nullable=True,
-    )
-    next_trigger_at: Mapped[datetime | None] = mapped_column(
-        sa.DateTime(timezone=True),
-        index=True,
-        nullable=True,
-    )
-    is_active: Mapped[bool] = mapped_column(
-        sa.Boolean,
-        nullable=False,
-        default=True,
-        server_default=sa.text("true"),
-    )
-    trigger_prompt: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        sa.DateTime(timezone=True),
-        nullable=False,
-        server_default=sa.sql.func.now(),
-    )
-    metadata_json: Mapped[dict[str, Any]] = mapped_column(
-        "metadata",
-        sa.JSON,
-        nullable=False,
-        default=dict,
-    )
-
-
 class Rituals:
     def __init__(
         self,
@@ -152,11 +96,11 @@ class Rituals:
         session: AsyncSession | None = None,
     ) -> Ritual:
         _validate_ritual_type(ritual_type)
-        ritual_id = uuid.uuid4()
+        ritual_id = str(uuid.uuid4())
         now = _now()
         model = CompanionRitualModel(
             id=ritual_id,
-            session_id=_to_uuid(session_id, "session_id"),
+            session_id=str(_to_uuid(session_id, "session_id")),
             name=name,
             ritual_type=ritual_type,
             description=description,
@@ -166,7 +110,7 @@ class Rituals:
             is_active=True,
             trigger_prompt=trigger_prompt,
             created_at=now,
-            metadata_json=dict(metadata or {}),
+            metadata_=dict(metadata or {}),
         )
 
         async with self._session(session) as db:
@@ -184,7 +128,7 @@ class Rituals:
             _validate_ritual_type(ritual_type)
 
         statement = sa.select(CompanionRitualModel).where(
-            CompanionRitualModel.session_id == _to_uuid(session_id, "session_id")
+            CompanionRitualModel.session_id == str(_to_uuid(session_id, "session_id"))
         )
         if ritual_type is not None:
             statement = statement.where(CompanionRitualModel.ritual_type == ritual_type)
@@ -204,7 +148,7 @@ class Rituals:
         statement = (
             sa.select(CompanionRitualModel)
             .where(
-                CompanionRitualModel.session_id == _to_uuid(session_id, "session_id"),
+                CompanionRitualModel.session_id == str(_to_uuid(session_id, "session_id")),
                 CompanionRitualModel.is_active.is_(True),
             )
             .order_by(
@@ -268,7 +212,7 @@ class Rituals:
     ) -> CompanionRitualModel | None:
         result = await db.execute(
             sa.select(CompanionRitualModel).where(
-                CompanionRitualModel.id == _to_uuid(ritual_id, "ritual_id")
+                CompanionRitualModel.id == str(_to_uuid(ritual_id, "ritual_id"))
             )
         )
         return result.scalar_one_or_none()
@@ -418,7 +362,7 @@ def _model_to_ritual(model: CompanionRitualModel) -> Ritual:
         is_active=model.is_active,
         trigger_prompt=model.trigger_prompt,
         created_at=_dt_iso(model.created_at),
-        metadata=dict(model.metadata_json or {}),
+        metadata=dict(model.metadata_ or {}),
     )
 
 

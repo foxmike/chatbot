@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from chatbot.auth.dependencies import CurrentUser, get_current_user
 from chatbot.db import get_db
 from chatbot.db.models import (
-    CompanionIdentityModel, Companion, CharacterProfileModel, IdentityStateModel, Message, Session,
+    CompanionIdentityModel, Companion, CharacterProfileModel, IdentityStateModel, Message, Room, Session,
 )
 
 logger = logging.getLogger(__name__)
@@ -68,6 +68,13 @@ async def create_session(
 ) -> SessionCreateResponse:
     companion_id = body.companion_id
     companion_orm: Companion | None = None
+
+    if body.room_id is not None:
+        result = await db.execute(select(Room.room_id).where(
+            Room.room_id == body.room_id, Room.user_id == current_user.user_id,
+        ))
+        if result.scalar_one_or_none() is None:
+            raise HTTPException(404, "Room not found")
 
     if companion_id is not None:
         companion_orm = await _get_companion_orm(db, current_user.user_id, companion_id)
